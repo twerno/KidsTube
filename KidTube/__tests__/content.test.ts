@@ -1,0 +1,117 @@
+import type { Channel, Video } from '../src/domain/types';
+import {
+  decideNewVideoStatus,
+  isPlayable,
+  mergeSyncedVideos,
+  pendingVideos,
+  rssToVideos,
+  videosForChild,
+} from '../src/domain/content';
+
+const channel: Channel = {
+  id: 'UC_x5XG1OV2P6uZZ5FSM9Ttw',
+  title: 'Google for Developers',
+  policy: 'manual',
+  status: 'allowed',
+  addedAt: 0,
+};
+
+const now = 1_700_000_000_000;
+
+describe('decideNewVideoStatus', () => {
+  it('honours auto_approve', () => {
+    expect(decideNewVideoStatus({ policy: 'auto_approve', status: 'allowed' })).toBe('allowed');
+  });
+
+  it('defaults to pending for manual channels', () => {
+    expect(decideNewVideoStatus({ policy: 'manual', status: 'allowed' })).toBe('pending');
+  });
+
+  it('blocks everything from a blocked channel', () => {
+    expect(decideNewVideoStatus({ policy: 'auto_approve', status: 'blocked' })).toBe('blocked');
+  });
+});
+
+describe('rssToVideos', () => {
+  it('maps entries using the channel policy', () => {
+    const videos = rssToVideos(
+      [{ videoId: 'UN-0gLuVOZU', title: 'T', publishedAt: 123, thumbnailUrl: 'x' }],
+      channel,
+      now,
+    );
+    expect(videos[0]).toMatchObject({
+      id: 'UN-0gLuVOZU',
+      channelId: channel.id,
+      channelTitle: channel.title,
+      status: 'pending',
+      source: 'rss',
+      addedAt: now,
+    });
+  });
+});
+
+describe('mergeSyncedVideos', () => {
+  const existing: Video = {
+    id: 'AAAbbbCCC11',
+    channelId: channel.id,
+    title: 'Old',
+    status: 'blocked',
+    source: 'rss',
+    addedAt: 1,
+  };
+
+  it('never overwrites a parent decision', () => {
+    const incoming: Video = {
+      id: 'AAAbbbCCC11',
+      channelId: channel.id,
+      title: 'New title',
+      status: 'allowed',
+      source: 'rss',
+      addedAt: 2,
+    };
+    const { videos, added } = mergeSyncedVideos([existing], [incoming]);
+    expect(added).toHaveLength(0);
+    expect(videos[0].status).toBe('blocked');
+    expect(videos[0].title).toBe('New title');
+  });
+
+  it('adds genuinely new videos', () => {
+    const incoming: Video = {
+      id: 'NEWvideo123',
+      channelId: channel.id,
+      title: 'Fresh',
+      status: 'pending',
+      source: 'rss',
+      addedAt: 2,
+    };
+    const { videos, added } = mergeSyncedVideos([existing], [incoming]);
+    expect(added.map(v => v.id)).toEqual(['NEWvideo123']);
+    expect(videos).toHaveLength(2);
+  });
+});
+
+describe('child view helpers', () => {
+  const base: Video = {
+    id: 'x',
+    title: 't',
+    status: 'pending',
+    source: 'rss',
+    addedAt: 0,
+  };
+
+  it('only plays allowed videos', () => {
+    expect(isPlayable({ status: 'allowed' })).toBe(true);
+    expect(isPlayable({ status: 'pending' })).toBe(false);
+    expect(isPlayable({ status: 'blocked' })).toBe(false);
+  });
+
+  it('filters and sorts the child library', () => {
+    const videos: Video[] = [
+      { ...base, id: 'a', status: 'allowed', publishedAt: 100 },
+      { ...base, id: 'b', status: 'pending', publishedAt: 200 },
+      { ...base, id: 'c', status: 'allowed', publishedAt: 300 },
+    ];
+    expect(videosForChild(videos).map(v => v.id)).toEqual(['c', 'a']);
+    expect(pendingVideos(videos).map(v => v.id)).toEqual(['b']);
+  });
+});
