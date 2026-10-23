@@ -1,5 +1,7 @@
 # ADR 0003 — Odtwarzanie: embed, własne kontrolki, koniec filmu i błędy
 
+> Gesty ekranowe (pauza w centrum, ±10 s na brzegach): **ADR 0004b**.
+
 Odtwarzanie to WebView z embejem (!) zatwierdzonego filmu — embed nie wyświetla
 pre-rolli (obserwacja z prompt.md), a kontrolki są w całości nasze (natywne):
 play/pauza, pasek postępu/seek, napisy (domyślnie OFF), wybór ścieżki audio.
