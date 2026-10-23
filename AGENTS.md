@@ -55,3 +55,7 @@ Architektura, decyzje, testy, build Android — patrz `KidTube/README.md`.
 - APK zbudowane: `KidTube/android/app/build/outputs/apk/{debug,release}/`
   (release 21 MB — sideload do emulatora).
 - `npm test` = 65 testów, `npx tsc --noEmit` i `npx eslint .` — czysto.
+
+## Kompilacje testowe
+
+- pamiętaj o zwiększeniu wersji podczas przygotowywania kolejnej kompilacji testowej
