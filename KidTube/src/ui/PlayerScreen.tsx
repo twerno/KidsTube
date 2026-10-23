@@ -2,16 +2,11 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { BackHandler, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { EmbedPlayer, type PlayerHandle, type PlayerState } from './EmbedPlayer';
 import { PlayerControls } from './player/PlayerControls';
+import { AudioControls } from './player/AudioControls';
 import { lockLandscape, lockPortrait, unlockOrientation } from '../native/orientation';
 import { colors, radius, spacing } from './theme';
 import type { Video } from '../domain/types';
-import {
-  formatCountdown,
-  freshSleepTimer,
-  resetSleepTimer,
-  tickSleepTimer,
-  type SleepTimerState,
-} from '../domain/sleepMode';
+import { freshSleepTimer, resetSleepTimer, tickSleepTimer, type SleepTimerState } from '../domain/sleepMode';
 
 export interface PlayerScreenProps {
   video: Video;
@@ -52,11 +47,21 @@ export function PlayerScreen({
   const [interacted, setInteracted] = useState(false);
   const [interactionNonce, setInteractionNonce] = useState(0);
   const [sleepTimer, setSleepTimer] = useState<SleepTimerState>(freshSleepTimer);
+  const [loop, setLoop] = useState(false);
+  // Read by the end handler without re-creating the callback on every toggle.
+  const loopRef = useRef(loop);
+
+  useEffect(() => {
+    loopRef.current = loop;
+  }, [loop]);
 
   // Entering audio mode starts a fresh 1 h sleep countdown (ADR 0002).
   useEffect(() => {
     if (audioOnly) {
       setSleepTimer(freshSleepTimer());
+    } else {
+      // “Loop” is an audio-screen feature; drop it when back to video.
+      setLoop(false);
     }
   }, [audioOnly]);
 
@@ -80,6 +85,17 @@ export function PlayerScreen({
     setInteracted(false);
     setPlayNonce(value => value + 1);
     setControlsVisible(true);
+  };
+
+  // With “play in a loop” on, an ended video silently restarts instead of
+  // showing the end screen.
+  const handleEnded = () => {
+    if (loopRef.current) {
+      playerRef.current?.seekTo(0);
+      playerRef.current?.play();
+      return;
+    }
+    setEnded(true);
   };
 
   const showControls = useCallback(() => {
@@ -149,7 +165,7 @@ export function PlayerScreen({
         ref={playerRef}
         videoId={video.id}
         autoPlay
-        onEnded={() => setEnded(true)}
+        onEnded={handleEnded}
         onState={setState}
       />
 
@@ -177,34 +193,50 @@ export function PlayerScreen({
 
       {audioOnly ? (
         <View style={styles.audioOverlay}>
-          {video.thumbnailUrl ? (
-            <Image source={{ uri: video.thumbnailUrl }} style={styles.cover} />
-          ) : null}
-          <Text numberOfLines={3} style={styles.audioTitle}>
-            {video.title}
-          </Text>
-          {video.channelTitle ? <Text style={styles.audioChannel}>{video.channelTitle}</Text> : null}
-          <Text style={styles.audioHint}>
-            Tryb audio — bez obrazu i bez limitu czasu. Ekran możesz teraz zgasić.
-          </Text>
-          <View style={styles.sleepCard}>
-            <Text style={styles.sleepLabel}>😴 Tryb snu: {formatCountdown(sleepTimer.remainingMs)}</Text>
-            {sleepTimer.fired ? (
-              <Pressable
-                onPress={() => {
-                  playerRef.current?.play();
-                  setSleepTimer(resetSleepTimer());
-                }}
-                style={styles.sleepBtn}
-              >
-                <Text style={styles.sleepBtnText}>▶ Wznów odtwarzanie (1 h)</Text>
-              </Pressable>
-            ) : (
-              <Pressable onPress={() => setSleepTimer(resetSleepTimer())} style={styles.sleepBtn}>
-                <Text style={styles.sleepBtnText}>Zresetuj licznik (1 h)</Text>
-              </Pressable>
-            )}
+          <View style={styles.audioTop}>
+            {video.thumbnailUrl ? (
+              <Image source={{ uri: video.thumbnailUrl }} style={styles.cover} />
+            ) : null}
+            <Text numberOfLines={3} style={styles.audioTitle}>
+              {video.title}
+            </Text>
+            {video.channelTitle ? (
+              <Text style={styles.audioChannel}>{video.channelTitle}</Text>
+            ) : null}
           </View>
+
+          <AudioControls
+            state={state}
+            loop={loop}
+            onToggleLoop={() => setLoop(value => !value)}
+            sleepRemainingMs={sleepTimer.remainingMs}
+            sleepFired={sleepTimer.fired}
+            onResetSleep={() => setSleepTimer(resetSleepTimer())}
+            onResumeSleep={() => {
+              playerRef.current?.play();
+              setSleepTimer(resetSleepTimer());
+            }}
+            onTogglePlay={() => {
+              // After the track finished, play starts it over from the beginning
+              // (the audio screen stays up so the sleep counter remains visible).
+              if (ended) {
+                setEnded(false);
+                playerRef.current?.seekTo(0);
+                playerRef.current?.play();
+                if (sleepTimer.fired) {
+                  setSleepTimer(resetSleepTimer());
+                }
+                return;
+              }
+              if (!state.playing && sleepTimer.fired) {
+                setSleepTimer(resetSleepTimer());
+              }
+              playerRef.current?.togglePlay();
+            }}
+            onSeek={onSeek}
+            onScrubStart={() => setScrubbing(true)}
+            onScrubEnd={() => setScrubbing(false)}
+          />
         </View>
       ) : null}
 
@@ -279,39 +311,21 @@ const styles = StyleSheet.create({
     bottom: 0,
     backgroundColor: colors.bg,
     alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.xl * 2,
+    paddingBottom: spacing.xl,
+    gap: spacing.lg,
+  },
+  audioTop: {
+    flex: 1,
+    alignItems: 'center',
     justifyContent: 'center',
-    padding: spacing.xl,
     gap: spacing.md,
   },
   cover: { width: 220, height: 220, borderRadius: radius.lg, backgroundColor: colors.card },
   audioTitle: { color: colors.text, fontSize: 20, fontWeight: '700', textAlign: 'center' },
   audioChannel: { color: colors.textMuted, fontSize: 14 },
-  audioHint: {
-    color: colors.textMuted,
-    fontSize: 13,
-    textAlign: 'center',
-    marginTop: spacing.md,
-    lineHeight: 19,
-  },
-  sleepCard: {
-    marginTop: spacing.md,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    borderRadius: radius.lg,
-    backgroundColor: colors.card,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  sleepLabel: { color: colors.text, fontSize: 16, fontWeight: '700' },
-  sleepBtn: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-    borderRadius: radius.lg,
-    backgroundColor: colors.primary,
-  },
-  sleepBtnText: { color: colors.black, fontSize: 14, fontWeight: '800' },
   endOverlay: {
     position: 'absolute',
     top: 0,

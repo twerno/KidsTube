@@ -38,12 +38,38 @@ Zapis tego, co zostało zrobione. Jeden commit, drzewo czyste.
 - `npm test` = **75 testów** (było 68), `npx tsc --noEmit` i `npx eslint .` czysto.
 - Wersja: **0.2.7 → 0.3.0**.
 
+## Poprawki UI trybu audio (ta sesja)
+
+- **`ui/player/SeekBar.tsx`** *(nowy)* — `SeekBar` + `formatTime` wydzielone
+  z `PlayerControls` (współdzielone przez tryb wideo i audio).
+- **`ui/player/AudioControls.tsx`** *(nowy)* — panel trybu audio: przełącznik
+  **„🔁 Pętla”**, pasek postępu (slider) oraz transport
+  **−5 min · −30 s · play/pauza · +30 s · +5 min**; kompaktowy wiersz trybu snu
+  (`😴 h:mm:ss` + mały przycisk „Reset” / „▶ Wznów”).
+- **`domain/playback.ts`** *(nowy)* — czysty `relativeSeek(position, delta, duration)`
+  (clamp do `[0, duration]`), testy w `__tests__/playback.test.ts`.
+- **`ui/PlayerScreen.tsx`** — stan `loop` + auto-restart przy końcu
+  (`handleEnded` czyta `loopRef`, bez migotania ekranu końca); usunięty opis
+  „Tryb audio — …”; ekran końca pokazuje się teraz także w trybie audio
+  (`audioOnly && !ended`).
+- Wersja: **0.3.0 → 0.3.1**, testy: **75 → 79**.
+
+## Dopracowanie po testach (0.3.2)
+
+- **Czas po lewej = bieżąca pozycja** (wcześniej na stałe `0:00`) — `SeekBar`
+  wspólny dla wideo i audio.
+- **Dymek z czasem docelowym tylko podczas przeciągania** slidera
+  (`scrub !== null`), wcześniej pokazywał się cały czas.
+- **Tryb audio: ekran zostaje po końcu utworu** (licznik snu nie znika);
+  przycisk play wznawia **od początku** (`seekTo(0)`), zamiast ekranu końca.
+- Wersja: **0.3.1 → 0.3.2** (bez zmian w testach).
+
 ## Otwarte wątki (ślady świadomych decyzji)
 
 - Limit liczony z czasu otwarcia playera (segmenty wideo). Dokładniejsze
   „faktyczne odtwarzanie" (sumowanie `state.playing`) — przy implementacji
   ADR 0003, razem z licznikiem w playerze.
-- „Pętla" w trybie audio na końcu filmu — UX ADR 0003 (na razie ten sam ekran
-  końca co dla wideo).
+- „Pętla” w trybie audio — **zrobione** jako przełącznik na ekranie audio
+  (auto-restart przy końcu); bez pętli zostaje wspólny ekran końca.
 - Czas w tle przy zgaszonym ekranie (foreground service) — nadal w backlogu,
   bez zmian.
