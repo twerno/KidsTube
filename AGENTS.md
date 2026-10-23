@@ -50,11 +50,17 @@ Architektura, decyzje, testy, build Android — patrz `KidTube/README.md`.
 - Git user ustawiony lokalnie: `KidTube Dev <dev@kidtube.local>`.
 - UI i komunikaty aplikacji — po polsku (to produkt, nie scaffold).
 
+## Workflow po wykonaniu pracy
+
+- Po ukończeniu pracy **nie commituj** — najpierw zbuduj APK release i
+  zainstaluj w emulatorze do testów (komendy w sekcji „Emulator Androida”).
+- Commit dopiero po akceptacji zmian przez użytkownika.
+
 ## Stan na start
 
 - APK zbudowane: `KidTube/android/app/build/outputs/apk/{debug,release}/`
   (release 21 MB — sideload do emulatora).
-- `npm test` = 65 testów, `npx tsc --noEmit` i `npx eslint .` — czysto.
+- `npm test` = 75 testów, `npx tsc --noEmit` i `npx eslint .` — czysto.
 
 ## Kompilacje testowe
 
