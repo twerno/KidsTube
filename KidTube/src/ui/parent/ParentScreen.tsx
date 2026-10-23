@@ -98,7 +98,14 @@ export function ParentScreen(props: ParentScreenProps) {
             onPreview={onPreviewVideo}
           />
         ) : null}
-        {tab === 'videos' ? <VideosTab videos={videos} onSetStatus={onSetVideoStatus} /> : null}
+        {tab === 'videos' ? (
+          <VideosTab
+            videos={videos}
+            channels={channels}
+            onSetStatus={onSetVideoStatus}
+            onPreview={onPreviewVideo}
+          />
+        ) : null}
         {tab === 'channels' ? (
           <ChannelsTab
             channels={channels}

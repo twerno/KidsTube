@@ -1,10 +1,11 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, SectionList, StyleSheet, Text, View } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { FlatList, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Field } from '../components';
 import { Chip } from './Chip';
+import { ChannelBar, type ChannelBarEntry } from './ChannelBar';
 import { VideoRow } from './VideoRow';
 import { colors, spacing } from '../theme';
-import type { Video, VideoStatus } from '../../domain/types';
+import type { Channel, Video, VideoStatus } from '../../domain/types';
 
 type StatusFilter = 'all' | VideoStatus;
 
@@ -15,89 +16,108 @@ const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
   { key: 'blocked', label: 'Zablokowane' },
 ];
 
-interface Section {
-  title: string;
-  data: Video[];
-  /** Full size of the channel group (data is emptied when collapsed). */
-  count: number;
-}
-
 export function VideosTab({
   videos,
+  channels = [],
   onSetStatus,
+  onPreview,
 }: {
   videos: Video[];
+  channels?: Channel[];
   onSetStatus: (video: Video, status: VideoStatus) => void;
+  onPreview?: (video: Video) => void;
 }) {
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState<StatusFilter>('all');
-  const [channel, setChannel] = useState<string>('all');
-  const [grouped, setGrouped] = useState(true);
-  // Accordion: exactly one channel group is expanded at a time (ADR 0005).
-  const [openChannel, setOpenChannel] = useState<string | null>(null);
+  // Horizontal channel-icon bar selects one channel; tapping it again clears
+  // the filter (no separate “all channels” chip — ADR 0005).
+  const [channel, setChannel] = useState<string | null>(null);
 
-  const channelNames = useMemo(() => {
-    const names = new Set<string>();
+  // One icon per channel that actually has videos; the avatar is looked up in
+  // the watched channels (placeholder circle while avatars are missing). Each
+  // entry carries the channel's film count.
+  const channelEntries = useMemo<ChannelBarEntry[]>(() => {
+    const counts = new Map<string, number>();
+    const match = new Map<string, Channel | undefined>();
     videos.forEach(v => {
-      if (v.channelTitle) {
-        names.add(v.channelTitle);
+      const title = v.channelTitle;
+      if (!title) {
+        return;
+      }
+      counts.set(title, (counts.get(title) ?? 0) + 1);
+      if (!match.has(title)) {
+        match.set(
+          title,
+          channels.find(c => c.id === v.channelId || c.title === title),
+        );
       }
     });
-    return [...names].sort((a, b) => a.localeCompare(b));
-  }, [videos]);
+    return [...counts.entries()]
+      .map(([title, count]) => ({
+        key: title,
+        title,
+        thumbnailUrl: match.get(title)?.thumbnailUrl,
+        count,
+      }))
+      .sort((a, b) => a.title.localeCompare(b.title));
+  }, [videos, channels]);
+
+  // The bar always leads with “Wszystkie” when there is anything to filter.
+  const barEntries = useMemo<ChannelBarEntry[]>(() => {
+    if (channelEntries.length === 0) {
+      return [];
+    }
+    return [
+      { key: '__all__', title: 'Wszystkie', count: videos.length, isAll: true },
+      ...channelEntries,
+    ];
+  }, [channelEntries, videos.length]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return videos.filter(v => {
-      if (status !== 'all' && v.status !== status) {
-        return false;
-      }
-      if (channel !== 'all' && v.channelTitle !== channel) {
-        return false;
-      }
-      if (q && !`${v.title} ${v.channelTitle ?? ''}`.toLowerCase().includes(q)) {
-        return false;
-      }
-      return true;
-    });
+    return videos
+      .filter(v => {
+        if (status !== 'all' && v.status !== status) {
+          return false;
+        }
+        if (channel !== null && v.channelTitle !== channel) {
+          return false;
+        }
+        if (q && !`${v.title} ${v.channelTitle ?? ''}`.toLowerCase().includes(q)) {
+          return false;
+        }
+        return true;
+      })
+      .sort((a, b) => (b.publishedAt ?? b.addedAt) - (a.publishedAt ?? a.addedAt));
   }, [videos, query, status, channel]);
 
-  const sections = useMemo<Section[]>(() => {
-    const sorted = [...filtered].sort((a, b) =>
-      (b.publishedAt ?? b.addedAt) - (a.publishedAt ?? a.addedAt),
-    );
-    if (!grouped) {
-      return [{ title: '', data: sorted, count: sorted.length }];
-    }
-    const byChannel = new Map<string, Video[]>();
-    sorted.forEach(v => {
-      const key = v.channelTitle ?? 'Bez kanału';
-      const list = byChannel.get(key) ?? [];
-      list.push(v);
-      byChannel.set(key, list);
+  // Counts for the status chips, scoped to the selected channel (the search box
+  // does not move them, so the chips stay stable while typing).
+  const statusCounts = useMemo<Record<StatusFilter, number>>(() => {
+    const counts: Record<StatusFilter, number> = {
+      all: 0,
+      allowed: 0,
+      pending: 0,
+      blocked: 0,
+    };
+    videos.forEach(v => {
+      if (channel !== null && v.channelTitle !== channel) {
+        return;
+      }
+      counts.all += 1;
+      counts[v.status] += 1;
     });
-    return [...byChannel.entries()]
-      .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(([title, data]) => ({
-        title,
-        data: openChannel === title ? data : [],
-        count: data.length,
-      }));
-  }, [filtered, grouped, openChannel]);
-
-  // Keep exactly one group open (default: the first) whenever the grouping is on.
-  useEffect(() => {
-    if (!grouped) {
-      return;
-    }
-    const titles = sections.map(s => s.title);
-    if (titles.length > 0 && (!openChannel || !titles.includes(openChannel))) {
-      setOpenChannel(titles[0]);
-    }
-  }, [grouped, sections, openChannel]);
+    return counts;
+  }, [videos, channel]);
 
   return (
     <View style={styles.container}>
+      {barEntries.length > 0 ? (
+        <View style={styles.channelBar}>
+          <ChannelBar entries={barEntries} selected={channel} onSelect={setChannel} />
+        </View>
+      ) : null}
+
       <View style={styles.filters}>
         <Field
           value={query}
@@ -108,53 +128,35 @@ export function VideosTab({
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
           {STATUS_FILTERS.map(f => (
-            <Chip key={f.key} label={f.label} active={status === f.key} onPress={() => setStatus(f.key)} />
+            <Chip
+              key={f.key}
+              label={`${f.label} (${statusCounts[f.key]})`}
+              active={status === f.key}
+              onPress={() => setStatus(f.key)}
+            />
           ))}
         </ScrollView>
-
-        {channelNames.length > 1 ? (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-            <Chip label="Wszystkie kanały" active={channel === 'all'} onPress={() => setChannel('all')} />
-            {channelNames.map(name => (
-              <Chip key={name} label={name} active={channel === name} onPress={() => setChannel(name)} />
-            ))}
-          </ScrollView>
-        ) : null}
 
         <View style={styles.summaryRow}>
           <Text style={styles.summary}>
             {filtered.length} {filtered.length === 1 ? 'film' : 'filmów'}
+            {channel !== null ? ` · ${channel}` : ''}
           </Text>
-          <Chip label="Grupuj po kanale" active={grouped} onPress={() => setGrouped(g => !g)} />
         </View>
       </View>
 
-      <SectionList
-        sections={sections}
+      <FlatList
+        data={filtered}
         keyExtractor={item => item.id}
-        stickySectionHeadersEnabled={false}
         contentContainerStyle={styles.listContent}
         initialNumToRender={12}
         windowSize={11}
-        removeClippedSubviews
+        removeClippedSubviews={false}
+        maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
         ListEmptyComponent={<Text style={styles.empty}>Brak filmów dla wybranych filtrów.</Text>}
-        renderSectionHeader={({ section }) =>
-          section.title ? (
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => setOpenChannel(section.title)}
-              style={styles.sectionHeader}
-            >
-              <Text style={styles.sectionTitle}>
-                {section.title} ({section.count})
-              </Text>
-              <Text style={styles.sectionChevron}>
-                {openChannel === section.title ? '▾' : '▸'}
-              </Text>
-            </Pressable>
-          ) : null
-        }
-        renderItem={({ item }) => <VideoRow video={item} onSetStatus={onSetStatus} />}
+        renderItem={({ item }) => (
+          <VideoRow video={item} onSetStatus={onSetStatus} onPreview={onPreview} />
+        )}
       />
     </View>
   );
@@ -162,6 +164,12 @@ export function VideosTab({
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  channelBar: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
   filters: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, gap: spacing.sm },
   chips: { gap: spacing.sm, paddingVertical: spacing.xs },
   summaryRow: {
@@ -172,23 +180,5 @@ const styles = StyleSheet.create({
   },
   summary: { color: colors.textMuted, fontSize: 13 },
   listContent: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.xl * 2 },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.md,
-    paddingVertical: spacing.sm,
-    marginTop: spacing.md,
-    marginBottom: spacing.sm,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
-  },
-  sectionTitle: {
-    color: colors.text,
-    fontSize: 16,
-    fontWeight: '700',
-    flexShrink: 1,
-  },
-  sectionChevron: { color: colors.textMuted, fontSize: 16, fontWeight: '700' },
   empty: { color: colors.textMuted, textAlign: 'center', marginTop: spacing.xl, fontSize: 15 },
 });

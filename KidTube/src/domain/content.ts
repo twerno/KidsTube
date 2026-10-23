@@ -6,6 +6,8 @@
  */
 
 import type { Channel, Video, VideoStatus } from './types';
+import type { Decision } from './types';
+import { latestDecision } from './decisions';
 import type { RssVideo } from './rss';
 
 /** What status a freshly discovered upload should get. */
@@ -76,10 +78,19 @@ export function mergeSyncedVideos(
   return { videos: [...byId.values()], added };
 }
 
-export function videosForChild(videos: Video[]): Video[] {
+/**
+ * Sort key for the child feed: the moment the video was decided (ADR 0001),
+ * falling back to publication / addition time for still-undecided uploads.
+ */
+export function videoSortTime(video: Video, decisions: Decision[]): number {
+  const latest = latestDecision(decisions, video.id);
+  return latest ? latest.at : video.publishedAt ?? video.addedAt;
+}
+
+export function videosForChild(videos: Video[], decisions: Decision[] = []): Video[] {
   return videos
     .filter(isPlayable)
-    .sort((a, b) => (b.publishedAt ?? b.addedAt) - (a.publishedAt ?? a.addedAt));
+    .sort((a, b) => videoSortTime(b, decisions) - videoSortTime(a, decisions));
 }
 
 export function pendingVideos(videos: Video[]): Video[] {

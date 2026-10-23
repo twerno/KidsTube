@@ -11,6 +11,26 @@ export type VideoStatus = 'allowed' | 'pending' | 'blocked';
 /** Where a video record came from. */
 export type VideoSource = 'rss' | 'manual' | 'share' | 'propose';
 
+/** Outcome of a decision: the parent lets the video in or keeps it out. */
+export type DecisionOutcome = 'allow' | 'reject';
+
+/** Who decided: the parent directly, or the system repeating a prior decision. */
+export type DecisionSource = 'manual' | 'auto';
+
+/**
+ * One append-only entry in the decision history (ADR 0001). The latest entry
+ * for a video is the source of truth for its visibility; `Video.status` is a
+ * cached projection that keeps the UI simple.
+ */
+export interface Decision {
+  videoId: string;
+  outcome: DecisionOutcome;
+  source: DecisionSource;
+  at: number;
+  /** Channel snapshot, so the history outlives a removed channel. */
+  channelId?: string;
+}
+
 /** How newly discovered videos of a channel are handled. */
 export type ChannelPolicy = 'auto_approve' | 'manual';
 

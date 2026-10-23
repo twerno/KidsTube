@@ -18,12 +18,15 @@ export function Button({
   variant = 'primary',
   disabled,
   loading,
+  compact,
 }: {
   title: string;
   onPress: () => void;
   variant?: Variant;
   disabled?: boolean;
   loading?: boolean;
+  /** Smaller padding + label, for button rows inside list entries. */
+  compact?: boolean;
 }) {
   const palette = {
     primary: { bg: colors.primary, fg: '#04203a' },
@@ -39,13 +42,19 @@ export function Button({
       disabled={disabled || loading}
       style={({ pressed }) => [
         styles.button,
+        compact && styles.buttonCompact,
         { backgroundColor: palette.bg, opacity: disabled ? 0.5 : pressed ? 0.85 : 1 },
       ]}
     >
       {loading ? (
         <ActivityIndicator color={palette.fg} />
       ) : (
-        <Text style={[styles.buttonText, { color: palette.fg }]}>{title}</Text>
+        <Text
+          numberOfLines={1}
+          style={[styles.buttonText, compact && styles.buttonTextCompact, { color: palette.fg }]}
+        >
+          {title}
+        </Text>
       )}
     </Pressable>
   );
@@ -82,7 +91,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: 46,
   },
+  buttonCompact: {
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    minHeight: 38,
+  },
   buttonText: { fontSize: 16, fontWeight: '600' },
+  buttonTextCompact: { fontSize: 13 },
   card: {
     backgroundColor: colors.card,
     borderRadius: radius.lg,

@@ -7,6 +7,7 @@ import {
   proposalsForChild,
   rssPendingVideos,
   rssToVideos,
+  videoSortTime,
   videosForChild,
 } from '../src/domain/content';
 
@@ -115,6 +116,21 @@ describe('child view helpers', () => {
     ];
     expect(videosForChild(videos).map(v => v.id)).toEqual(['c', 'a']);
     expect(pendingVideos(videos).map(v => v.id)).toEqual(['b']);
+  });
+
+  it('sorts by the moment the video was decided (ADR 0001)', () => {
+    const videos: Video[] = [
+      { ...base, id: 'old', status: 'allowed', publishedAt: 100 },
+      { ...base, id: 'new', status: 'allowed', publishedAt: 50 },
+    ];
+    const decisions = [
+      { videoId: 'old', outcome: 'allow' as const, source: 'manual' as const, at: 10 },
+      { videoId: 'new', outcome: 'allow' as const, source: 'manual' as const, at: 20 },
+    ];
+    expect(videosForChild(videos, decisions).map(v => v.id)).toEqual(['new', 'old']);
+    expect(videoSortTime(videos[0], decisions)).toBe(10);
+    // No decision: falls back to publish time.
+    expect(videoSortTime(videos[1], [])).toBe(50);
   });
 });
 

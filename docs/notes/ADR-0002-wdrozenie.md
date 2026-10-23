@@ -54,6 +54,17 @@ Zapis tego, co zostało zrobione. Jeden commit, drzewo czyste.
   (`audioOnly && !ended`).
 - Wersja: **0.3.0 → 0.3.1**, testy: **75 → 79**.
 
+## Dopracowanie po testach (0.4.2–0.4.3)
+
+- **Pasek ikon kanałów** (`ui/parent/ChannelBar.tsx`) zastępuje akordeon
+  i chipy tekstowe w `VideosTab`; pozycja **„Wszystkie”** + ikony kanałów
+  z nazwą i liczbą filmów; ponowne dotknięcie czyści filtr (ADR 0005).
+- **Data publikacji**: RSS daje `publishedAt`; dla filmów z linku
+  dociągana przez InnerTube `player` (`fetchPublishDate`), oEmbed jej nie
+  ma. Pokazana w `VideoRow` (panel) oraz na kafelkach dziecka; format
+  `domain/dates.ts` (`formatPublishedDate`, bez `Intl`).
+- Wersja: **0.4.1 → 0.4.3**, testy: **97 → 99**.
+
 ## Dopracowanie po testach (0.3.2)
 
 - **Czas po lewej = bieżąca pozycja** (wcześniej na stałe `0:00`) — `SeekBar`

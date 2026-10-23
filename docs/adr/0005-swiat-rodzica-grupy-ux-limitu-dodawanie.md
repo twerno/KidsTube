@@ -8,9 +8,20 @@ ze wspólnego komponentu z **filtrowaniem/grupowaniem po kanałach**.
 
 Lista **Oczekujących** pokazuje oba źródła z wyróżnieniem: filmy dołączone
 skanem RSS z kanałów `manual` oraz propozycje dziecka (etykieta/filtr
-„z kanału X · RSS” / „propozycja dziecka”). Każdy element daje **podgląd
-filmu przed rozstrzygnięciem** — rodzic odtwarza materiał w panelu, zanim
-zatwierdzi lub odrzuci.
+„z kanału X · RSS” / „propozycja dziecka”). **Podgląd** filmu jest dostępny
+przy każdym elemencie list treści (Oczekujące **i** Filmy), niezależnie od
+statusu — rodzic odtwarza materiał w panelu przed decyzją albo przed jej
+zmianą. Akcje wiersza (Podgląd · Odrzuć · Akceptuj / Przywróć / Cofnij zgodę)
+mieszczą się w jednym wierszu.
+
+Listy treści wybierają kanał **poziomo przewijanym paskiem ikon kanałów**
+(awatar + nazwa + liczba filmów). Pasek zaczyna się pozycją **„Wszystkie”**
+(łączna liczba filmów), a dotknięcie ikony kanału filtruje listę do jego
+filmów; ponowne dotknięcie aktywnej ikony **czyści filtr** do „Wszystkie”.
+Nie ma przełącznika „Grupuj po kanale” — lista pozostaje płaska (bez
+sekcji/akordeonu). Dopóki nie ma prawdziwych awatarów kanałów, ikoną jest
+kolorowe kółko z pierwszą literą nazwy (awatar z `Channel.thumbnailUrl`,
+gdy będzie).
 
 **UX limitu dziennego**: twarde cięcie w momencie wyczerpania („limit to
 limit") z ostrzeżeniem 5 minut przed; po limicie dziecko ląduje w trybie
@@ -41,6 +52,9 @@ Konto dziecka: nazwa + kolor/awatar (bez konta Google).
   przypadkowej edycji, brak wyraźnego porządku.
 - **Łagodne cięcie limitu (dogranie bieżącego filmu)** — odrzucone: „limit
   to limit"; ostrzeżenie łagodzi szok, cięcie jest stanowcze.
+- **Akordeon sekcji per kanał (rozwijany pionowo)** — odrzucony: wymaga
+  skanowania i wielu tapnięć; poziomy pasek ikon wybiera kanał jednym
+  dotknięciem i skaluje się wraz z liczbą kanałów.
 - **Wyszukiwarka jako jedyna droga dodawania** — odrzucona: wymaga stabilnego
   endpointu; link działa zawsze.
 

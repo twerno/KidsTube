@@ -2,6 +2,7 @@ import React from 'react';
 import { Image, StyleSheet, Text, View } from 'react-native';
 import { Button } from '../components';
 import { colors, radius, spacing } from '../theme';
+import { formatPublishedDate } from '../../domain/dates';
 import type { Video, VideoStatus } from '../../domain/types';
 
 const STATUS_LABEL: Record<VideoStatus, string> = {
@@ -52,38 +53,37 @@ export function VideoRow({
               </Text>
             ) : null}
             <StatusBadge status={video.status} />
+            {video.publishedAt ? (
+              <Text style={styles.date}>{formatPublishedDate(video.publishedAt)}</Text>
+            ) : null}
           </View>
         </View>
       </View>
 
       <View style={styles.actions}>
+        {onPreview ? (
+          <View style={styles.actionItem}>
+            <Button compact title="Podgląd" variant="secondary" onPress={() => onPreview(video)} />
+          </View>
+        ) : null}
         {video.status === 'pending' ? (
           <>
-            {onPreview ? (
-              <View style={styles.actionItem}>
-                <Button title="Podgląd" variant="secondary" onPress={() => onPreview(video)} />
-              </View>
-            ) : null}
             <View style={styles.actionItem}>
-              <Button title="Odrzuć" variant="danger" onPress={() => onSetStatus(video, 'blocked')} />
+              <Button compact title="Odrzuć" variant="danger" onPress={() => onSetStatus(video, 'blocked')} />
             </View>
             <View style={styles.actionItem}>
-              <Button title="Akceptuj" variant="primary" onPress={() => onSetStatus(video, 'allowed')} />
+              <Button compact title="Akceptuj" variant="primary" onPress={() => onSetStatus(video, 'allowed')} />
             </View>
           </>
         ) : null}
         {video.status === 'allowed' ? (
           <View style={styles.actionItem}>
-            <Button title="Cofnij zgodę" variant="danger" onPress={() => onSetStatus(video, 'blocked')} />
+            <Button compact title="Cofnij zgodę" variant="danger" onPress={() => onSetStatus(video, 'blocked')} />
           </View>
         ) : null}
         {video.status === 'blocked' ? (
           <View style={styles.actionItem}>
-            <Button
-              title="Przywróć"
-              variant="secondary"
-              onPress={() => onSetStatus(video, 'allowed')}
-            />
+            <Button compact title="Przywróć" variant="secondary" onPress={() => onSetStatus(video, 'allowed')} />
           </View>
         ) : null}
       </View>
@@ -108,6 +108,7 @@ const styles = StyleSheet.create({
   title: { color: colors.text, fontSize: 15, fontWeight: '600' },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' },
   channel: { color: colors.textMuted, fontSize: 13, flexShrink: 1 },
+  date: { color: colors.textMuted, fontSize: 12 },
   badge: {
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: radius.sm,
@@ -115,6 +116,6 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   badgeText: { fontSize: 11, fontWeight: '700' },
-  actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: spacing.sm, flexWrap: 'wrap' },
-  actionItem: { minWidth: 120 },
+  actions: { flexDirection: 'row', gap: spacing.sm },
+  actionItem: { flex: 1 },
 });

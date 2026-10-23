@@ -15,7 +15,7 @@
 import type { Channel, Video } from '../domain/types';
 import { parseYouTubeLink, type ParsedYouTubeLink } from '../domain/youtubeUrl';
 import type { Repository } from '../data/repository';
-import { fetchOEmbed, type FetchLike } from './youtubeMetadata';
+import { fetchOEmbed, fetchPublishDate, type FetchLike } from './youtubeMetadata';
 
 export type IncomingLinkResult =
   | { kind: 'play'; video: Video }
@@ -51,11 +51,15 @@ export async function handleIncomingLink(
       return { kind: 'pending', video: existing };
     }
 
-    const meta = await fetchOEmbed(parsed.videoId, fetchFn);
+    const [meta, publishedAt] = await Promise.all([
+      fetchOEmbed(parsed.videoId, fetchFn),
+      fetchPublishDate(parsed.videoId, fetchFn),
+    ]);
     const video: Video = {
       id: parsed.videoId,
       title: meta?.title ?? parsed.videoId,
       thumbnailUrl: meta?.thumbnailUrl,
+      publishedAt,
       status: 'pending',
       source,
       addedAt: now,

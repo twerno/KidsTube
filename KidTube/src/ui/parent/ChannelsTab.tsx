@@ -46,6 +46,7 @@ export function ChannelsTab({
       data={channels}
       keyExtractor={item => item.id}
       contentContainerStyle={styles.content}
+      removeClippedSubviews={false}
       ListHeaderComponent={
         <View style={styles.header}>
           <Card style={styles.addCard}>

@@ -1,24 +1,28 @@
 /** In-memory Repository used by tests, previews and the first-run demo mode. */
 
-import type { Channel, Settings, Video, VideoStatus } from '../domain/types';
+import type { Channel, Decision, Settings, Video, VideoStatus } from '../domain/types';
 import { DEFAULT_SETTINGS } from '../domain/types';
+import { statusForOutcome } from '../domain/decisions';
 import type { Repository } from './repository';
 
 export class MemoryRepository implements Repository {
   private settings: Settings;
   private channels = new Map<string, Channel>();
   private videos = new Map<string, Video>();
+  private decisions: Decision[] = [];
   private usage = new Map<string, number>();
 
   constructor(seed?: {
     settings?: Settings;
     channels?: Channel[];
     videos?: Video[];
+    decisions?: Decision[];
     usage?: Record<string, number>;
   }) {
     this.settings = { ...DEFAULT_SETTINGS, ...seed?.settings };
     seed?.channels?.forEach(c => this.channels.set(c.id, c));
     seed?.videos?.forEach(v => this.videos.set(v.id, v));
+    this.decisions = [...(seed?.decisions ?? [])];
     Object.entries(seed?.usage ?? {}).forEach(([key, seconds]) => this.usage.set(key, seconds));
   }
 
@@ -79,6 +83,18 @@ export class MemoryRepository implements Repository {
 
   async listPendingVideos(): Promise<Video[]> {
     return [...this.videos.values()].filter(v => v.status === 'pending');
+  }
+
+  async listDecisions(): Promise<Decision[]> {
+    return [...this.decisions];
+  }
+
+  async recordDecision(decision: Decision): Promise<void> {
+    this.decisions.push(decision);
+    const video = this.videos.get(decision.videoId);
+    if (video) {
+      this.videos.set(video.id, { ...video, status: statusForOutcome(decision.outcome) });
+    }
   }
 
   async getUsage(dateKey: string): Promise<number> {

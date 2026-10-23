@@ -12,6 +12,7 @@ import {
 import { colors, radius, spacing } from './theme';
 import { Button } from './components';
 import { APP_VERSION } from '../version';
+import { formatPublishedDate } from '../domain/dates';
 import type { Video } from '../domain/types';
 
 export interface ChildHomeScreenProps {
@@ -61,6 +62,10 @@ export function ChildHomeScreen({
       data={videos}
       keyExtractor={item => item.id}
       contentContainerStyle={videos.length === 0 ? styles.emptyContainer : styles.listContent}
+      // Android defaults `removeClippedSubviews` to true, which makes long
+      // lists jump back to the top; keep it off and pin the visible row.
+      removeClippedSubviews={false}
+      maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
       refreshControl={
         onRefresh ? <RefreshControl refreshing={!!refreshing} onRefresh={onRefresh} /> : undefined
       }
@@ -85,6 +90,9 @@ export function ChildHomeScreen({
                 {item.channelTitle}
               </Text>
             ) : null}
+            {item.publishedAt ? (
+              <Text style={styles.date}>{formatPublishedDate(item.publishedAt)}</Text>
+            ) : null}
           </View>
         </Pressable>
       )}
@@ -96,6 +104,8 @@ export function ChildHomeScreen({
       data={proposals}
       keyExtractor={item => item.id}
       contentContainerStyle={proposals.length === 0 ? styles.emptyContainer : styles.listContent}
+      removeClippedSubviews={false}
+      maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
       ListEmptyComponent={
         <Text style={styles.empty}>
           Brak oczekujących propozycji. Dotknij „Zaproponuj film" i wklej link z YouTube.
@@ -116,6 +126,9 @@ export function ChildHomeScreen({
               <Text numberOfLines={1} style={styles.channel}>
                 {item.channelTitle}
               </Text>
+            ) : null}
+            {item.publishedAt ? (
+              <Text style={styles.date}>{formatPublishedDate(item.publishedAt)}</Text>
             ) : null}
             <Text style={styles.pendingNote}>Czeka na decyzję rodzica</Text>
           </View>
@@ -234,6 +247,7 @@ const styles = StyleSheet.create({
   rowText: { flex: 1, padding: spacing.md, justifyContent: 'center' },
   videoTitle: { color: colors.text, fontSize: 15, fontWeight: '600' },
   channel: { color: colors.textMuted, fontSize: 13, marginTop: spacing.xs },
+  date: { color: colors.textMuted, fontSize: 12, marginTop: 2 },
   pendingNote: { color: colors.warning, fontSize: 12, fontWeight: '600', marginTop: spacing.xs },
   proposeBackdrop: {
     ...StyleSheet.absoluteFill,

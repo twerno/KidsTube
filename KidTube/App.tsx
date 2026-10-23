@@ -2,8 +2,9 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ActivityIndicator, Alert, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { AsyncStorageRepository } from './src/data/asyncStorageRepository';
 import type { Repository } from './src/data/repository';
-import type { Channel, Schedule, Settings, Video, VideoStatus } from './src/domain/types';
+import type { Channel, Decision, DecisionOutcome, Schedule, Settings, Video, VideoStatus } from './src/domain/types';
 import { proposalsForChild, videosForChild } from './src/domain/content';
+import { manualDecision, projectVideos, repeatProposalDecision } from './src/domain/decisions';
 import { canPlay, dateKey, normalizeSchedule } from './src/domain/schedule';
 import { extractYouTubeUrl, parseYouTubeLink } from './src/domain/youtubeUrl';
 import { handleIncomingLink } from './src/services/incomingLink';
@@ -12,7 +13,7 @@ import { consumeSharedText, getInitialLink, subscribeIncomingLinks } from './src
 import { hashPin, verifyPin } from './src/security/pin';
 import { syncAllChannels, syncChannel, fetchChannelFeed } from './src/services/channelSync';
 import { resolveChannelFromUrl } from './src/services/channelResolve';
-import { fetchOEmbed } from './src/services/youtubeMetadata';
+import { fetchOEmbed, fetchPublishDate } from './src/services/youtubeMetadata';
 import { ChildHomeScreen } from './src/ui/ChildHomeScreen';
 import { GateScreen } from './src/ui/GateScreen';
 import { ParentScreen } from './src/ui/parent/ParentScreen';
@@ -43,20 +44,23 @@ export default function App() {
   const [settings, setSettings] = useState<Settings>({});
   const [channels, setChannels] = useState<Channel[]>([]);
   const [videos, setVideos] = useState<Video[]>([]);
+  const [decisions, setDecisions] = useState<Decision[]>([]);
   const [parentGate, setParentGate] = useState(false);
   const [pinSetup, setPinSetup] = useState(false);
   const [route, setRoute] = useState<Route>({ name: 'child' });
   const [refreshing, setRefreshing] = useState(false);
 
   const reload = useCallback(async () => {
-    const [s, c, v] = await Promise.all([
+    const [s, c, v, d] = await Promise.all([
       repo.getSettings(),
       repo.listChannels(),
       repo.listVideos(),
+      repo.listDecisions(),
     ]);
     setSettings(s);
     setChannels(c);
     setVideos(v);
+    setDecisions(d);
   }, [repo]);
 
   useEffect(() => {
@@ -89,12 +93,19 @@ export default function App() {
     [channels],
   );
 
+  // Visibility is projected from the decision history (ADR 0001); the stored
+  // `Video.status` is only a cache. Everything downstream reads this list.
+  const projectedVideos = useMemo(() => projectVideos(videos, decisions), [videos, decisions]);
+
   const childVideos = useMemo(
-    () => videosForChild(videos).filter(v => !v.channelId || !blockedChannelIds.has(v.channelId)),
-    [videos, blockedChannelIds],
+    () =>
+      videosForChild(projectedVideos, decisions).filter(
+        v => !v.channelId || !blockedChannelIds.has(v.channelId),
+      ),
+    [projectedVideos, decisions, blockedChannelIds],
   );
 
-  const childProposals = useMemo(() => proposalsForChild(videos), [videos]);
+  const childProposals = useMemo(() => proposalsForChild(projectedVideos), [projectedVideos]);
 
   // ---- Playback start & time controls (ADR 0002) ---------------------------
 
@@ -199,6 +210,15 @@ export default function App() {
     async (raw: string) => {
       const link = extractYouTubeUrl(raw) ?? raw;
       const result = await handleIncomingLink(link, repo, undefined, Date.now(), 'propose');
+      if (result.kind === 'play' || result.kind === 'blocked' || result.kind === 'pending') {
+        // A repeat proposal resolves automatically to the latest decision and is
+        // recorded as an `auto` entry (ADR 0001). First-time proposals stay pending.
+        const auto = repeatProposalDecision(await repo.listDecisions(), result.video.id, Date.now());
+        if (auto) {
+          await repo.recordDecision(auto);
+          await reload();
+        }
+      }
       switch (result.kind) {
         case 'play':
           Alert.alert('Dozwolony', 'Ten film jest już w Twojej bibliotece.');
@@ -262,16 +282,24 @@ export default function App() {
     console.log('[KidTube:addChannel]', link, 'parsed=', JSON.stringify(parsed));
 
     if (parsed.kind === 'video') {
-      const meta = await fetchOEmbed(parsed.videoId);
+      const [meta, publishedAt] = await Promise.all([
+        fetchOEmbed(parsed.videoId),
+        fetchPublishDate(parsed.videoId),
+      ]);
       const video: Video = {
         id: parsed.videoId,
         title: meta?.title ?? parsed.videoId,
         thumbnailUrl: meta?.thumbnailUrl,
+        publishedAt,
         status: autoApprove ? 'allowed' : 'pending',
         source: 'manual',
         addedAt: Date.now(),
       };
       await repo.upsertVideos([video]);
+      if (autoApprove) {
+        // The parent approved it by hand — record that as a manual decision.
+        await repo.recordDecision(manualDecision(video, 'allow', video.addedAt));
+      }
       await reload();
       return undefined;
     }
@@ -327,9 +355,13 @@ export default function App() {
     };
     await repo.upsertChannel(next);
     if (next.policy === 'auto_approve') {
-      const toApprove = videos.filter(v => v.channelId === channel.id && v.status === 'pending');
+      // Switching to auto-approve lets the channel's pending videos in; record
+      // one manual decision each so the change is visible in the history.
+      const toApprove = projectedVideos.filter(
+        v => v.channelId === channel.id && v.status === 'pending',
+      );
       for (const v of toApprove) {
-        await repo.setVideoStatus(v.id, 'allowed');
+        await repo.recordDecision(manualDecision(v, 'allow', Date.now()));
       }
     }
     await reload();
@@ -348,8 +380,10 @@ export default function App() {
     await reload();
   };
 
+  // A parent action becomes a `manual` decision in the append-only history.
   const setVideoStatus = async (video: Video, status: VideoStatus) => {
-    await repo.setVideoStatus(video.id, status);
+    const outcome: DecisionOutcome = status === 'allowed' ? 'allow' : 'reject';
+    await repo.recordDecision(manualDecision(video, outcome, Date.now()));
     await reload();
   };
 
@@ -443,8 +477,7 @@ export default function App() {
           sourceLabel={SOURCE_LABEL[route.video.source]}
           onClose={() => setRoute({ name: 'parent' })}
           onDecide={async (video, status) => {
-            await repo.setVideoStatus(video.id, status);
-            await reload();
+            await setVideoStatus(video, status);
             setRoute({ name: 'parent' });
           }}
         />
@@ -459,7 +492,7 @@ export default function App() {
         <ParentScreen
           childName={settings.childName}
           channels={channels}
-          videos={videos}
+          videos={projectedVideos}
           onSetVideoStatus={setVideoStatus}
           onPreviewVideo={video => setRoute({ name: 'preview', video })}
           refreshing={refreshing}

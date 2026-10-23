@@ -4,7 +4,7 @@
  * implementation (device) are interchangeable.
  */
 
-import type { Channel, Settings, Video, VideoStatus } from '../domain/types';
+import type { Channel, Decision, Settings, Video, VideoStatus } from '../domain/types';
 
 export interface Repository {
   init(): Promise<void>;
@@ -20,10 +20,18 @@ export interface Repository {
   listVideos(): Promise<Video[]>;
   getVideo(id: string): Promise<Video | undefined>;
   upsertVideos(videos: Video[]): Promise<void>;
+  /** Low-level cache setter; parent actions should use `recordDecision` instead. */
   setVideoStatus(id: string, status: VideoStatus): Promise<void>;
   removeVideo(id: string): Promise<void>;
 
   listPendingVideos(): Promise<Video[]>;
+
+  /**
+   * Append-only decision history (ADR 0001). Recording a decision also refreshes
+   * the cached `Video.status` projection.
+   */
+  listDecisions(): Promise<Decision[]>;
+  recordDecision(decision: Decision): Promise<void>;
 
   /** Seconds of playback recorded for a local date key (YYYY-MM-DD). */
   getUsage(dateKey: string): Promise<number>;

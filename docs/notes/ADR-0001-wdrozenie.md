@@ -44,6 +44,8 @@ w nowej sesji.
   polskie nazwy; lista przewijalna; polityka **oryginał + polski**, start na
   oryginale (→ ADR 0008).
 - **Grupy kanałów** (`VideosTab.tsx`): akordeon — rozwinięty dokładnie jeden.
+  *(Zmienione w ADR 0005: akordeon zastąpiony poziomym paskiem ikon kanałów;
+  brak chipa „Wszystkie kanały” i przełącznika „Grupuj po kanale”.)*
 - **Seed** (`dev/seed.ts`): podmieniony na `ssr2cTC2bhs`; stary usuwany przy
   starcie.
 

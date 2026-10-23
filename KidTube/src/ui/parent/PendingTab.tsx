@@ -61,6 +61,8 @@ export function PendingTab({
         data={filtered}
         keyExtractor={item => item.id}
         contentContainerStyle={styles.content}
+        removeClippedSubviews={false}
+        maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
         ListEmptyComponent={
           <Text style={styles.empty}>
             {videos.length === 0

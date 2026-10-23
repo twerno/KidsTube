@@ -14,7 +14,7 @@ domenowych: `CONTEXT.md` (root repozytorium).
 | --- | --- |
 | Model | **B — kuratorowana biblioteka.** Rodzic dodaje filmy/kanały, dziecko widzi tylko dozwolone. |
 | Źródło danych | **RSS kanału** (`feeds/videos.xml?channel_id=…`) — ok. 15 najnowszych filmów na kanał. Bez YouTube Data API, bez scrapingu. |
-| Metadane filmu | **oEmbed** (`youtube.com/oembed`) — tytuł, autor, miniatura. Bez klucza API. |
+| Metadane filmu | **oEmbed** (`youtube.com/oembed`) — tytuł, autor, miniatura. **Data publikacji** z InnerTube `player` (`microformat.playerMicroformatRenderer.publishDate`) — oEmbed jej nie zwraca. Bez klucza API. |
 | Akceptacja | Per kanał: `auto_approve` (nowe filmy od razu do biblioteki po syncu) albo `manual` (przy skanie RSS **wszystkie** filmy kanału trafiają na listę do zatwierdzenia). *(ADR 0001)* |
 | Propozycje i decyzje | Lista oczekująca: propozycje dziecka **+** filmy z kanałów `manual`, źródło wpisu oznaczone (RSS / propozycja). Decyzja (dopuść/odrzuć) zapisywana w historii — append-only, last-wins, zmienialna przez rodzica, auto-rozstrzyganie powtórek. *(ADR 0001)* |
 | Wyszukiwanie/dodawanie | Link / „Udostępnij” — fundament (działa zawsze). Wyszukiwarka YouTube w panelu rodzica — prototyp z bramką oceny stabilności. Bez klucza API. *(ADR 0005)* |
@@ -23,7 +23,7 @@ domenowych: `CONTEXT.md` (root repozytorium).
 | Logo YouTube | **Nie ukrywamy** — widoczne m.in. przy buforowaniu; spełnia wymóg atrybucji. |
 | Ścieżki audio | Tylko **oryginał + polski**, start na oryginale; wybór znika, gdy jest tylko jedna ścieżka. Docelowo lista języków konfigurowana przez rodzica. *(ADR 0008)* |
 | Świat dziecka | 4 zakładki (Feed · Kanały · Do zatwierdzenia · Historia — **Do zatwierdzenia pokazuje tylko własne propozycje**), nawigacja wstecz po ścieżce użytkownika, stan obejrzenia na kafelkach (nowy / minuty / w całości — nie w „Do zatwierdzenia”), historia oglądania per dzień. *(ADR 0004)* |
-| Świat rodzica | Grupy zakładek (Treści · Historia · Ustawienia), wspólne filtrowanie/grupowanie po kanałach, lista oczekująca z rozróżnieniem źródła (RSS / propozycja dziecka) i **podglądem filmu przed zatwierdzeniem**, historia decyzji (last-wins) + podgląd historii oglądania. *(ADR 0005)* |
+| Świat rodzica | Grupy zakładek (Treści · Historia · Ustawienia), wspólne filtrowanie/grupowanie po kanałach (pasek ikon), lista oczekująca z rozróżnieniem źródła (RSS / propozycja dziecka), **podgląd filmu w każdej liście treści** oraz historia decyzji (last-wins) + podgląd historii oglądania. *(ADR 0005)* |
 | Czas | **Jedno okno tygodniowe** (bramka wideo) + **dzienny limit wideo** (twarde cięcie, ostrzeżenie 5 min przed) + **audio bez limitu i poza oknem** (tryb audio, nie kategoria treści) + **tryb snu** 1 h z resetem na ekranie audio. Zastąpiło dawny „tryb nocny”. *(ADR 0002)* |
 | Synchronizacja | Tylko przy otwarciu aplikacji (+ ręczne „Odśwież” / sync z panelu); timer w tle odroczony do backlogu z bramką oceny. *(ADR 0006)* |
 | Import katalogu | Jawny przycisk **„Wczytaj cały katalog”** na kanale: pełna lista przez InnerTube (paginacja), bez klucza API; status wg polityki kanału; **wznawialny** — checkpoint kursora, dzienny budżet stron, miękki stop przy limicie/błędzie. *(ADR 0009)* |
@@ -49,6 +49,8 @@ src/
     youtubeUrl.ts             parsowanie linków (watch/shorts/embed/youtu.be/vnd.youtube)
     rss.ts                    parser Atom feedu kanału
     content.ts                reguły: auto/manual, merge sync, widok dziecka
+    decisions.ts              historia decyzji (append-only, last-wins) + rzut statusu
+    dates.ts                  format daty publikacji (bez Intl)
     schedule.ts               okno oglądania, limit dzienny wideo, tryb audio / tryb snu
     playerGuard.ts            allowlist nawigacji WebView (tylko embed białego filmu)
   data/
@@ -69,13 +71,15 @@ android/app/src/main/
   java/com/kidtube/           ShareIntentModule / Package / Store
 ```
 
-Kształt plików będzie ewoluował wg ADR-ów: log decyzji, historia oglądania
-i stan obejrzenia dołączą do warstwy `domain/` + `data/` (ADR 0001, 0004).
+Kształt plików ewoluuje wg ADR-ów. **Log decyzji** (`domain/decisions.ts` +
+`Repository.listDecisions/recordDecision`) jest append-only i last-wins —
+`Video.status` to tylko rzutowany cache (ADR 0001). Historia oglądania i stan
+obejrzenia dołączą do warstwy `domain/` + `data/` (ADR 0004).
 
 ## Testy
 
 ```bash
-npm test          # 79 testów: URL, RSS, reguły list, harmonogram + tryb snu + przeskoki, PIN, sync, linki, player, render App
+npm test          # 99 testów: URL, RSS, reguły list, decyzje (last-wins), harmonogram + tryb snu + przeskoki, daty, PIN, sync, linki, player, render App
 npx tsc --noEmit  # typy
 npx eslint .      # lint
 ```
