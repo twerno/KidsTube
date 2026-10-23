@@ -4,7 +4,7 @@ import { AsyncStorageRepository } from './src/data/asyncStorageRepository';
 import type { Repository } from './src/data/repository';
 import type { Channel, Schedule, Settings, Video, VideoStatus } from './src/domain/types';
 import { proposalsForChild, videosForChild } from './src/domain/content';
-import { canPlay, dateKey, isAudioOnlyNow, normalizeSchedule } from './src/domain/schedule';
+import { canPlay, dateKey, normalizeSchedule } from './src/domain/schedule';
 import { extractYouTubeUrl, parseYouTubeLink } from './src/domain/youtubeUrl';
 import { handleIncomingLink } from './src/services/incomingLink';
 import { ENABLE_TEST_SEED, SEED_REPLACED_IDS, SEED_TEST_VIDEOS } from './src/dev/seed';
@@ -96,31 +96,41 @@ export default function App() {
 
   const childProposals = useMemo(() => proposalsForChild(videos), [videos]);
 
-  // ---- Playback start & time controls --------------------------------------
+  // ---- Playback start & time controls (ADR 0002) ---------------------------
 
+  const openPlayer = useCallback((video: Video, audioOnly: boolean) => {
+    setRoute({ name: 'player', video, audioOnly });
+  }, []);
+
+  // Video is gated by the window and the daily budget; audio never is.
   const startPlay = useCallback(
     async (video: Video) => {
       const schedule = normalizeSchedule(settings.schedule);
       const today = new Date();
       const used = await repo.getUsage(dateKey(today));
-      const decision = canPlay(schedule, used, today);
+      const decision = canPlay(schedule, 'video', used, today);
       if (!decision.allowed) {
         Alert.alert(
           'Teraz nie można oglądać',
           decision.reason === 'daily-limit'
-            ? 'Dzienny limit czasu został wykorzystany. Wróć jutro!'
-            : 'Poza godzinami oglądania. Wróć w dozwolonym czasie.',
+            ? 'Dzienny limit czasu został wykorzystany. Możesz jeszcze posłuchać z wyłączonym obrazem.'
+            : 'Poza godzinami oglądania. Możesz jeszcze posłuchać z wyłączonym obrazem.',
+          [
+            { text: 'Wróć', style: 'cancel' },
+            { text: 'Tylko dźwięk', isPreferred: true, onPress: () => openPlayer(video, true) },
+          ],
         );
         return;
       }
-      setRoute({ name: 'player', video, audioOnly: isAudioOnlyNow(schedule, today) });
+      openPlayer(video, false);
     },
-    [repo, settings.schedule],
+    [repo, settings.schedule, openPlayer],
   );
 
-  // Record playback seconds while the player is open.
+  // Record playback seconds while the player is open — video mode only, so
+  // audio never consumes the daily budget (ADR 0002: limit = actual video time).
   useEffect(() => {
-    if (route.name !== 'player') {
+    if (route.name !== 'player' || route.audioOnly) {
       return undefined;
     }
     const startedAt = Date.now();
@@ -417,6 +427,7 @@ export default function App() {
         <PlayerScreen
           video={route.video}
           audioOnly={route.audioOnly}
+          onAudioOnlyChange={audioOnly => setRoute({ name: 'player', video: route.video, audioOnly })}
           onClose={() => setRoute({ name: 'child' })}
         />
       </View>

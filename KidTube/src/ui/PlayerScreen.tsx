@@ -5,10 +5,19 @@ import { PlayerControls } from './player/PlayerControls';
 import { lockLandscape, lockPortrait, unlockOrientation } from '../native/orientation';
 import { colors, radius, spacing } from './theme';
 import type { Video } from '../domain/types';
+import {
+  formatCountdown,
+  freshSleepTimer,
+  resetSleepTimer,
+  tickSleepTimer,
+  type SleepTimerState,
+} from '../domain/sleepMode';
 
 export interface PlayerScreenProps {
   video: Video;
   audioOnly?: boolean;
+  /** Audio mode is lifted to the route so App stops counting the daily usage. */
+  onAudioOnlyChange?: (audioOnly: boolean) => void;
   onClose: () => void;
 }
 
@@ -27,7 +36,12 @@ const CONTROLS_HIDE_MS = 4000;
 // On first reveal we keep the bar up longer so it masks YouTube's startup UI.
 const CONTROLS_HIDE_INITIAL_MS = 8000;
 
-export function PlayerScreen({ video, audioOnly: initialAudioOnly = false, onClose }: PlayerScreenProps) {
+export function PlayerScreen({
+  video,
+  audioOnly: initialAudioOnly = false,
+  onAudioOnlyChange,
+  onClose,
+}: PlayerScreenProps) {
   const playerRef = useRef<PlayerHandle>(null);
   const [audioOnly, setAudioOnly] = useState(initialAudioOnly);
   const [ended, setEnded] = useState(false);
@@ -37,6 +51,29 @@ export function PlayerScreen({ video, audioOnly: initialAudioOnly = false, onClo
   const [scrubbing, setScrubbing] = useState(false);
   const [interacted, setInteracted] = useState(false);
   const [interactionNonce, setInteractionNonce] = useState(0);
+  const [sleepTimer, setSleepTimer] = useState<SleepTimerState>(freshSleepTimer);
+
+  // Entering audio mode starts a fresh 1 h sleep countdown (ADR 0002).
+  useEffect(() => {
+    if (audioOnly) {
+      setSleepTimer(freshSleepTimer());
+    }
+  }, [audioOnly]);
+
+  // Tick the countdown while audio is actually playing; firing pauses the player.
+  useEffect(() => {
+    if (!audioOnly || sleepTimer.fired || !state.playing) {
+      return undefined;
+    }
+    const timer = setInterval(() => {
+      const next = tickSleepTimer(sleepTimer, 1000, true);
+      if (next.fired && !sleepTimer.fired) {
+        playerRef.current?.pause();
+      }
+      setSleepTimer(next);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [audioOnly, sleepTimer, state.playing]);
 
   const replay = () => {
     setEnded(false);
@@ -148,8 +185,26 @@ export function PlayerScreen({ video, audioOnly: initialAudioOnly = false, onClo
           </Text>
           {video.channelTitle ? <Text style={styles.audioChannel}>{video.channelTitle}</Text> : null}
           <Text style={styles.audioHint}>
-            Tryb nocny — tylko dźwięk. Ekran możesz teraz zgasić.
+            Tryb audio — bez obrazu i bez limitu czasu. Ekran możesz teraz zgasić.
           </Text>
+          <View style={styles.sleepCard}>
+            <Text style={styles.sleepLabel}>😴 Tryb snu: {formatCountdown(sleepTimer.remainingMs)}</Text>
+            {sleepTimer.fired ? (
+              <Pressable
+                onPress={() => {
+                  playerRef.current?.play();
+                  setSleepTimer(resetSleepTimer());
+                }}
+                style={styles.sleepBtn}
+              >
+                <Text style={styles.sleepBtnText}>▶ Wznów odtwarzanie (1 h)</Text>
+              </Pressable>
+            ) : (
+              <Pressable onPress={() => setSleepTimer(resetSleepTimer())} style={styles.sleepBtn}>
+                <Text style={styles.sleepBtnText}>Zresetuj licznik (1 h)</Text>
+              </Pressable>
+            )}
+          </View>
         </View>
       ) : null}
 
@@ -185,7 +240,11 @@ export function PlayerScreen({ video, audioOnly: initialAudioOnly = false, onClo
           <Text style={styles.controlText}>‹ Menu</Text>
         </Pressable>
         <Pressable
-          onPress={() => setAudioOnly(value => !value)}
+          onPress={() => {
+            const next = !audioOnly;
+            setAudioOnly(next);
+            onAudioOnlyChange?.(next);
+          }}
           hitSlop={10}
           style={styles.controlBtn}
         >
@@ -234,6 +293,25 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
     lineHeight: 19,
   },
+  sleepCard: {
+    marginTop: spacing.md,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderRadius: radius.lg,
+    backgroundColor: colors.card,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  sleepLabel: { color: colors.text, fontSize: 16, fontWeight: '700' },
+  sleepBtn: {
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.lg,
+    backgroundColor: colors.primary,
+  },
+  sleepBtnText: { color: colors.black, fontSize: 14, fontWeight: '800' },
   endOverlay: {
     position: 'absolute',
     top: 0,

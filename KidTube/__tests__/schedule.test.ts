@@ -1,21 +1,24 @@
-import type { Schedule, TimeWindow } from '../src/domain/types';
+import type { Schedule } from '../src/domain/types';
 import {
   canPlay,
   dateKey,
   formatHHMM,
-  isAudioOnlyNow,
-  isWithinWindows,
+  isWithinWindow,
   minuteOfDay,
+  normalizeSchedule,
   parseHHMM,
   remainingSecondsToday,
 } from '../src/domain/schedule';
 
-// 2024-01-01 is a Monday (getDay() === 1).
+// 2024-01-01 is a Monday. The window is the same for every weekday (ADR 0002),
+// so the weekday never matters anymore.
 const mondayNoon = new Date(2024, 0, 1, 12, 0);
+const tuesdayNoon = new Date(2024, 0, 2, 12, 0);
+const sundayNoon = new Date(2024, 0, 7, 12, 0);
 const mondayLate = new Date(2024, 0, 1, 23, 30);
 const tuesdayEarly = new Date(2024, 0, 2, 0, 30);
 
-const base: Schedule = { enabled: true, windows: [], dailyLimitMinutes: 0 };
+const base: Schedule = { enabled: true, dailyLimitMinutes: 0 };
 
 describe('time helpers', () => {
   it('computes minute of day and date key', () => {
@@ -32,59 +35,66 @@ describe('time helpers', () => {
   });
 });
 
-describe('isWithinWindows', () => {
-  it('is always true when there are no windows', () => {
-    expect(isWithinWindows([], mondayNoon)).toBe(true);
+describe('isWithinWindow', () => {
+  it('is always true when there is no window', () => {
+    expect(isWithinWindow(base, mondayNoon)).toBe(true);
   });
 
   it('matches a simple daytime window', () => {
-    const window: TimeWindow = { days: [1], startMinute: 8 * 60, endMinute: 20 * 60 };
-    expect(isWithinWindows([window], mondayNoon)).toBe(true);
-    expect(isWithinWindows([window], mondayLate)).toBe(false);
+    const schedule: Schedule = { ...base, window: { startMinute: 8 * 60, endMinute: 20 * 60 } };
+    expect(isWithinWindow(schedule, mondayNoon)).toBe(true);
+    expect(isWithinWindow(schedule, mondayLate)).toBe(false);
   });
 
-  it('ignores windows on other days', () => {
-    const window: TimeWindow = { days: [0], startMinute: 8 * 60, endMinute: 20 * 60 };
-    expect(isWithinWindows([window], mondayNoon)).toBe(false);
+  it('applies the same window every day of the week', () => {
+    const schedule: Schedule = { ...base, window: { startMinute: 8 * 60, endMinute: 20 * 60 } };
+    expect(isWithinWindow(schedule, mondayNoon)).toBe(true);
+    expect(isWithinWindow(schedule, tuesdayNoon)).toBe(true);
+    expect(isWithinWindow(schedule, sundayNoon)).toBe(true);
   });
 
-  it('handles windows wrapping past midnight', () => {
-    // Monday 22:00 -> 02:00
-    const window: TimeWindow = {
-      days: [1],
-      startMinute: 22 * 60,
-      endMinute: 2 * 60,
-    };
-    expect(isWithinWindows([window], new Date(2024, 0, 1, 22, 30))).toBe(true);
-    expect(isWithinWindows([window], tuesdayEarly)).toBe(true);
-    expect(isWithinWindows([window], new Date(2024, 0, 2, 3, 0))).toBe(false);
+  it('handles a window wrapping past midnight', () => {
+    const schedule: Schedule = { ...base, window: { startMinute: 22 * 60, endMinute: 2 * 60 } };
+    expect(isWithinWindow(schedule, new Date(2024, 0, 1, 22, 30))).toBe(true);
+    expect(isWithinWindow(schedule, tuesdayEarly)).toBe(true);
+    expect(isWithinWindow(schedule, new Date(2024, 0, 2, 3, 0))).toBe(false);
   });
 });
 
 describe('canPlay', () => {
   it('allows everything when disabled', () => {
-    expect(canPlay({ ...base, enabled: false }, 99999, mondayNoon).allowed).toBe(true);
+    expect(canPlay({ ...base, enabled: false }, 'video', 99999, mondayNoon).allowed).toBe(true);
   });
 
-  it('blocks outside the allowed window', () => {
+  it('blocks video outside the allowed window', () => {
     const schedule: Schedule = {
       ...base,
-      windows: [{ days: [1], startMinute: 8 * 60, endMinute: 20 * 60 }],
+      window: { startMinute: 8 * 60, endMinute: 20 * 60 },
     };
-    expect(canPlay(schedule, 0, mondayNoon)).toEqual({ allowed: true });
-    expect(canPlay(schedule, 0, mondayLate)).toEqual({
+    expect(canPlay(schedule, 'video', 0, mondayNoon)).toEqual({ allowed: true });
+    expect(canPlay(schedule, 'video', 0, mondayLate)).toEqual({
       allowed: false,
       reason: 'outside-window',
     });
   });
 
-  it('enforces the daily limit', () => {
+  it('enforces the daily limit for video', () => {
     const schedule: Schedule = { ...base, dailyLimitMinutes: 30 };
-    expect(canPlay(schedule, 29 * 60, mondayNoon).allowed).toBe(true);
-    expect(canPlay(schedule, 30 * 60, mondayNoon)).toEqual({
+    expect(canPlay(schedule, 'video', 29 * 60, mondayNoon).allowed).toBe(true);
+    expect(canPlay(schedule, 'video', 30 * 60, mondayNoon)).toEqual({
       allowed: false,
       reason: 'daily-limit',
     });
+  });
+
+  it('never blocks audio — outside the window and over the limit (ADR 0002)', () => {
+    const schedule: Schedule = {
+      ...base,
+      window: { startMinute: 8 * 60, endMinute: 20 * 60 },
+      dailyLimitMinutes: 30,
+    };
+    expect(canPlay(schedule, 'audio', 0, mondayLate)).toEqual({ allowed: true });
+    expect(canPlay(schedule, 'audio', 30 * 60, sundayNoon)).toEqual({ allowed: true });
   });
 
   it('reports remaining budget', () => {
@@ -93,17 +103,22 @@ describe('canPlay', () => {
   });
 });
 
-describe('isAudioOnlyNow', () => {
-  it('is false when disabled or unset', () => {
-    expect(isAudioOnlyNow(base, mondayLate)).toBe(false);
-    expect(isAudioOnlyNow({ ...base, enabled: false, audioOnlyAfterMinute: 0 }, mondayLate)).toBe(
-      false,
-    );
+describe('normalizeSchedule', () => {
+  it('migrates a pre-ADR 0002 schedule: first window wins, quiet hour is dropped', () => {
+    const legacy: Record<string, unknown> = {
+      enabled: true,
+      windows: [{ days: [1], startMinute: 7 * 60, endMinute: 21 * 60 }],
+      dailyLimitMinutes: 0,
+      audioOnlyAfterMinute: 19 * 60,
+    };
+    const normalized = normalizeSchedule(legacy as unknown as Schedule);
+    expect(normalized.window).toEqual({ startMinute: 7 * 60, endMinute: 21 * 60 });
+    // The legacy “quiet hour” key is not carried over (ADR 0002).
+    expect((normalized as unknown as Record<string, unknown>).audioOnlyAfterMinute).toBeUndefined();
   });
 
-  it('switches to audio-only after the threshold', () => {
-    const schedule: Schedule = { ...base, audioOnlyAfterMinute: 19 * 60 };
-    expect(isAudioOnlyNow(schedule, new Date(2024, 0, 1, 18, 59))).toBe(false);
-    expect(isAudioOnlyNow(schedule, new Date(2024, 0, 1, 19, 0))).toBe(true);
+  it('treats an empty legacy windows array as no window', () => {
+    const legacy: Record<string, unknown> = { enabled: true, windows: [] };
+    expect(normalizeSchedule(legacy as unknown as Schedule).window).toBeUndefined();
   });
 });

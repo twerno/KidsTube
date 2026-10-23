@@ -16,9 +16,11 @@ export type ChannelPolicy = 'auto_approve' | 'manual';
 
 export type ChannelStatus = 'allowed' | 'blocked';
 
-/** A recurring playback window. `days` uses JS `Date.getDay()` (0=Sunday). */
+/**
+ * The single recurring playback window (od–do), the same for every day of the
+ * week (ADR 0002: one window, no per-day rhythm).
+ */
 export interface TimeWindow {
-  days: number[];
   /** Minutes from midnight, inclusive. */
   startMinute: number;
   /** Minutes from midnight, exclusive. If <= start, the window wraps past midnight. */
@@ -28,12 +30,13 @@ export interface TimeWindow {
 /** Parental time controls: when playback is allowed and for how long. */
 export interface Schedule {
   enabled: boolean;
-  /** Playback allowed only inside these windows (empty = always allowed). */
-  windows: TimeWindow[];
-  /** Daily playback cap in minutes (undefined or 0 = unlimited). */
+  /**
+   * The only gate for video playback; undefined = always allowed.
+   * Audio mode is never gated (ADR 0002).
+   */
+  window?: TimeWindow;
+  /** Daily video cap in minutes (undefined or 0 = unlimited). Audio never consumes it. */
   dailyLimitMinutes?: number;
-  /** After this minute-of-day, force audio-only “night mode” (undefined = never). */
-  audioOnlyAfterMinute?: number;
 }
 
 export interface Channel {
@@ -76,7 +79,6 @@ export interface Settings {
 
 export const DEFAULT_SCHEDULE: Schedule = {
   enabled: false,
-  windows: [],
   dailyLimitMinutes: 0,
 };
 

@@ -75,7 +75,7 @@ i stan obejrzenia dołączą do warstwy `domain/` + `data/` (ADR 0001, 0004).
 ## Testy
 
 ```bash
-npm test          # 65 testów: URL, RSS, reguły list, harmonogram, PIN, sync, linki, player, render App
+npm test          # 75 testów: URL, RSS, reguły list, harmonogram + tryb snu, PIN, sync, linki, player, render App
 npx tsc --noEmit  # typy
 npx eslint .      # lint
 ```

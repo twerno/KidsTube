@@ -14,8 +14,8 @@ export function ScheduleTab({
   return (
     <ScrollView contentContainerStyle={styles.content}>
       <Text style={styles.hint}>
-        Godziny oglądania, dzienny limit oraz próg trybu nocnego (tylko dźwięk — do audiobooków
-        na dobranoc).
+        Jedno okno oglądania (od–do, każdego dnia) i dzienny limit wideo. Tryb audio działa
+        zawsze — np. do audiobooków na dobranoc — i nie zużywa limitu.
       </Text>
       <ScheduleEditor schedule={schedule} onSave={onScheduleChange} />
     </ScrollView>

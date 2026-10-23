@@ -1,12 +1,23 @@
 /**
- * Time controls: allowed playback windows, a daily minute budget and the
- * “night mode” (audio-only) threshold. Pure functions, easy to test.
+ * Time controls (ADR 0002): a single weekly playback window (gate for video),
+ * a daily video minute budget and unrestricted audio mode.
+ *
+ *  - `window` — one od–do interval, the same every day; wraps past midnight.
+ *  - `dailyLimitMinutes` — one budget per calendar day, reset local midnight,
+ *    consumed only by video playback.
+ *  - Audio mode is never gated: no window, no limit.
+ *  - Sleep mode lives in `domain/sleepMode.ts`.
+ *
+ * Pure functions, easy to test.
  */
 
 import type { Schedule, TimeWindow } from './types';
 import { DEFAULT_SCHEDULE } from './types';
 
 export type PlaybackBlockReason = 'outside-window' | 'daily-limit';
+
+/** Audio bypasses every gate; only video is restricted (ADR 0002). */
+export type PlaybackMode = 'video' | 'audio';
 
 export interface PlaybackDecision {
   allowed: boolean;
@@ -28,60 +39,76 @@ export function dateKey(date: Date): string {
   return `${y}-${m}-${d}`;
 }
 
-export function normalizeSchedule(schedule?: Schedule): Schedule {
-  return schedule ? { ...DEFAULT_SCHEDULE, ...schedule } : { ...DEFAULT_SCHEDULE };
-}
-
-function isInWindow(window: TimeWindow, day: number, minute: number): boolean {
-  if (!window.days.includes(day)) {
-    return false;
-  }
-  if (window.startMinute <= window.endMinute) {
-    return minute >= window.startMinute && minute < window.endMinute;
-  }
-  // Wraps past midnight: active from start until end of the day.
-  return minute >= window.startMinute;
-}
-
-export function isWithinWindows(windows: TimeWindow[], date: Date): boolean {
-  if (windows.length === 0) {
-    return true;
-  }
-  const day = date.getDay();
-  const prevDay = (day + 6) % 7;
-  const minute = minuteOfDay(date);
-
-  for (const window of windows) {
-    if (isInWindow(window, day, minute)) {
-      return true;
-    }
-    // Tail of a window that started yesterday and wrapped past midnight.
-    if (
-      window.startMinute > window.endMinute &&
-      window.days.includes(prevDay) &&
-      minute < window.endMinute
-    ) {
-      return true;
-    }
-  }
-  return false;
+interface LegacyScheduleShape {
+  /** Pre-ADR 0002 shape: multiple per-day windows. Only the first is kept. */
+  windows?: Array<{ startMinute?: number; endMinute?: number }>;
+  /** Pre-ADR 0002 “quiet hour”; removed in ADR 0002, ignored. */
+  audioOnlyAfterMinute?: number;
 }
 
 /**
- * Decide whether playback may start now.
+ * Coerce a stored schedule to the current shape: migrate the legacy multi-window
+ * shape and drop the removed “quiet hour” field so it is not persisted again.
+ */
+export function normalizeSchedule(schedule?: Schedule): Schedule {
+  const normalized: Schedule = schedule ? { ...DEFAULT_SCHEDULE, ...schedule } : { ...DEFAULT_SCHEDULE };
+  if (schedule) {
+    const legacy = schedule as Schedule & LegacyScheduleShape;
+    if (!normalized.window && legacy.windows) {
+      const legacyFirst = legacy.windows.find(w => w.startMinute != null && w.endMinute != null);
+      if (legacyFirst) {
+        normalized.window = {
+          startMinute: legacyFirst.startMinute as number,
+          endMinute: legacyFirst.endMinute as number,
+        };
+      }
+    }
+    // Removed in ADR 0002: the “quiet hour” must not survive a round-trip.
+    delete (normalized as Schedule & LegacyScheduleShape).audioOnlyAfterMinute;
+  }
+  return normalized;
+}
+
+function isInWindow(window: TimeWindow, minute: number): boolean {
+  if (window.startMinute <= window.endMinute) {
+    return minute >= window.startMinute && minute < window.endMinute;
+  }
+  // Wraps past midnight: active from start until the end of the day.
+  return minute >= window.startMinute;
+}
+
+/** True when `date` falls inside the single weekly window (no window = always). */
+export function isWithinWindow(schedule: Schedule, date: Date = new Date()): boolean {
+  const { window } = normalizeSchedule(schedule);
+  if (!window) {
+    return true;
+  }
+  const minute = minuteOfDay(date);
+  if (isInWindow(window, minute)) {
+    return true;
+  }
+  // Tail of a window that started yesterday and wrapped past midnight.
+  return window.startMinute > window.endMinute && minute < window.endMinute;
+}
+
+/**
+ * Decide whether playback of the given mode may start now.
+ * Audio is always allowed; video is gated by the window and the daily budget.
  *
- * @param usedSecondsToday seconds already played today (local date)
+ * @param mode 'audio' skips every gate (ADR 0002)
+ * @param usedSecondsToday seconds of video already played today (local date)
  */
 export function canPlay(
   schedule: Schedule,
+  mode: PlaybackMode,
   usedSecondsToday: number,
   date: Date = new Date(),
 ): PlaybackDecision {
   const normalized = normalizeSchedule(schedule);
-  if (!normalized.enabled) {
+  if (mode === 'audio' || !normalized.enabled) {
     return { allowed: true };
   }
-  if (!isWithinWindows(normalized.windows, date)) {
+  if (!isWithinWindow(normalized, date)) {
     return { allowed: false, reason: 'outside-window' };
   }
   const limitMinutes = normalized.dailyLimitMinutes ?? 0;
@@ -91,7 +118,7 @@ export function canPlay(
   return { allowed: true };
 }
 
-/** Remaining seconds in today's budget, or undefined when unlimited. */
+/** Remaining seconds in today's video budget, or undefined when unlimited. */
 export function remainingSecondsToday(
   schedule: Schedule,
   usedSecondsToday: number,
@@ -101,15 +128,6 @@ export function remainingSecondsToday(
     return undefined;
   }
   return Math.max(0, limitMinutes * 60 - usedSecondsToday);
-}
-
-/** True when “night mode” should force audio-only playback. */
-export function isAudioOnlyNow(schedule: Schedule, date: Date = new Date()): boolean {
-  const normalized = normalizeSchedule(schedule);
-  if (!normalized.enabled || normalized.audioOnlyAfterMinute == null) {
-    return false;
-  }
-  return minuteOfDay(date) >= normalized.audioOnlyAfterMinute;
 }
 
 /** Parse "HH:MM" into minutes from midnight, or undefined when malformed. */
