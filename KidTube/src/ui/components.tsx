@@ -9,6 +9,7 @@ import {
   type TextInputProps,
 } from 'react-native';
 import { colors, radius, spacing } from './theme';
+import type { WatchState } from '../domain/watchState';
 
 type Variant = 'primary' | 'secondary' | 'danger' | 'ghost';
 
@@ -82,6 +83,21 @@ export function SectionTitle({ children }: { children: React.ReactNode }) {
   return <Text style={styles.sectionTitle}>{children}</Text>;
 }
 
+/**
+ * “Stan obejrzenia” pill for a child tile (ADR 0004): new / partial minutes /
+ * watched in full. A never-played video shows “Nowy”; the badge is replaced by
+ * the progress or full-watch state after the first playback.
+ */
+export function WatchBadge({ state, style }: { state: WatchState; style?: any }) {
+  if (state.kind === 'new') {
+    return <Text style={[styles.badge, styles.badgeNew, style]}>Nowy</Text>;
+  }
+  if (state.kind === 'complete') {
+    return <Text style={[styles.badge, styles.badgeDone, style]}>✓ W całości</Text>;
+  }
+  return <Text style={[styles.badge, styles.badgePartial, style]}>▶ {state.minutes} min</Text>;
+}
+
 const styles = StyleSheet.create({
   button: {
     paddingVertical: spacing.md,
@@ -123,4 +139,15 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6,
     marginBottom: spacing.sm,
   },
+  badge: {
+    overflow: 'hidden',
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  badgeNew: { backgroundColor: colors.primary, color: colors.black },
+  badgePartial: { backgroundColor: 'rgba(16,20,24,0.85)', color: colors.warning },
+  badgeDone: { backgroundColor: 'rgba(16,20,24,0.85)', color: colors.success },
 });

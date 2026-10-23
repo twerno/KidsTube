@@ -1,5 +1,9 @@
 # ADR 0004 — Świat dziecka: zakładki, nawigacja kontekstowa, stan obejrzenia, historia
 
+> Warstwa danych (postęp, wznowienie, historia) i badge stanu obejrzenia są
+> wdrożone; pozostały zakres (zakładki, nawigacja, siatka, widoki historii)
+> i decyzje z sesji wdrożeniowej: **ADR 0004a**.
+
 Ekran główny dziecka to cztery zakładki: **Feed** (wspólny strumień dozwolonych
 filmów na dużych miniaturach, sortowany od najświeżej rozstrzygniętych),
 **Kanały** (listy kanałów z logo; wejście w kanał = feed wyfiltrowany do jego
@@ -18,6 +22,12 @@ z oEmbed nie jest niezawodny, więc nie procenty), **obejrzany w całości**
 widokach dziecka **z wyjątkiem zakładki „Do zatwierdzenia"** (tam nic nie
 było odtwarzane — stan nie ma sensu).
 
+**Wznowienie**: otwarcie filmu, który dziecko już częściowo obejrzało,
+startuje od miejsca, w którym poprzednio skończyło (zapisana pozycja =
+postęp). Dotyczy wyłącznie świata dziecka; **podgląd w panelu rodzica zawsze
+gra od początku** i nie zmienia stanu obejrzenia ani historii oglądania
+dziecka (spójnie z definicją podglądu, CONTEXT.md).
+
 **Historia oglądania** zapisuje ostatnio otwierane materiały wraz z czasem
 spędzonym (suma + rozbicie na tryb audio/wideo). Grupowana po dniach:
 nagłówek dnia ze statystykami, pod spodem lista — u dziecka z miniaturami,
@@ -35,6 +45,8 @@ ADR 0001).
   przez rodzica (tam nic nie było odtwarzane).
 - **Historia z procentami** — odrzucona: czas trwania filmu z oEmbed nie jest
   niezawodny; minutowy postęp wystarcza.
+- **Wznowienie także w podglądzie rodzica** — odrzucone: podgląd ma pokazać
+  materiał od początku i nie może nadpisać postępu dziecka.
 
 ## Konsekwencje
 
@@ -42,3 +54,4 @@ ADR 0001).
   przy liczniku wideo, ADR 0003); nic nie opuszcza urządzenia.
 - Historia w panelu rodzica daje wgląd „co dziecko faktycznie ogląda" obok
   historii decyzji (co rodzic dopuścił).
+- Pozycja wznowienia trzymana jest per film lokalnie; nie opuszcza urządzenia.

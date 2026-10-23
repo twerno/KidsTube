@@ -56,6 +56,8 @@ export interface PlayerHandle {
 export interface EmbedPlayerProps {
   videoId: string;
   autoPlay?: boolean;
+  /** Start playback at this offset in seconds (ADR 0004: wznowienie). */
+  startSeconds?: number;
   /** Fired once playback started and YouTube's startup UI has been dismissed. */
   onReady?: () => void;
   onEnded?: () => void;
@@ -68,10 +70,16 @@ const APP_ORIGIN = 'https://com.kidtube';
 const CHROME_UA =
   'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36';
 
-function buildEmbedUrl(videoId: string, autoPlay: boolean): string {
+function buildEmbedUrl(videoId: string, autoPlay: boolean, startSeconds = 0): string {
   const params = ['playsinline=1', 'rel=0', 'iv_load_policy=3', 'disablekb=1', 'controls=0'];
   if (autoPlay) {
     params.push('autoplay=1');
+  }
+  // Native start offset — the embed seeks before playback, so a resumed video
+  // does not visibly begin at 0 and then jump (ADR 0004).
+  const start = Math.floor(startSeconds);
+  if (start > 0) {
+    params.push(`start=${start}`);
   }
   return `https://www.youtube.com/embed/${videoId}?${params.join('&')}`;
 }
@@ -376,10 +384,10 @@ const PLAYER_JSA = `
 const cmd = (body: string) => `(function(){try{${body}}catch(e){}})();true;`;
 
 export const EmbedPlayer = forwardRef<PlayerHandle, EmbedPlayerProps>(function EmbedPlayerImpl(
-  { videoId, autoPlay = true, onReady, onEnded, onError, onState },
+  { videoId, autoPlay = true, startSeconds = 0, onReady, onEnded, onError, onState },
   ref,
 ) {
-  const uri = useMemo(() => buildEmbedUrl(videoId, autoPlay), [videoId, autoPlay]);
+  const uri = useMemo(() => buildEmbedUrl(videoId, autoPlay, startSeconds), [videoId, autoPlay, startSeconds]);
   const webRef = useRef<React.ComponentRef<typeof WebView>>(null);
   const onReadyRef = useRef(onReady);
   const onEndedRef = useRef(onEnded);

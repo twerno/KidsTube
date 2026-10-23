@@ -1,6 +1,6 @@
 /** In-memory Repository used by tests, previews and the first-run demo mode. */
 
-import type { Channel, Decision, Settings, Video, VideoStatus } from '../domain/types';
+import type { Channel, Decision, Settings, Video, VideoStatus, WatchHistoryEntry, WatchProgress } from '../domain/types';
 import { DEFAULT_SETTINGS } from '../domain/types';
 import { statusForOutcome } from '../domain/decisions';
 import type { Repository } from './repository';
@@ -11,6 +11,8 @@ export class MemoryRepository implements Repository {
   private videos = new Map<string, Video>();
   private decisions: Decision[] = [];
   private usage = new Map<string, number>();
+  private watchProgress = new Map<string, WatchProgress>();
+  private watchHistory: WatchHistoryEntry[] = [];
 
   constructor(seed?: {
     settings?: Settings;
@@ -18,12 +20,16 @@ export class MemoryRepository implements Repository {
     videos?: Video[];
     decisions?: Decision[];
     usage?: Record<string, number>;
+    watchProgress?: WatchProgress[];
+    watchHistory?: WatchHistoryEntry[];
   }) {
     this.settings = { ...DEFAULT_SETTINGS, ...seed?.settings };
     seed?.channels?.forEach(c => this.channels.set(c.id, c));
     seed?.videos?.forEach(v => this.videos.set(v.id, v));
     this.decisions = [...(seed?.decisions ?? [])];
     Object.entries(seed?.usage ?? {}).forEach(([key, seconds]) => this.usage.set(key, seconds));
+    seed?.watchProgress?.forEach(p => this.watchProgress.set(p.videoId, p));
+    this.watchHistory = [...(seed?.watchHistory ?? [])];
   }
 
   async init(): Promise<void> {}
@@ -107,5 +113,39 @@ export class MemoryRepository implements Repository {
 
   async resetUsage(dateKey: string): Promise<void> {
     this.usage.delete(dateKey);
+  }
+
+  async getWatchProgress(videoId: string): Promise<WatchProgress | undefined> {
+    return this.watchProgress.get(videoId);
+  }
+
+  async listWatchProgress(): Promise<WatchProgress[]> {
+    return [...this.watchProgress.values()];
+  }
+
+  async saveWatchProgress(progress: WatchProgress): Promise<void> {
+    this.watchProgress.set(progress.videoId, progress);
+  }
+
+  async listWatchHistory(): Promise<WatchHistoryEntry[]> {
+    return [...this.watchHistory];
+  }
+
+  async getWatchHistoryEntry(
+    videoId: string,
+    dateKey: string,
+  ): Promise<WatchHistoryEntry | undefined> {
+    return this.watchHistory.find(e => e.videoId === videoId && e.dateKey === dateKey);
+  }
+
+  async saveWatchHistory(entry: WatchHistoryEntry): Promise<void> {
+    const index = this.watchHistory.findIndex(
+      e => e.videoId === entry.videoId && e.dateKey === entry.dateKey,
+    );
+    if (index >= 0) {
+      this.watchHistory[index] = entry;
+    } else {
+      this.watchHistory.push(entry);
+    }
   }
 }

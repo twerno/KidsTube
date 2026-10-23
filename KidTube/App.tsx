@@ -2,9 +2,11 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ActivityIndicator, Alert, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { AsyncStorageRepository } from './src/data/asyncStorageRepository';
 import type { Repository } from './src/data/repository';
-import type { Channel, Decision, DecisionOutcome, Schedule, Settings, Video, VideoStatus } from './src/domain/types';
+import type { Channel, Decision, DecisionOutcome, Schedule, Settings, Video, VideoStatus, WatchMode, WatchProgress } from './src/domain/types';
 import { proposalsForChild, videosForChild } from './src/domain/content';
 import { manualDecision, projectVideos, repeatProposalDecision } from './src/domain/decisions';
+import { mergeWatchStretch } from './src/domain/watchHistory';
+import { markCompleted, resumeSeconds, updateProgress } from './src/domain/watchState';
 import { canPlay, dateKey, normalizeSchedule, remainingSecondsToday } from './src/domain/schedule';
 import { extractYouTubeUrl, parseYouTubeLink } from './src/domain/youtubeUrl';
 import { handleIncomingLink } from './src/services/incomingLink';
@@ -25,7 +27,7 @@ import { colors } from './src/ui/theme';
 type Route =
   | { name: 'child' }
   | { name: 'parent' }
-  | { name: 'player'; video: Video; audioOnly: boolean }
+  | { name: 'player'; video: Video; audioOnly: boolean; startAtSeconds: number; startDurationSeconds: number }
   | { name: 'preview'; video: Video };
 
 function createRepository(): Repository {
@@ -50,20 +52,23 @@ export default function App() {
   const [route, setRoute] = useState<Route>({ name: 'child' });
   const [refreshing, setRefreshing] = useState(false);
   const [usedSecondsToday, setUsedSecondsToday] = useState(0);
+  const [watchProgress, setWatchProgress] = useState<WatchProgress[]>([]);
 
   const reload = useCallback(async () => {
-    const [s, c, v, d, used] = await Promise.all([
+    const [s, c, v, d, used, progress] = await Promise.all([
       repo.getSettings(),
       repo.listChannels(),
       repo.listVideos(),
       repo.listDecisions(),
       repo.getUsage(dateKey(new Date())),
+      repo.listWatchProgress(),
     ]);
     setSettings(s);
     setChannels(c);
     setVideos(v);
     setDecisions(d);
     setUsedSecondsToday(used);
+    setWatchProgress(progress);
     console.log(
       '[KidTube:usage] loaded used=' +
         used +
@@ -124,11 +129,29 @@ export default function App() {
     [settings.schedule, usedSecondsToday],
   );
 
+  // Watching progress per video (ADR 0004): feeds the “stan obejrzenia” badge
+  // and the resume position.
+  const watchProgressById = useMemo(
+    () => new Map(watchProgress.map(progress => [progress.videoId, progress])),
+    [watchProgress],
+  );
+
   // ---- Playback start & time controls (ADR 0002) ---------------------------
 
-  const openPlayer = useCallback((video: Video, audioOnly: boolean) => {
-    setRoute({ name: 'player', video, audioOnly });
-  }, []);
+  // Opening a video resumes where the child stopped (ADR 0004).
+  const openPlayer = useCallback(
+    (video: Video, audioOnly: boolean) => {
+      const progress = watchProgressById.get(video.id);
+      setRoute({
+        name: 'player',
+        video,
+        audioOnly,
+        startAtSeconds: resumeSeconds(progress),
+        startDurationSeconds: progress?.durationSeconds ?? 0,
+      });
+    },
+    [watchProgressById],
+  );
 
   // Video is gated by the window and the daily budget; audio never is.
   const startPlay = useCallback(
@@ -157,15 +180,61 @@ export default function App() {
 
   // The player reports actual playback seconds in increments (ADR 0003: the
   // daily budget counts real play time, not time on the player screen). Audio
-  // never reports, so it never consumes the budget (ADR 0002).
-  const recordPlayedSeconds = useCallback(
-    (seconds: number) => {
+  // never consumes the budget (ADR 0002) but is recorded in the viewing history
+  // with its mode (ADR 0004).
+  const recordPlayed = useCallback(
+    async (video: Video, seconds: number, mode: WatchMode) => {
       if (seconds <= 0) {
         return;
       }
-      console.log('[KidTube:usage] +' + seconds + 's');
-      setUsedSecondsToday(previous => previous + seconds);
-      repo.addUsageSeconds(dateKey(new Date()), seconds).catch(() => undefined);
+      if (mode === 'video') {
+        console.log('[KidTube:usage] +' + seconds + 's');
+        setUsedSecondsToday(previous => previous + seconds);
+        repo.addUsageSeconds(dateKey(new Date()), seconds).catch(() => undefined);
+      }
+      const today = dateKey(new Date());
+      const entry = mergeWatchStretch(await repo.getWatchHistoryEntry(video.id, today), {
+        video,
+        dateKey: today,
+        mode,
+        seconds,
+        at: Date.now(),
+      });
+      await repo.saveWatchHistory(entry);
+    },
+    [repo],
+  );
+
+  // Store the resume position (ADR 0004). The player throttles this to a few
+  // seconds while playing and reports once more when it unmounts.
+  const recordProgress = useCallback(
+    async (video: Video, positionSeconds: number, durationSeconds: number) => {
+      const next = updateProgress(
+        await repo.getWatchProgress(video.id),
+        video.id,
+        positionSeconds,
+        Date.now(),
+        durationSeconds,
+      );
+      await repo.saveWatchProgress(next);
+      setWatchProgress(previous => [...previous.filter(p => p.videoId !== video.id), next]);
+    },
+    [repo],
+  );
+
+  // Reaching the end marks the video as fully watched (ADR 0004).
+  const recordCompleted = useCallback(
+    async (video: Video) => {
+      const now = Date.now();
+      const existing = (await repo.getWatchProgress(video.id)) ?? {
+        videoId: video.id,
+        positionSeconds: 0,
+        completed: false,
+        lastWatchedAt: now,
+      };
+      const next = markCompleted(existing, now);
+      await repo.saveWatchProgress(next);
+      setWatchProgress(previous => [...previous.filter(p => p.videoId !== video.id), next]);
     },
     [repo],
   );
@@ -485,8 +554,20 @@ export default function App() {
         <PlayerScreen
           video={route.video}
           audioOnly={route.audioOnly}
-          onAudioOnlyChange={audioOnly => setRoute({ name: 'player', video: route.video, audioOnly })}
-          onPlayedSeconds={recordPlayedSeconds}
+          startAtSeconds={route.startAtSeconds}
+          startDurationSeconds={route.startDurationSeconds}
+          onAudioOnlyChange={audioOnly =>
+            setRoute({
+              name: 'player',
+              video: route.video,
+              audioOnly,
+              startAtSeconds: route.startAtSeconds,
+              startDurationSeconds: route.startDurationSeconds,
+            })
+          }
+          onPlayedSeconds={(seconds, mode) => recordPlayed(route.video, seconds, mode)}
+          onProgress={(position, duration) => recordProgress(route.video, position, duration)}
+          onCompleted={() => recordCompleted(route.video)}
           remainingVideoSeconds={remainingVideoSeconds}
           onClose={() => {
             setRoute({ name: 'child' });
@@ -550,6 +631,7 @@ export default function App() {
         childName={settings.childName}
         remainingVideoSeconds={remainingVideoSeconds}
         videos={childVideos}
+        watchProgress={watchProgress}
         proposals={childProposals}
         refreshing={refreshing}
         onRefresh={sync}

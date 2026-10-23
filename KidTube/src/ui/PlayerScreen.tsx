@@ -5,7 +5,7 @@ import { PlayerControls } from './player/PlayerControls';
 import { AudioControls } from './player/AudioControls';
 import { lockLandscape, lockPortrait, unlockOrientation } from '../native/orientation';
 import { colors, radius, spacing } from './theme';
-import type { Video } from '../domain/types';
+import type { Video, WatchMode } from '../domain/types';
 import { freshSleepTimer, resetSleepTimer, tickSleepTimer, type SleepTimerState } from '../domain/sleepMode';
 import { advanceWatch, beginWatch, unreportedSeconds } from '../domain/watchTime';
 
@@ -14,8 +14,16 @@ export interface PlayerScreenProps {
   audioOnly?: boolean;
   /** Audio mode is lifted to the route so App stops counting the daily usage. */
   onAudioOnlyChange?: (audioOnly: boolean) => void;
-  /** Incremental actual-playback seconds (ADR 0003: the daily budget is real play time). */
-  onPlayedSeconds?: (seconds: number) => void;
+  /** Incremental actual-playback seconds with the mode they were played in (ADR 0003/0004). */
+  onPlayedSeconds?: (seconds: number, mode: WatchMode) => void;
+  /** Current playback position and duration (seconds), throttled — the resume point (ADR 0004). */
+  onProgress?: (positionSeconds: number, durationSeconds: number) => void;
+  /** Playback reached the end (ADR 0004: “obejrzany w całości”). */
+  onCompleted?: () => void;
+  /** Where to start playback, from stored progress (ADR 0004: wznowienie). */
+  startAtSeconds?: number;
+  /** Stored duration, so the slider starts at the right place before load (ADR 0004). */
+  startDurationSeconds?: number;
   /** Seconds left in today's video budget; undefined when there is no limit. */
   remainingVideoSeconds?: number;
   onClose: () => void;
@@ -35,12 +43,18 @@ const INITIAL_STATE: PlayerState = {
 const CONTROLS_HIDE_MS = 4000;
 // On first reveal we keep the bar up longer so it masks YouTube's startup UI.
 const CONTROLS_HIDE_INITIAL_MS = 8000;
+// How often the resume position is persisted while playing (ADR 0004).
+const PROGRESS_SAVE_MS = 5000;
 
 export function PlayerScreen({
   video,
   audioOnly: initialAudioOnly = false,
   onAudioOnlyChange,
   onPlayedSeconds,
+  onProgress,
+  onCompleted,
+  startAtSeconds = 0,
+  startDurationSeconds = 0,
   remainingVideoSeconds,
   onClose,
 }: PlayerScreenProps) {
@@ -50,10 +64,20 @@ export function PlayerScreen({
   const [error, setError] = useState<string | undefined>();
   const [errorCount, setErrorCount] = useState(0);
   const [limitReached, setLimitReached] = useState(false);
-  // Best-effort resume target after a retry (ADR 0003).
-  const resumeRef = useRef(0);
+  // Best-effort resume target after a retry (ADR 0003), seeded from stored
+  // progress so playback continues where the child stopped (ADR 0004).
+  const resumeRef = useRef(startAtSeconds);
+  // Offset handed to the embed via `start=`; moved to the failure position on
+  // retry so playback resumes there without the 0 → X jump.
+  const [startAt, setStartAt] = useState(startAtSeconds);
   const [playNonce, setPlayNonce] = useState(0);
-  const [state, setState] = useState<PlayerState>(INITIAL_STATE);
+  const [state, setState] = useState<PlayerState>(() => ({
+    ...INITIAL_STATE,
+    // Seed position and duration from stored progress so the slider starts at
+    // the resume point instead of 0 (ADR 0004).
+    position: startAtSeconds,
+    duration: startDurationSeconds > 0 ? startDurationSeconds : 0,
+  }));
   const [controlsVisible, setControlsVisible] = useState(true);
   const [scrubbing, setScrubbing] = useState(false);
   const [interacted, setInteracted] = useState(false);
@@ -72,14 +96,55 @@ export function PlayerScreen({
   const watchRef = useRef(beginWatch(Date.now()));
   const reportedRef = useRef(0);
   useEffect(() => {
-    const counting = !audioOnly && state.playing && !state.buffering;
+    const counting = state.playing && !state.buffering;
     watchRef.current = advanceWatch(watchRef.current, Date.now(), counting);
     const delta = unreportedSeconds(watchRef.current, reportedRef.current);
     if (delta > 0) {
       reportedRef.current += delta;
-      onPlayedSeconds?.(delta);
+      onPlayedSeconds?.(delta, audioOnly ? 'audio' : 'video');
     }
   }, [state, audioOnly, onPlayedSeconds]);
+
+  // Persist the resume position, throttled while playing and once on unmount.
+  const onProgressRef = useRef(onProgress);
+  const onCompletedRef = useRef(onCompleted);
+  const positionRef = useRef(0);
+  const durationRef = useRef(0);
+  const lastProgressAtRef = useRef(0);
+  useEffect(() => {
+    onProgressRef.current = onProgress;
+    onCompletedRef.current = onCompleted;
+  }, [onProgress, onCompleted]);
+  useEffect(() => {
+    positionRef.current = state.position;
+    durationRef.current = state.duration;
+    if (state.position <= 0) {
+      return;
+    }
+    const now = Date.now();
+    if (now - lastProgressAtRef.current >= PROGRESS_SAVE_MS) {
+      lastProgressAtRef.current = now;
+      onProgressRef.current?.(state.position, state.duration);
+    }
+  }, [state.position, state.duration]);
+  useEffect(
+    () => () => {
+      if (positionRef.current > 0) {
+        onProgressRef.current?.(positionRef.current, durationRef.current);
+      }
+    },
+    [],
+  );
+
+  // Flush the final position before leaving the player, so the next open
+  // resumes exactly there (ADR 0004). Done before `onClose`, so App's refresh
+  // cannot read a stale progress.
+  const handleClose = useCallback(() => {
+    if (positionRef.current > 0) {
+      onProgressRef.current?.(positionRef.current, durationRef.current);
+    }
+    onClose();
+  }, [onClose]);
 
   // Entering audio mode starts a fresh 1 h sleep countdown (ADR 0002).
   useEffect(() => {
@@ -114,13 +179,14 @@ export function PlayerScreen({
   };
 
   // With “play in a loop” on, an ended video silently restarts instead of
-  // showing the end screen.
+  // showing the end screen. Only a real end marks the video as fully watched.
   const handleEnded = () => {
     if (loopRef.current) {
       playerRef.current?.seekTo(0);
       playerRef.current?.play();
       return;
     }
+    onCompletedRef.current?.();
     setEnded(true);
   };
 
@@ -134,6 +200,9 @@ export function PlayerScreen({
 
   const retry = () => {
     setError(undefined);
+    // Restart the embed at the failure position (ADR 0003/0004).
+    setStartAt(resumeRef.current);
+    setState(previous => ({ ...previous, position: resumeRef.current }));
     setPlayNonce(value => value + 1);
   };
 
@@ -167,11 +236,11 @@ export function PlayerScreen({
 
   useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
-      onClose();
+      handleClose();
       return true;
     });
     return () => subscription.remove();
-  }, [onClose]);
+  }, [handleClose]);
 
   // Auto-hide the control bar while playing. It stays put while the user is
   // scrubbing and is re-armed on every interaction (interactionNonce).
@@ -218,6 +287,19 @@ export function PlayerScreen({
     showControls();
   };
 
+  // The player reports `duration: 0` until the video metadata loads; such a
+  // report must not zero out the seeded (or already known) duration/position,
+  // otherwise the labels flash 0 → real value (ADR 0004). Only once the
+  // duration is known do we trust the reported position.
+  const handleState = useCallback((next: PlayerState) => {
+    setState(prev => {
+      if (next.duration > 0) {
+        return next;
+      }
+      return { ...next, duration: prev.duration, position: prev.position };
+    });
+  }, []);
+
   return (
     <View style={styles.container}>
       {/* Player is never interactive; all input goes to our native controls. */}
@@ -226,14 +308,17 @@ export function PlayerScreen({
         ref={playerRef}
         videoId={video.id}
         autoPlay
+        startSeconds={startAt}
         onReady={() => {
-          if (resumeRef.current > 1) {
-            playerRef.current?.seekTo(resumeRef.current);
+          // `start=` normally lands us at the offset. Only if the embed ignored
+          // it (position far from the target) fall back to an explicit seek.
+          if (startAt > 1 && Math.abs(positionRef.current - startAt) > 3) {
+            playerRef.current?.seekTo(startAt);
           }
         }}
         onEnded={handleEnded}
         onError={handleError}
-        onState={setState}
+        onState={handleState}
       />
 
       {/* Tap anywhere to toggle the control bar (does not reach YouTube). */}
@@ -251,7 +336,7 @@ export function PlayerScreen({
             <Pressable onPress={replay} style={[styles.endBtn, styles.endBtnPrimary]}>
               <Text style={styles.endBtnPrimaryText}>Zagraj ponownie</Text>
             </Pressable>
-            <Pressable onPress={onClose} style={styles.endBtn}>
+            <Pressable onPress={handleClose} style={styles.endBtn}>
               <Text style={styles.endBtnText}>Wróć do listy</Text>
             </Pressable>
           </View>
@@ -345,7 +430,7 @@ export function PlayerScreen({
             <Pressable onPress={switchToAudio} style={[styles.endBtn, styles.endBtnPrimary]}>
               <Text style={styles.endBtnPrimaryText}>Tylko dźwięk</Text>
             </Pressable>
-            <Pressable onPress={onClose} style={styles.endBtn}>
+            <Pressable onPress={handleClose} style={styles.endBtn}>
               <Text style={styles.endBtnText}>Wróć do listy</Text>
             </Pressable>
           </View>
@@ -365,7 +450,7 @@ export function PlayerScreen({
             <Pressable onPress={retry} style={[styles.endBtn, styles.endBtnPrimary]}>
               <Text style={styles.endBtnPrimaryText}>Spróbuj ponownie</Text>
             </Pressable>
-            <Pressable onPress={onClose} style={styles.endBtn}>
+            <Pressable onPress={handleClose} style={styles.endBtn}>
               <Text style={styles.endBtnText}>Wróć do listy</Text>
             </Pressable>
           </View>
@@ -374,7 +459,7 @@ export function PlayerScreen({
 
       <View style={styles.topControls}>
         <View style={styles.topLeft}>
-          <Pressable onPress={onClose} hitSlop={10} style={styles.controlBtn}>
+          <Pressable onPress={handleClose} hitSlop={10} style={styles.controlBtn}>
             <Text style={styles.controlText}>‹ Menu</Text>
           </Pressable>
           <Pressable

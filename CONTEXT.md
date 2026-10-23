@@ -73,7 +73,11 @@ _Avoid_: Historia przeglądania — to nie WebView, to odtwarzanie
 
 **Stan obejrzenia**:
 Per-film: nowy (nigdy nieodtwarzany; badge znika po pierwszym odtworzeniu), obejrzany w całości (dojście do końca odtwarzania), albo częściowo (postęp w minutach — czas trwania z oEmbed nie jest niezawodny). Widoczny na kafelkach we wszystkich widokach dziecka.
-_Avoid_: Progress w znaczeniu „pasek ładowania sieci”
+_Avoid_: Progress w znaczeniu „pasek ładowania sieci"
+
+**Wznowienie**:
+Otwarcie częściowo obejrzanego filmu startuje od zapisanej pozycji (postęp). Dotyczy tylko dziecka; podgląd rodzica zawsze gra od początku i nie zmienia postępu dziecka.
+_Avoid_: Autoodtwarzanie, „od początku” jako domyślne w świecie dziecka
 
 **Wstecz (nawigacja)**:
 Cofanie kontekstowe po ścieżce użytkownika: z feedu → do feedu, z kanału → do kanału, z odtwarzacza → tam, skąd przyszło dziecko.

@@ -1,7 +1,7 @@
 /** Device persistence backed by AsyncStorage (single JSON blob per collection). */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { Channel, Decision, Settings, Video, VideoStatus } from '../domain/types';
+import type { Channel, Decision, Settings, Video, VideoStatus, WatchHistoryEntry, WatchProgress } from '../domain/types';
 import { DEFAULT_SETTINGS } from '../domain/types';
 import { statusForOutcome } from '../domain/decisions';
 import type { Repository } from './repository';
@@ -12,6 +12,8 @@ const KEYS = {
   videos: '@kidtube/videos/v1',
   decisions: '@kidtube/decisions/v1',
   usage: '@kidtube/usage/v1',
+  watchProgress: '@kidtube/watch-progress/v1',
+  watchHistory: '@kidtube/watch-history/v1',
 };
 
 async function readJson<T>(key: string, fallback: T): Promise<T> {
@@ -28,6 +30,8 @@ export class AsyncStorageRepository implements Repository {
   private videos = new Map<string, Video>();
   private decisions: Decision[] = [];
   private usage = new Map<string, number>();
+  private watchProgress = new Map<string, WatchProgress>();
+  private watchHistory: WatchHistoryEntry[] = [];
   private settings: Settings = { ...DEFAULT_SETTINGS };
   private loaded = false;
 
@@ -35,18 +39,23 @@ export class AsyncStorageRepository implements Repository {
     if (this.loaded) {
       return;
     }
-    const [settings, channels, videos, decisions, usage] = await Promise.all([
-      readJson<Settings>(KEYS.settings, { ...DEFAULT_SETTINGS }),
-      readJson<Channel[]>(KEYS.channels, []),
-      readJson<Video[]>(KEYS.videos, []),
-      readJson<Decision[]>(KEYS.decisions, []),
-      readJson<Record<string, number>>(KEYS.usage, {}),
-    ]);
+    const [settings, channels, videos, decisions, usage, watchProgress, watchHistory] =
+      await Promise.all([
+        readJson<Settings>(KEYS.settings, { ...DEFAULT_SETTINGS }),
+        readJson<Channel[]>(KEYS.channels, []),
+        readJson<Video[]>(KEYS.videos, []),
+        readJson<Decision[]>(KEYS.decisions, []),
+        readJson<Record<string, number>>(KEYS.usage, {}),
+        readJson<WatchProgress[]>(KEYS.watchProgress, []),
+        readJson<WatchHistoryEntry[]>(KEYS.watchHistory, []),
+      ]);
     this.settings = { ...DEFAULT_SETTINGS, ...settings };
     channels.forEach(c => this.channels.set(c.id, c));
     videos.forEach(v => this.videos.set(v.id, v));
     this.decisions = [...(decisions ?? [])];
     Object.entries(usage ?? {}).forEach(([key, seconds]) => this.usage.set(key, seconds));
+    (watchProgress ?? []).forEach(p => this.watchProgress.set(p.videoId, p));
+    this.watchHistory = [...(watchHistory ?? [])];
     this.loaded = true;
   }
 
@@ -68,6 +77,14 @@ export class AsyncStorageRepository implements Repository {
 
   private async persistDecisions(): Promise<void> {
     await AsyncStorage.setItem(KEYS.decisions, JSON.stringify(this.decisions));
+  }
+
+  private async persistWatchProgress(): Promise<void> {
+    await AsyncStorage.setItem(KEYS.watchProgress, JSON.stringify([...this.watchProgress.values()]));
+  }
+
+  private async persistWatchHistory(): Promise<void> {
+    await AsyncStorage.setItem(KEYS.watchHistory, JSON.stringify(this.watchHistory));
   }
 
   async getSettings(): Promise<Settings> {
@@ -160,5 +177,41 @@ export class AsyncStorageRepository implements Repository {
   async resetUsage(dateKey: string): Promise<void> {
     this.usage.delete(dateKey);
     await this.persistUsage();
+  }
+
+  async getWatchProgress(videoId: string): Promise<WatchProgress | undefined> {
+    return this.watchProgress.get(videoId);
+  }
+
+  async listWatchProgress(): Promise<WatchProgress[]> {
+    return [...this.watchProgress.values()];
+  }
+
+  async saveWatchProgress(progress: WatchProgress): Promise<void> {
+    this.watchProgress.set(progress.videoId, progress);
+    await this.persistWatchProgress();
+  }
+
+  async listWatchHistory(): Promise<WatchHistoryEntry[]> {
+    return [...this.watchHistory];
+  }
+
+  async getWatchHistoryEntry(
+    videoId: string,
+    dateKey: string,
+  ): Promise<WatchHistoryEntry | undefined> {
+    return this.watchHistory.find(e => e.videoId === videoId && e.dateKey === dateKey);
+  }
+
+  async saveWatchHistory(entry: WatchHistoryEntry): Promise<void> {
+    const index = this.watchHistory.findIndex(
+      e => e.videoId === entry.videoId && e.dateKey === entry.dateKey,
+    );
+    if (index >= 0) {
+      this.watchHistory[index] = entry;
+    } else {
+      this.watchHistory.push(entry);
+    }
+    await this.persistWatchHistory();
   }
 }

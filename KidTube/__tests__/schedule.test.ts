@@ -101,6 +101,12 @@ describe('canPlay', () => {
     expect(remainingSecondsToday({ ...base, dailyLimitMinutes: 30 }, 10 * 60)).toBe(20 * 60);
     expect(remainingSecondsToday(base, 10 * 60)).toBeUndefined();
   });
+
+  it('turns the daily budget off together with the schedule (no hard cut)', () => {
+    // A leftover limit must not keep cutting video once the schedule is off.
+    const schedule: Schedule = { ...base, enabled: false, dailyLimitMinutes: 30 };
+    expect(remainingSecondsToday(schedule, 30 * 60)).toBeUndefined();
+  });
 });
 
 describe('normalizeSchedule', () => {

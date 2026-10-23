@@ -123,7 +123,13 @@ export function remainingSecondsToday(
   schedule: Schedule,
   usedSecondsToday: number,
 ): number | undefined {
-  const limitMinutes = normalizeSchedule(schedule).dailyLimitMinutes ?? 0;
+  const normalized = normalizeSchedule(schedule);
+  // A disabled schedule turns off every time control — including the daily
+  // budget (ADR 0002). Otherwise a left-over limit would still hard-cut video.
+  if (!normalized.enabled) {
+    return undefined;
+  }
+  const limitMinutes = normalized.dailyLimitMinutes ?? 0;
   if (limitMinutes <= 0) {
     return undefined;
   }

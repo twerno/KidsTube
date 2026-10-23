@@ -10,10 +10,11 @@ import {
   View,
 } from 'react-native';
 import { colors, radius, spacing } from './theme';
-import { Button } from './components';
+import { Button, WatchBadge } from './components';
 import { APP_VERSION } from '../version';
 import { formatPublishedDate } from '../domain/dates';
-import type { Video } from '../domain/types';
+import { watchState } from '../domain/watchState';
+import type { Video, WatchProgress } from '../domain/types';
 
 export interface ChildHomeScreenProps {
   childName?: string;
@@ -21,6 +22,8 @@ export interface ChildHomeScreenProps {
   remainingVideoSeconds?: number;
   /** Only allowed videos — the feed. */
   videos: Video[];
+  /** Per-video watching progress, for the “stan obejrzenia” badge (ADR 0004). */
+  watchProgress?: WatchProgress[];
   /** The child's own pending proposals (source: propose / share). */
   proposals: Video[];
   refreshing?: boolean;
@@ -35,6 +38,7 @@ export function ChildHomeScreen({
   childName,
   remainingVideoSeconds,
   videos,
+  watchProgress,
   proposals,
   refreshing,
   onRefresh,
@@ -45,6 +49,11 @@ export function ChildHomeScreen({
   const [tab, setTab] = useState<'feed' | 'proposals'>('feed');
   const [proposing, setProposing] = useState(false);
   const [linkText, setLinkText] = useState('');
+
+  const progressByVideoId = React.useMemo(
+    () => new Map((watchProgress ?? []).map(progress => [progress.videoId, progress])),
+    [watchProgress],
+  );
 
   const submitProposal = () => {
     const trimmed = linkText.trim();
@@ -83,7 +92,13 @@ export function ChildHomeScreen({
           onPress={() => onPlay(item)}
           style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
         >
-          <Image source={{ uri: item.thumbnailUrl }} style={styles.thumb} />
+          <View style={styles.thumbWrap}>
+            <Image source={{ uri: item.thumbnailUrl }} style={styles.thumb} />
+            <WatchBadge
+              state={watchState(progressByVideoId.get(item.id))}
+              style={styles.thumbBadge}
+            />
+          </View>
           <View style={styles.rowText}>
             <Text numberOfLines={2} style={styles.videoTitle}>
               {item.title}
@@ -262,6 +277,8 @@ const styles = StyleSheet.create({
   },
   rowPressed: { opacity: 0.85 },
   thumb: { width: 132, height: 74, backgroundColor: colors.cardAlt },
+  thumbWrap: { width: 132, height: 74 },
+  thumbBadge: { position: 'absolute', left: spacing.xs, bottom: spacing.xs },
   thumbEmpty: { borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
   rowText: { flex: 1, padding: spacing.md, justifyContent: 'center' },
   videoTitle: { color: colors.text, fontSize: 15, fontWeight: '600' },

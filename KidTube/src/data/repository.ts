@@ -4,7 +4,7 @@
  * implementation (device) are interchangeable.
  */
 
-import type { Channel, Decision, Settings, Video, VideoStatus } from '../domain/types';
+import type { Channel, Decision, Settings, Video, VideoStatus, WatchHistoryEntry, WatchProgress } from '../domain/types';
 
 export interface Repository {
   init(): Promise<void>;
@@ -38,4 +38,19 @@ export interface Repository {
   addUsageSeconds(dateKey: string, seconds: number): Promise<void>;
   /** Clear a day's watch time (parent action / test aid). */
   resetUsage(dateKey: string): Promise<void>;
+
+  /**
+   * Per-video watching progress (ADR 0004): resume position and “stan
+   * obejrzenia”. Kept separately from the history so it survives untouched.
+   */
+  getWatchProgress(videoId: string): Promise<WatchProgress | undefined>;
+  listWatchProgress(): Promise<WatchProgress[]>;
+  /** Upsert by video id. */
+  saveWatchProgress(progress: WatchProgress): Promise<void>;
+
+  /** Viewing history (ADR 0004): one entry per video and local day. */
+  listWatchHistory(): Promise<WatchHistoryEntry[]>;
+  getWatchHistoryEntry(videoId: string, dateKey: string): Promise<WatchHistoryEntry | undefined>;
+  /** Upsert by (video id, date key). */
+  saveWatchHistory(entry: WatchHistoryEntry): Promise<void>;
 }

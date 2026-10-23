@@ -86,6 +86,46 @@ export interface Video {
   addedAt: number;
 }
 
+/** Playback mode a stretch of watching happened in (ADR 0002 / ADR 0004). */
+export type WatchMode = 'video' | 'audio';
+
+/**
+ * Per-video watching progress (ADR 0004). `positionSeconds` is the last known
+ * playback position — the resume point (“wznawiamy tam, gdzie dziecko
+ * skończyło”). `completed` sticks once the child reaches the end (or seeks to
+ * it) and makes the next open restart from the beginning. Purely local.
+ */
+export interface WatchProgress {
+  videoId: string;
+  positionSeconds: number;
+  /**
+   * Last known total duration (seconds); undefined until measured. Seeding it
+   * lets the resume slider land at the right place before the video loads.
+   */
+  durationSeconds?: number;
+  completed: boolean;
+  /** When the video was last played, for “recently watched” ordering. */
+  lastWatchedAt: number;
+}
+
+/**
+ * One material's watch time on a given local day, for the viewing history
+ * (ADR 0004). Carries a snapshot of the video metadata so the history survives
+ * removed videos and channels.
+ */
+export interface WatchHistoryEntry {
+  videoId: string;
+  /** Local day (YYYY-MM-DD) the time is attributed to. */
+  dateKey: string;
+  title: string;
+  channelTitle?: string;
+  thumbnailUrl?: string;
+  firstWatchedAt: number;
+  lastWatchedAt: number;
+  audioSeconds: number;
+  videoSeconds: number;
+}
+
 export interface Settings {
   /** PBKDF2 hash of the parent PIN. Absent until the parent sets one. */
   pinHash?: string;
