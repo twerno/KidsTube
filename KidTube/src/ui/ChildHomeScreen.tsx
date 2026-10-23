@@ -17,6 +17,8 @@ import type { Video } from '../domain/types';
 
 export interface ChildHomeScreenProps {
   childName?: string;
+  /** Seconds left in today's video budget; undefined when there is no limit. */
+  remainingVideoSeconds?: number;
   /** Only allowed videos — the feed. */
   videos: Video[];
   /** The child's own pending proposals (source: propose / share). */
@@ -31,6 +33,7 @@ export interface ChildHomeScreenProps {
 
 export function ChildHomeScreen({
   childName,
+  remainingVideoSeconds,
   videos,
   proposals,
   refreshing,
@@ -140,7 +143,20 @@ export function ChildHomeScreen({
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>{childName ? `Cześć, ${childName}!` : 'Twoje filmy'}</Text>
+        <View style={styles.headerLeft}>
+          <Text style={styles.title}>{childName ? `Cześć, ${childName}!` : 'Twoje filmy'}</Text>
+          {remainingVideoSeconds !== undefined ? (
+            remainingVideoSeconds > 0 ? (
+              <Text style={styles.budget}>
+                ⏳ Zostało {Math.ceil(remainingVideoSeconds / 60)} min na dziś
+              </Text>
+            ) : (
+              <Text style={styles.budgetEmpty}>
+                Limit na dziś wykorzystany — możesz słuchać z wyłączonym obrazem
+              </Text>
+            )
+          ) : null}
+        </View>
         <Pressable onPress={onOpenParent} hitSlop={12} style={styles.parentButton}>
           <Text style={styles.parentButtonText}>Panel rodzica</Text>
           <Text style={styles.versionText}>v{APP_VERSION}</Text>
@@ -211,7 +227,10 @@ const styles = StyleSheet.create({
     paddingTop: spacing.lg,
     paddingBottom: spacing.md,
   },
+  headerLeft: { flex: 1, paddingRight: spacing.md },
   title: { color: colors.text, fontSize: 24, fontWeight: '800' },
+  budget: { color: colors.textMuted, fontSize: 13, fontWeight: '600', marginTop: spacing.xs },
+  budgetEmpty: { color: colors.warning, fontSize: 13, fontWeight: '600', marginTop: spacing.xs },
   parentButton: { paddingVertical: spacing.xs, paddingHorizontal: spacing.sm, alignItems: 'flex-end' },
   parentButtonText: { color: colors.textMuted, fontSize: 13 },
   versionText: { color: colors.textMuted, fontSize: 10, opacity: 0.7, marginTop: 2 },

@@ -104,4 +104,8 @@ export class MemoryRepository implements Repository {
   async addUsageSeconds(dateKey: string, seconds: number): Promise<void> {
     this.usage.set(dateKey, (this.usage.get(dateKey) ?? 0) + seconds);
   }
+
+  async resetUsage(dateKey: string): Promise<void> {
+    this.usage.delete(dateKey);
+  }
 }

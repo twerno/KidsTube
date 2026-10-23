@@ -36,4 +36,6 @@ export interface Repository {
   /** Seconds of playback recorded for a local date key (YYYY-MM-DD). */
   getUsage(dateKey: string): Promise<number>;
   addUsageSeconds(dateKey: string, seconds: number): Promise<void>;
+  /** Clear a day's watch time (parent action / test aid). */
+  resetUsage(dateKey: string): Promise<void>;
 }

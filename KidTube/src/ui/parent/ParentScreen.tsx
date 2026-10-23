@@ -15,6 +15,9 @@ export interface ParentScreenProps {
   channels: Channel[];
   videos: Video[];
   schedule?: Schedule;
+  /** Video seconds used today; shown to the parent for verification (ADR 0002). */
+  usedSecondsToday?: number;
+  onResetUsage: () => void;
   refreshing?: boolean;
   onAddChannelLink: (link: string, autoApprove: boolean) => Promise<string | undefined>;
   onToggleChannelPolicy: (channel: Channel) => void;
@@ -37,6 +40,8 @@ export function ParentScreen(props: ParentScreenProps) {
     channels,
     videos,
     schedule,
+    usedSecondsToday,
+    onResetUsage,
     refreshing,
     onAddChannelLink,
     onToggleChannelPolicy,
@@ -118,7 +123,12 @@ export function ParentScreen(props: ParentScreenProps) {
           />
         ) : null}
         {tab === 'schedule' ? (
-          <ScheduleTab schedule={schedule} onScheduleChange={onScheduleChange} />
+          <ScheduleTab
+            schedule={schedule}
+            usedSecondsToday={usedSecondsToday ?? 0}
+            onResetUsage={onResetUsage}
+            onScheduleChange={onScheduleChange}
+          />
         ) : null}
         {tab === 'settings' ? (
           <SettingsTab

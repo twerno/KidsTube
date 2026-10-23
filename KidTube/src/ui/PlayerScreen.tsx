@@ -7,12 +7,17 @@ import { lockLandscape, lockPortrait, unlockOrientation } from '../native/orient
 import { colors, radius, spacing } from './theme';
 import type { Video } from '../domain/types';
 import { freshSleepTimer, resetSleepTimer, tickSleepTimer, type SleepTimerState } from '../domain/sleepMode';
+import { advanceWatch, beginWatch, unreportedSeconds } from '../domain/watchTime';
 
 export interface PlayerScreenProps {
   video: Video;
   audioOnly?: boolean;
   /** Audio mode is lifted to the route so App stops counting the daily usage. */
   onAudioOnlyChange?: (audioOnly: boolean) => void;
+  /** Incremental actual-playback seconds (ADR 0003: the daily budget is real play time). */
+  onPlayedSeconds?: (seconds: number) => void;
+  /** Seconds left in today's video budget; undefined when there is no limit. */
+  remainingVideoSeconds?: number;
   onClose: () => void;
 }
 
@@ -35,11 +40,18 @@ export function PlayerScreen({
   video,
   audioOnly: initialAudioOnly = false,
   onAudioOnlyChange,
+  onPlayedSeconds,
+  remainingVideoSeconds,
   onClose,
 }: PlayerScreenProps) {
   const playerRef = useRef<PlayerHandle>(null);
   const [audioOnly, setAudioOnly] = useState(initialAudioOnly);
   const [ended, setEnded] = useState(false);
+  const [error, setError] = useState<string | undefined>();
+  const [errorCount, setErrorCount] = useState(0);
+  const [limitReached, setLimitReached] = useState(false);
+  // Best-effort resume target after a retry (ADR 0003).
+  const resumeRef = useRef(0);
   const [playNonce, setPlayNonce] = useState(0);
   const [state, setState] = useState<PlayerState>(INITIAL_STATE);
   const [controlsVisible, setControlsVisible] = useState(true);
@@ -54,6 +66,20 @@ export function PlayerScreen({
   useEffect(() => {
     loopRef.current = loop;
   }, [loop]);
+
+  // Count only actual playback (ADR 0003): paused, buffering and error time do
+  // not consume the daily budget, and audio never does (ADR 0002).
+  const watchRef = useRef(beginWatch(Date.now()));
+  const reportedRef = useRef(0);
+  useEffect(() => {
+    const counting = !audioOnly && state.playing && !state.buffering;
+    watchRef.current = advanceWatch(watchRef.current, Date.now(), counting);
+    const delta = unreportedSeconds(watchRef.current, reportedRef.current);
+    if (delta > 0) {
+      reportedRef.current += delta;
+      onPlayedSeconds?.(delta);
+    }
+  }, [state, audioOnly, onPlayedSeconds]);
 
   // Entering audio mode starts a fresh 1 h sleep countdown (ADR 0002).
   useEffect(() => {
@@ -96,6 +122,41 @@ export function PlayerScreen({
       return;
     }
     setEnded(true);
+  };
+
+  // Network / HTTP errors from the WebView: show an explicit retry screen. No
+  // automatic retries (ADR 0003) — the child decides.
+  const handleError = (info?: string) => {
+    resumeRef.current = state.position;
+    setError(info ?? 'Nie udało się odtworzyć materiału.');
+    setErrorCount(count => count + 1);
+  };
+
+  const retry = () => {
+    setError(undefined);
+    setPlayNonce(value => value + 1);
+  };
+
+  // Hard cut (ADR 0002/0005): the moment the daily video budget hits zero, pause
+  // and offer audio mode. The child never keeps watching past the limit.
+  useEffect(() => {
+    if (audioOnly || limitReached) {
+      return;
+    }
+    if (remainingVideoSeconds !== undefined && remainingVideoSeconds <= 0) {
+      playerRef.current?.pause();
+      setLimitReached(true);
+    }
+  }, [audioOnly, remainingVideoSeconds, limitReached]);
+
+  // Switching to audio after the cut must resume playback (video was paused).
+  const switchToAudio = () => {
+    setAudioOnly(true);
+    onAudioOnlyChange?.(true);
+    if (limitReached) {
+      setLimitReached(false);
+      playerRef.current?.play();
+    }
   };
 
   const showControls = useCallback(() => {
@@ -165,7 +226,13 @@ export function PlayerScreen({
         ref={playerRef}
         videoId={video.id}
         autoPlay
+        onReady={() => {
+          if (resumeRef.current > 1) {
+            playerRef.current?.seekTo(resumeRef.current);
+          }
+        }}
         onEnded={handleEnded}
+        onError={handleError}
         onState={setState}
       />
 
@@ -182,7 +249,7 @@ export function PlayerScreen({
           </Text>
           <View style={styles.endActions}>
             <Pressable onPress={replay} style={[styles.endBtn, styles.endBtnPrimary]}>
-              <Text style={styles.endBtnPrimaryText}>Jeszcze raz</Text>
+              <Text style={styles.endBtnPrimaryText}>Zagraj ponownie</Text>
             </Pressable>
             <Pressable onPress={onClose} style={styles.endBtn}>
               <Text style={styles.endBtnText}>Wróć do listy</Text>
@@ -267,21 +334,69 @@ export function PlayerScreen({
         />
       ) : null}
 
+      {limitReached && !audioOnly && !error ? (
+        <View style={styles.endOverlay}>
+          <Text style={styles.endEmoji}>⏰</Text>
+          <Text numberOfLines={3} style={styles.audioTitle}>
+            Czas na dziś wykorzystany
+          </Text>
+          <Text style={styles.audioChannel}>Możesz słuchać dalej z wyłączonym obrazem.</Text>
+          <View style={styles.endActions}>
+            <Pressable onPress={switchToAudio} style={[styles.endBtn, styles.endBtnPrimary]}>
+              <Text style={styles.endBtnPrimaryText}>Tylko dźwięk</Text>
+            </Pressable>
+            <Pressable onPress={onClose} style={styles.endBtn}>
+              <Text style={styles.endBtnText}>Wróć do listy</Text>
+            </Pressable>
+          </View>
+        </View>
+      ) : null}
+
+      {error ? (
+        <View style={styles.endOverlay}>
+          <Text style={styles.endEmoji}>📡</Text>
+          <Text numberOfLines={3} style={styles.audioTitle}>
+            Nie udało się odtworzyć materiału
+          </Text>
+          {errorCount >= 2 ? (
+            <Text style={styles.audioChannel}>Sprawdź połączenie z internetem.</Text>
+          ) : null}
+          <View style={styles.endActions}>
+            <Pressable onPress={retry} style={[styles.endBtn, styles.endBtnPrimary]}>
+              <Text style={styles.endBtnPrimaryText}>Spróbuj ponownie</Text>
+            </Pressable>
+            <Pressable onPress={onClose} style={styles.endBtn}>
+              <Text style={styles.endBtnText}>Wróć do listy</Text>
+            </Pressable>
+          </View>
+        </View>
+      ) : null}
+
       <View style={styles.topControls}>
-        <Pressable onPress={onClose} hitSlop={10} style={styles.controlBtn}>
-          <Text style={styles.controlText}>‹ Menu</Text>
-        </Pressable>
-        <Pressable
-          onPress={() => {
-            const next = !audioOnly;
-            setAudioOnly(next);
-            onAudioOnlyChange?.(next);
-          }}
-          hitSlop={10}
-          style={styles.controlBtn}
-        >
-          <Text style={styles.controlText}>{audioOnly ? 'Wideo' : 'Tylko dźwięk'}</Text>
-        </Pressable>
+        <View style={styles.topLeft}>
+          <Pressable onPress={onClose} hitSlop={10} style={styles.controlBtn}>
+            <Text style={styles.controlText}>‹ Menu</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => {
+              if (audioOnly) {
+                setAudioOnly(false);
+                onAudioOnlyChange?.(false);
+              } else {
+                switchToAudio();
+              }
+            }}
+            hitSlop={10}
+            style={styles.controlBtn}
+          >
+            <Text style={styles.controlText}>{audioOnly ? 'Wideo' : 'Tylko dźwięk'}</Text>
+          </Pressable>
+        </View>
+        {!audioOnly && !ended && !error && controlsVisible && remainingVideoSeconds !== undefined ? (
+          <Text style={styles.remainingText}>
+            ⏳ {Math.ceil(Math.max(0, remainingVideoSeconds) / 60)} min
+          </Text>
+        ) : null}
       </View>
     </View>
   );
@@ -293,8 +408,20 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: spacing.sm,
     left: spacing.sm,
+    right: spacing.sm,
     flexDirection: 'row',
-    gap: spacing.sm,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  topLeft: { flexDirection: 'row', gap: spacing.sm, alignItems: 'center' },
+  remainingText: {
+    backgroundColor: 'rgba(16,20,24,0.72)',
+    color: colors.primary,
+    fontSize: 13,
+    fontWeight: '700',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.lg,
   },
   controlBtn: {
     backgroundColor: 'rgba(16,20,24,0.72)',

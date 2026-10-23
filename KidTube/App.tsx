@@ -5,7 +5,7 @@ import type { Repository } from './src/data/repository';
 import type { Channel, Decision, DecisionOutcome, Schedule, Settings, Video, VideoStatus } from './src/domain/types';
 import { proposalsForChild, videosForChild } from './src/domain/content';
 import { manualDecision, projectVideos, repeatProposalDecision } from './src/domain/decisions';
-import { canPlay, dateKey, normalizeSchedule } from './src/domain/schedule';
+import { canPlay, dateKey, normalizeSchedule, remainingSecondsToday } from './src/domain/schedule';
 import { extractYouTubeUrl, parseYouTubeLink } from './src/domain/youtubeUrl';
 import { handleIncomingLink } from './src/services/incomingLink';
 import { ENABLE_TEST_SEED, SEED_REPLACED_IDS, SEED_TEST_VIDEOS } from './src/dev/seed';
@@ -49,18 +49,29 @@ export default function App() {
   const [pinSetup, setPinSetup] = useState(false);
   const [route, setRoute] = useState<Route>({ name: 'child' });
   const [refreshing, setRefreshing] = useState(false);
+  const [usedSecondsToday, setUsedSecondsToday] = useState(0);
 
   const reload = useCallback(async () => {
-    const [s, c, v, d] = await Promise.all([
+    const [s, c, v, d, used] = await Promise.all([
       repo.getSettings(),
       repo.listChannels(),
       repo.listVideos(),
       repo.listDecisions(),
+      repo.getUsage(dateKey(new Date())),
     ]);
     setSettings(s);
     setChannels(c);
     setVideos(v);
     setDecisions(d);
+    setUsedSecondsToday(used);
+    console.log(
+      '[KidTube:usage] loaded used=' +
+        used +
+        's limit=' +
+        (s.schedule?.dailyLimitMinutes ?? 0) +
+        'min schedule=' +
+        JSON.stringify(s.schedule),
+    );
   }, [repo]);
 
   useEffect(() => {
@@ -107,6 +118,12 @@ export default function App() {
 
   const childProposals = useMemo(() => proposalsForChild(projectedVideos), [projectedVideos]);
 
+  // Minutes left in today's video budget, shown to the child (ADR 0002/0004).
+  const remainingVideoSeconds = useMemo(
+    () => remainingSecondsToday(normalizeSchedule(settings.schedule), usedSecondsToday),
+    [settings.schedule, usedSecondsToday],
+  );
+
   // ---- Playback start & time controls (ADR 0002) ---------------------------
 
   const openPlayer = useCallback((video: Video, audioOnly: boolean) => {
@@ -138,20 +155,20 @@ export default function App() {
     [repo, settings.schedule, openPlayer],
   );
 
-  // Record playback seconds while the player is open — video mode only, so
-  // audio never consumes the daily budget (ADR 0002: limit = actual video time).
-  useEffect(() => {
-    if (route.name !== 'player' || route.audioOnly) {
-      return undefined;
-    }
-    const startedAt = Date.now();
-    return () => {
-      const seconds = Math.round((Date.now() - startedAt) / 1000);
-      if (seconds > 0) {
-        repo.addUsageSeconds(dateKey(new Date(startedAt)), seconds).catch(() => undefined);
+  // The player reports actual playback seconds in increments (ADR 0003: the
+  // daily budget counts real play time, not time on the player screen). Audio
+  // never reports, so it never consumes the budget (ADR 0002).
+  const recordPlayedSeconds = useCallback(
+    (seconds: number) => {
+      if (seconds <= 0) {
+        return;
       }
-    };
-  }, [route, repo]);
+      console.log('[KidTube:usage] +' + seconds + 's');
+      setUsedSecondsToday(previous => previous + seconds);
+      repo.addUsageSeconds(dateKey(new Date()), seconds).catch(() => undefined);
+    },
+    [repo],
+  );
 
   // ---- Incoming links (share / VIEW intent) --------------------------------
   const processIncomingLink = useCallback(
@@ -270,6 +287,8 @@ export default function App() {
     if (ok) {
       setParentGate(false);
       setRoute({ name: 'parent' });
+      // Refresh the daily-budget readout shown in the parent panel (ADR 0002).
+      reload().catch(() => undefined);
     }
     return ok;
   };
@@ -402,6 +421,11 @@ export default function App() {
     setSettings(next);
   };
 
+  const resetUsageToday = async () => {
+    await repo.resetUsage(dateKey(new Date()));
+    await reload();
+  };
+
   const changeSchedule = async (schedule: Schedule) => {
     const next = await repo.updateSettings({ schedule });
     setSettings(next);
@@ -462,7 +486,13 @@ export default function App() {
           video={route.video}
           audioOnly={route.audioOnly}
           onAudioOnlyChange={audioOnly => setRoute({ name: 'player', video: route.video, audioOnly })}
-          onClose={() => setRoute({ name: 'child' })}
+          onPlayedSeconds={recordPlayedSeconds}
+          remainingVideoSeconds={remainingVideoSeconds}
+          onClose={() => {
+            setRoute({ name: 'child' });
+            // Refresh today's used time after a playback session.
+            reload().catch(() => undefined);
+          }}
         />
       </View>
     );
@@ -504,6 +534,8 @@ export default function App() {
           onChangePin={() => setPinSetup(true)}
           onChildName={setChildName}
           schedule={settings.schedule}
+          usedSecondsToday={usedSecondsToday}
+          onResetUsage={resetUsageToday}
           onScheduleChange={changeSchedule}
           onClose={() => setRoute({ name: 'child' })}
         />
@@ -516,6 +548,7 @@ export default function App() {
       <StatusBar barStyle="light-content" />
       <ChildHomeScreen
         childName={settings.childName}
+        remainingVideoSeconds={remainingVideoSeconds}
         videos={childVideos}
         proposals={childProposals}
         refreshing={refreshing}

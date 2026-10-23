@@ -60,4 +60,17 @@ describe('decision history in the repository', () => {
     const projected = projectVideos(await repo.listVideos(), await repo.listDecisions());
     expect(projected[0].status).toBe('allowed');
   });
+
+  it('accumulates and resets daily watch time', async () => {
+    const repo = new MemoryRepository();
+    await repo.init();
+
+    expect(await repo.getUsage('2026-10-23')).toBe(0);
+    await repo.addUsageSeconds('2026-10-23', 30);
+    await repo.addUsageSeconds('2026-10-23', 15);
+    expect(await repo.getUsage('2026-10-23')).toBe(45);
+
+    await repo.resetUsage('2026-10-23');
+    expect(await repo.getUsage('2026-10-23')).toBe(0);
+  });
 });

@@ -21,6 +21,26 @@ export function ScheduleEditor({ schedule, onSave }: ScheduleEditorProps) {
     normalized.dailyLimitMinutes ? String(normalized.dailyLimitMinutes) : '',
   );
   const [error, setError] = useState<string | undefined>();
+  // Makes the save action observable: “Zapisano” after a successful save,
+  // “Niezapisane zmiany” as soon as a field is edited again.
+  const [status, setStatus] = useState<'idle' | 'saved' | 'dirty'>('idle');
+
+  const changeEnabled = (value: boolean) => {
+    setEnabled(value);
+    setStatus('dirty');
+  };
+  const changeFrom = (value: string) => {
+    setFrom(value);
+    setStatus('dirty');
+  };
+  const changeTo = (value: string) => {
+    setTo(value);
+    setStatus('dirty');
+  };
+  const changeLimit = (value: string) => {
+    setLimit(value);
+    setStatus('dirty');
+  };
 
   const save = () => {
     const start = parseHHMM(from);
@@ -45,28 +65,29 @@ export function ScheduleEditor({ schedule, onSave }: ScheduleEditorProps) {
         enabled && start != null && end != null ? { startMinute: start, endMinute: end } : undefined,
       dailyLimitMinutes: limitNumber,
     });
+    setStatus('saved');
   };
 
   return (
     <Card style={styles.card}>
       <View style={styles.row}>
         <Text style={styles.label}>Harmonogram włączony</Text>
-        <Switch value={enabled} onValueChange={setEnabled} />
+        <Switch value={enabled} onValueChange={changeEnabled} />
       </View>
 
       <View style={styles.twoColumns}>
         <View style={styles.column}>
-          <Field label="Oglądanie od" value={from} onChangeText={setFrom} placeholder="07:00" />
+          <Field label="Oglądanie od" value={from} onChangeText={changeFrom} placeholder="07:00" />
         </View>
         <View style={styles.column}>
-          <Field label="do" value={to} onChangeText={setTo} placeholder="20:00" />
+          <Field label="do" value={to} onChangeText={changeTo} placeholder="20:00" />
         </View>
       </View>
 
       <Field
         label="Limit dzienny (minuty, puste = bez limitu)"
         value={limit}
-        onChangeText={setLimit}
+        onChangeText={changeLimit}
         keyboardType="number-pad"
         placeholder="np. 60"
       />
@@ -77,7 +98,11 @@ export function ScheduleEditor({ schedule, onSave }: ScheduleEditorProps) {
       </Text>
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
-      <Button title="Zapisz harmonogram" variant="secondary" onPress={save} />
+      <View style={styles.actions}>
+        <Button title="Zapisz harmonogram" variant="secondary" onPress={save} />
+        {status === 'saved' ? <Text style={styles.saved}>Zapisano ✓</Text> : null}
+        {status === 'dirty' ? <Text style={styles.dirty}>Niezapisane zmiany</Text> : null}
+      </View>
     </Card>
   );
 }
@@ -94,4 +119,7 @@ const styles = StyleSheet.create({
   column: { flex: 1 },
   hint: { color: colors.textMuted, fontSize: 13, lineHeight: 19 },
   error: { color: colors.danger, fontSize: 14 },
+  actions: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, flexWrap: 'wrap' },
+  saved: { color: colors.success, fontSize: 14, fontWeight: '700' },
+  dirty: { color: colors.warning, fontSize: 14, fontWeight: '600' },
 });

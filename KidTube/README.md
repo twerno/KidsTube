@@ -17,6 +17,7 @@ domenowych: `CONTEXT.md` (root repozytorium).
 | Metadane filmu | **oEmbed** (`youtube.com/oembed`) — tytuł, autor, miniatura. **Data publikacji** z InnerTube `player` (`microformat.playerMicroformatRenderer.publishDate`) — oEmbed jej nie zwraca. Bez klucza API. |
 | Akceptacja | Per kanał: `auto_approve` (nowe filmy od razu do biblioteki po syncu) albo `manual` (przy skanie RSS **wszystkie** filmy kanału trafiają na listę do zatwierdzenia). *(ADR 0001)* |
 | Propozycje i decyzje | Lista oczekująca: propozycje dziecka **+** filmy z kanałów `manual`, źródło wpisu oznaczone (RSS / propozycja). Decyzja (dopuść/odrzuć) zapisywana w historii — append-only, last-wins, zmienialna przez rodzica, auto-rozstrzyganie powtórek. *(ADR 0001)* |
+| Historia i akcje zbiorcze | Zakładka **Decyzje** (grupa Historia): pełny log append-only od najnowszych (wynik, źródło ręczne/auto, czas), dotknięcie → dialog zmiany (last-wins), przeżywa usunięte filmy/kanały. Akcje masowe (cofnięcie autoakceptacji, usunięcie kanału) z obowiązkowym potwierdzeniem i liczbą filmów — zbiorcze odrzucenia jako osobne decyzje. *(ADR 0010)* |
 | Wyszukiwanie/dodawanie | Link / „Udostępnij” — fundament (działa zawsze). Wyszukiwarka YouTube w panelu rodzica — prototyp z bramką oceny stabilności. Bez klucza API. *(ADR 0005)* |
 | Dodawanie linków | `ACTION_SEND` (Udostępnij) jako główna, pewna droga; intent-filters VIEW jako best-effort. |
 | Odtwarzanie | WebView (embed — brak reklam pre-roll) + **własne natywne kontrolki**: play/pauza, pasek postępu/seek, napisy (domyślnie OFF), wybór ścieżki audio. Dotyk WebView wyłączony — sterowanie idzie przez most `injectJavaScript` ↔ `movie_player`. Nawigacja zamknięta allowlistą (tylko embed zatwierdzonego filmu). Koniec filmu: „Zagraj ponownie / Wróć do listy” (w trybie audio — pętla); błędy sieci: jawny retry + wznowienie best-effort; **licznik limitu = czas faktycznego odtwarzania**. *(ADR 0003)* |
@@ -79,7 +80,7 @@ obejrzenia dołączą do warstwy `domain/` + `data/` (ADR 0004).
 ## Testy
 
 ```bash
-npm test          # 99 testów: URL, RSS, reguły list, decyzje (last-wins), harmonogram + tryb snu + przeskoki, daty, PIN, sync, linki, player, render App
+npm test          # 107 testów: URL, RSS, reguły list, decyzje (last-wins), harmonogram + tryb snu + przeskoki, licznik czasu odtwarzania, daty, PIN, sync, linki, player, render App
 npx tsc --noEmit  # typy
 npx eslint .      # lint
 ```

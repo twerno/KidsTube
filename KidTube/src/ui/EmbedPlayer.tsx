@@ -59,6 +59,8 @@ export interface EmbedPlayerProps {
   /** Fired once playback started and YouTube's startup UI has been dismissed. */
   onReady?: () => void;
   onEnded?: () => void;
+  /** Fired on a WebView network/HTTP failure so the UI can offer an explicit retry. */
+  onError?: (info?: string) => void;
   onState?: (state: PlayerState) => void;
 }
 
@@ -374,26 +376,29 @@ const PLAYER_JSA = `
 const cmd = (body: string) => `(function(){try{${body}}catch(e){}})();true;`;
 
 export const EmbedPlayer = forwardRef<PlayerHandle, EmbedPlayerProps>(function EmbedPlayerImpl(
-  { videoId, autoPlay = true, onReady, onEnded, onState },
+  { videoId, autoPlay = true, onReady, onEnded, onError, onState },
   ref,
 ) {
   const uri = useMemo(() => buildEmbedUrl(videoId, autoPlay), [videoId, autoPlay]);
   const webRef = useRef<React.ComponentRef<typeof WebView>>(null);
   const onReadyRef = useRef(onReady);
   const onEndedRef = useRef(onEnded);
+  const onErrorRef = useRef(onError);
   const onStateRef = useRef(onState);
   // While a seek is settling the player keeps reporting the old position for a
   // few polls; hold the requested target until it reports back near it.
   const seekRef = useRef<{ target: number; at: number } | null>(null);
   onReadyRef.current = onReady;
   onEndedRef.current = onEnded;
+  onErrorRef.current = onError;
   onStateRef.current = onState;
 
   useEffect(() => {
     onReadyRef.current = onReady;
     onEndedRef.current = onEnded;
+    onErrorRef.current = onError;
     onStateRef.current = onState;
-  }, [onReady, onEnded, onState]);
+  }, [onReady, onEnded, onError, onState]);
 
   const run = (body: string) => webRef.current?.injectJavaScript(cmd(body));
 
@@ -460,8 +465,14 @@ export const EmbedPlayer = forwardRef<PlayerHandle, EmbedPlayerProps>(function E
             // ignore non-JSON messages
           }
         }}
-        onError={event => console.log('[KidTube:player] error', event.nativeEvent.description)}
-        onHttpError={event => console.log('[KidTube:player] http', event.nativeEvent.statusCode)}
+        onError={event => {
+          console.log('[KidTube:player] error', event.nativeEvent.description);
+          onErrorRef.current?.(event.nativeEvent.description);
+        }}
+        onHttpError={event => {
+          console.log('[KidTube:player] http', event.nativeEvent.statusCode);
+          onErrorRef.current?.(`HTTP ${event.nativeEvent.statusCode}`);
+        }}
       />
     </View>
   );

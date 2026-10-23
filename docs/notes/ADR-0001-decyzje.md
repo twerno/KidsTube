@@ -29,6 +29,9 @@ Zapis tego, co zrobione i co zostaje. Bez commita do czasu akceptacji.
 
 ## Czego świadomie NIE zrobiono (drugi krok)
 
+> Spisane jako **ADR 0010** (`docs/adr/0010-panel-decyzji-historia-i-zbiorcze-akcje.md`);
+> implementacja w osobnej sesji.
+
 - **Widok historii decyzji** w panelu rodzica (grupa „Historia”).
 - **Dialogi zbiorcze**: cofnięcie autoakceptacji (`auto_approve → manual`) i
   usunięcie kanału → pytanie o zbiorcze odrzucenie dozwolonych filmów.
