@@ -6,26 +6,38 @@ konfiguracja w pełni offline (chroniona kodem rodzica).
 
 ## Decyzje projektowe
 
+Każda decyzja ma **zamknięte ADR** (`docs/adr/`, numeracja przy wierszu);
+uzasadnienia i odrzucone alternatywy — w ADR-ach. Słownik terminów
+domenowych: `CONTEXT.md` (root repozytorium).
+
 | Temat | Decyzja |
 | --- | --- |
 | Model | **B — kuratorowana biblioteka.** Rodzic dodaje filmy/kanały, dziecko widzi tylko dozwolone. |
 | Źródło danych | **RSS kanału** (`feeds/videos.xml?channel_id=…`) — ok. 15 najnowszych filmów na kanał. Bez YouTube Data API, bez scrapingu. |
 | Metadane filmu | **oEmbed** (`youtube.com/oembed`) — tytuł, autor, miniatura. Bez klucza API. |
-| Akceptacja | Per kanał: `auto_approve` (nowe filmy od razu dozwolone) lub `manual` (trafiają do listy oczekujących). |
-| Wyszukiwanie/dodawanie | A+C: mini-przeglądarka YouTube w panelu rodzica + wklejanie linku. Bez klucza API. |
+| Akceptacja | Per kanał: `auto_approve` (nowe filmy od razu do biblioteki po syncu) albo `manual` (przy skanie RSS **wszystkie** filmy kanału trafiają na listę do zatwierdzenia). *(ADR 0001)* |
+| Propozycje i decyzje | Lista oczekująca: propozycje dziecka **+** filmy z kanałów `manual`, źródło wpisu oznaczone (RSS / propozycja). Decyzja (dopuść/odrzuć) zapisywana w historii — append-only, last-wins, zmienialna przez rodzica, auto-rozstrzyganie powtórek. *(ADR 0001)* |
+| Wyszukiwanie/dodawanie | Link / „Udostępnij” — fundament (działa zawsze). Wyszukiwarka YouTube w panelu rodzica — prototyp z bramką oceny stabilności. Bez klucza API. *(ADR 0005)* |
 | Dodawanie linków | `ACTION_SEND` (Udostępnij) jako główna, pewna droga; intent-filters VIEW jako best-effort. |
-| Odtwarzanie | WebView (embed — brak reklam pre-roll) + **własne natywne kontrolki**: play/pauza, pasek postępu/seek, napisy (domyślnie OFF), wybór ścieżki audio. Dotyk WebView wyłączony — sterowanie idzie przez most `injectJavaScript` ↔ `movie_player`. Nawigacja zamknięta allowlistą (tylko embed zatwierdzonego filmu). |
+| Odtwarzanie | WebView (embed — brak reklam pre-roll) + **własne natywne kontrolki**: play/pauza, pasek postępu/seek, napisy (domyślnie OFF), wybór ścieżki audio. Dotyk WebView wyłączony — sterowanie idzie przez most `injectJavaScript` ↔ `movie_player`. Nawigacja zamknięta allowlistą (tylko embed zatwierdzonego filmu). Koniec filmu: „Zagraj ponownie / Wróć do listy” (w trybie audio — pętla); błędy sieci: jawny retry + wznowienie best-effort; **licznik limitu = czas faktycznego odtwarzania**. *(ADR 0003)* |
 | Logo YouTube | **Nie ukrywamy** — widoczne m.in. przy buforowaniu; spełnia wymóg atrybucji. |
-| Czas | Harmonogram (okna godzinowe), limit dzienny w minutach, wyłącznik. |
-| Tryb nocny | Po ustawionej godzinie wymusza **audio-only** (do audiobooków na dobranoc). |
+| Ścieżki audio | Tylko **oryginał + polski**, start na oryginale; wybór znika, gdy jest tylko jedna ścieżka. Docelowo lista języków konfigurowana przez rodzica. *(ADR 0008)* |
+| Świat dziecka | 4 zakładki (Feed · Kanały · Do zatwierdzenia · Historia — **Do zatwierdzenia pokazuje tylko własne propozycje**), nawigacja wstecz po ścieżce użytkownika, stan obejrzenia na kafelkach (nowy / minuty / w całości — nie w „Do zatwierdzenia”), historia oglądania per dzień. *(ADR 0004)* |
+| Świat rodzica | Grupy zakładek (Treści · Historia · Ustawienia), wspólne filtrowanie/grupowanie po kanałach, lista oczekująca z rozróżnieniem źródła (RSS / propozycja dziecka) i **podglądem filmu przed zatwierdzeniem**, historia decyzji (last-wins) + podgląd historii oglądania. *(ADR 0005)* |
+| Czas | **Jedno okno tygodniowe** (bramka wideo) + **dzienny limit wideo** (twarde cięcie, ostrzeżenie 5 min przed) + **audio bez limitu i poza oknem** (tryb audio, nie kategoria treści) + **tryb snu** 1 h z resetem na ekranie audio. Zastąpiło dawny „tryb nocny”. *(ADR 0002)* |
+| Synchronizacja | Tylko przy otwarciu aplikacji (+ ręczne „Odśwież” / sync z panelu); timer w tle odroczony do backlogu z bramką oceny. *(ADR 0006)* |
+| Import katalogu | Jawny przycisk **„Wczytaj cały katalog”** na kanale: pełna lista przez InnerTube (paginacja), bez klucza API; status wg polityki kanału; **wznawialny** — checkpoint kursora, dzienny budżet stron, miękki stop przy limicie/błędzie. *(ADR 0009)* |
+| Dystrybucja | Rodzinny sideload z GitHub Releases (debug keystore). Google Play — przyszła, odwracalna decyzja z bramką oceny. *(ADR 0007)* |
 | PIN | PBKDF2-SHA256, losowa sól (`@noble/hashes`). |
 | Wersje | `minSdk 26` (Android 8), `targetSdk 36`, `compileSdk 37`. |
 
 ### Dlaczego RSS, a nie „wszystkie filmy”
 
-Kanałowy RSS zwraca tylko najnowsze ~15 pozycji. Pełny backfill wymagałby
-YouTube Data API (`playlistItems.list`) i klucza API — świadomie odłożone.
-Nowe filmy dochodzą na bieżąco przy każdej synchronizacji.
+Kanałowy RSS zwraca tylko najnowsze ~15 pozycji. Pełny backfill przez
+YouTube Data API (`playlistItems.list`) wymagałby klucza API — świadomie
+odłożony. Starsze pozycje dociąga jawny import całego katalogu przez InnerTube
+(ADR 0009). Nowe filmy dochodzą na bieżąco przy każdej synchronizacji (ADR 0006:
+sync tylko przy otwarciu aplikacji).
 
 ## Architektura
 
@@ -37,7 +49,7 @@ src/
     youtubeUrl.ts             parsowanie linków (watch/shorts/embed/youtu.be/vnd.youtube)
     rss.ts                    parser Atom feedu kanału
     content.ts                reguły: auto/manual, merge sync, widok dziecka
-    schedule.ts               okna czasowe, limit dzienny, tryb audio-only
+    schedule.ts               okno oglądania, limit dzienny wideo, tryb audio / tryb snu
     playerGuard.ts            allowlist nawigacji WebView (tylko embed białego filmu)
   data/
     repository.ts             interfejs trwałości
@@ -56,6 +68,9 @@ android/app/src/main/
   AndroidManifest.xml         intent-filters (VIEW + SEND)
   java/com/kidtube/           ShareIntentModule / Package / Store
 ```
+
+Kształt plików będzie ewoluował wg ADR-ów: log decyzji, historia oglądania
+i stan obejrzenia dołączą do warstwy `domain/` + `data/` (ADR 0001, 0004).
 
 ## Testy
 
@@ -99,11 +114,16 @@ ją dodać.
   (RN). Uwaga: Google ma zweryfikowane App Links, więc domyślnie wygra
   oficjalna aplikacja YouTube; rodzic może wskazać KidTube w
   Ustawienia → Domyślne aplikacje → Otwieranie linków.
+- **Propozycje dziecka** (zakładka „Do zatwierdzenia”) wpadają do tej samej
+  listy oczekującej (źródło `propose`).
 
 ## Backlog
 
 - Prawdziwe audio w tle przy zgaszonym ekranie: foreground service + MediaSession
-  (obecny tryb nocny utrzymuje dźwięk, ale WebView pauzuje po zgaszeniu ekranu).
-- Wiele okien harmonogramu / osobne dla weekendu.
+  (niezawodny tryb audio — WebView pauzuje po zgaszeniu ekranu).
+- Sync RSS w tle / timer — odroczony z bramką oceny (ADR 0006).
+- Wyszukiwarka YouTube w panelu rodzica — prototyp z bramką oceny (ADR 0005).
 - Wiele profili dzieci.
 - Natywne crypto dla PIN (obecnie pure-JS).
+- *(Odrzucone świadomie: wiele okien harmonogramu / osobne dla weekendu —
+  patrz ADR 0002; „godzina ciszy” nocna — patrz ADR 0002.)*

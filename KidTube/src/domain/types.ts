@@ -9,7 +9,7 @@
 export type VideoStatus = 'allowed' | 'pending' | 'blocked';
 
 /** Where a video record came from. */
-export type VideoSource = 'rss' | 'manual' | 'share';
+export type VideoSource = 'rss' | 'manual' | 'share' | 'propose';
 
 /** How newly discovered videos of a channel are handled. */
 export type ChannelPolicy = 'auto_approve' | 'manual';

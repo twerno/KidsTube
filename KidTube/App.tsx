@@ -3,11 +3,11 @@ import { ActivityIndicator, Alert, StatusBar, StyleSheet, Text, View } from 'rea
 import { AsyncStorageRepository } from './src/data/asyncStorageRepository';
 import type { Repository } from './src/data/repository';
 import type { Channel, Schedule, Settings, Video, VideoStatus } from './src/domain/types';
-import { videosForChild } from './src/domain/content';
+import { proposalsForChild, videosForChild } from './src/domain/content';
 import { canPlay, dateKey, isAudioOnlyNow, normalizeSchedule } from './src/domain/schedule';
 import { extractYouTubeUrl, parseYouTubeLink } from './src/domain/youtubeUrl';
 import { handleIncomingLink } from './src/services/incomingLink';
-import { ENABLE_TEST_SEED, SEED_TEST_VIDEOS } from './src/dev/seed';
+import { ENABLE_TEST_SEED, SEED_REPLACED_IDS, SEED_TEST_VIDEOS } from './src/dev/seed';
 import { consumeSharedText, getInitialLink, subscribeIncomingLinks } from './src/native/shareIntent';
 import { hashPin, verifyPin } from './src/security/pin';
 import { syncAllChannels, syncChannel, fetchChannelFeed } from './src/services/channelSync';
@@ -17,12 +17,15 @@ import { ChildHomeScreen } from './src/ui/ChildHomeScreen';
 import { GateScreen } from './src/ui/GateScreen';
 import { ParentScreen } from './src/ui/parent/ParentScreen';
 import { PlayerScreen } from './src/ui/PlayerScreen';
+import { PreviewScreen } from './src/ui/parent/PreviewScreen';
+import { SOURCE_LABEL } from './src/ui/parent/PendingTab';
 import { colors } from './src/ui/theme';
 
 type Route =
   | { name: 'child' }
   | { name: 'parent' }
-  | { name: 'player'; video: Video; audioOnly: boolean };
+  | { name: 'player'; video: Video; audioOnly: boolean }
+  | { name: 'preview'; video: Video };
 
 function createRepository(): Repository {
   return new AsyncStorageRepository();
@@ -61,6 +64,11 @@ export default function App() {
       try {
         await repo.init();
         if (ENABLE_TEST_SEED) {
+          for (const id of SEED_REPLACED_IDS) {
+            if (await repo.getVideo(id)) {
+              await repo.removeVideo(id);
+            }
+          }
           for (const video of SEED_TEST_VIDEOS) {
             if (!(await repo.getVideo(video.id))) {
               await repo.upsertVideos([video]);
@@ -85,6 +93,8 @@ export default function App() {
     () => videosForChild(videos).filter(v => !v.channelId || !blockedChannelIds.has(v.channelId)),
     [videos, blockedChannelIds],
   );
+
+  const childProposals = useMemo(() => proposalsForChild(videos), [videos]);
 
   // ---- Playback start & time controls --------------------------------------
 
@@ -173,6 +183,34 @@ export default function App() {
       unsubscribe();
     };
   }, [ready, processIncomingLink]);
+
+  // ---- Child proposes a video (ADR 0001: source 'propose') -----------------
+  const proposeLink = useCallback(
+    async (raw: string) => {
+      const link = extractYouTubeUrl(raw) ?? raw;
+      const result = await handleIncomingLink(link, repo, undefined, Date.now(), 'propose');
+      switch (result.kind) {
+        case 'play':
+          Alert.alert('Dozwolony', 'Ten film jest już w Twojej bibliotece.');
+          break;
+        case 'blocked':
+          Alert.alert('Zablokowane', 'Rodzic zablokował ten film.');
+          break;
+        case 'pending':
+          await reload();
+          Alert.alert('Dodano do zatwierdzenia', result.video.title);
+          break;
+        case 'channel':
+        case 'channel-proposal':
+          Alert.alert('To nie jest film', 'Wklej link do konkretnego filmu, nie kanału.');
+          break;
+        default:
+          Alert.alert('Nie rozpoznano', 'Sprawdź, czy link jest poprawny.');
+          break;
+      }
+    },
+    [repo, reload],
+  );
 
   // ---- Gate handling -------------------------------------------------------
 
@@ -385,6 +423,24 @@ export default function App() {
     );
   }
 
+  if (route.name === 'preview') {
+    return (
+      <View style={styles.root}>
+        <StatusBar barStyle="light-content" hidden />
+        <PreviewScreen
+          video={route.video}
+          sourceLabel={SOURCE_LABEL[route.video.source]}
+          onClose={() => setRoute({ name: 'parent' })}
+          onDecide={async (video, status) => {
+            await repo.setVideoStatus(video.id, status);
+            await reload();
+            setRoute({ name: 'parent' });
+          }}
+        />
+      </View>
+    );
+  }
+
   if (route.name === 'parent') {
     return (
       <View style={styles.root}>
@@ -394,6 +450,7 @@ export default function App() {
           channels={channels}
           videos={videos}
           onSetVideoStatus={setVideoStatus}
+          onPreviewVideo={video => setRoute({ name: 'preview', video })}
           refreshing={refreshing}
           onAddChannelLink={addChannelLink}
           onToggleChannelPolicy={toggleChannelPolicy}
@@ -416,9 +473,11 @@ export default function App() {
       <ChildHomeScreen
         childName={settings.childName}
         videos={childVideos}
+        proposals={childProposals}
         refreshing={refreshing}
         onRefresh={sync}
         onPlay={startPlay}
+        onPropose={proposeLink}
         onOpenParent={() => setParentGate(true)}
       />
     </View>

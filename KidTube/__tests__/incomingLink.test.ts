@@ -48,6 +48,20 @@ describe('handleIncomingLink', () => {
     expect(stored).toMatchObject({ title: 'Found it', status: 'pending', source: 'share' });
   });
 
+  it('stores a child proposal with source propose', async () => {
+    const repo = new MemoryRepository();
+    const result = await handleIncomingLink(
+      'https://youtu.be/PROPOSE1234',
+      repo,
+      fakeFetch({ title: 'Wanted' }),
+      undefined,
+      'propose',
+    );
+    expect(result.kind).toBe('pending');
+    const stored = await repo.getVideo('PROPOSE1234');
+    expect(stored).toMatchObject({ title: 'Wanted', status: 'pending', source: 'propose' });
+  });
+
   it('returns play for an allowed video', async () => {
     const repo = new MemoryRepository({ videos: [allowedVideo] });
     const result = await handleIncomingLink('https://youtu.be/UN-0gLuVOZU', repo);

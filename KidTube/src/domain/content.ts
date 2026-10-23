@@ -85,3 +85,20 @@ export function videosForChild(videos: Video[]): Video[] {
 export function pendingVideos(videos: Video[]): Video[] {
   return videos.filter(v => v.status === 'pending');
 }
+
+/**
+ * Pending videos that came from a channel RSS scan (parent labels them as
+ * “z kanału · RSS” — ADR 0001).
+ */
+export function rssPendingVideos(videos: Video[]): Video[] {
+  return videos.filter(v => v.status === 'pending' && v.source === 'rss');
+}
+
+/**
+ * Pending videos the child itself asked for (its propose button or a link
+ * shared on the device). This is exactly what the child's
+ * “Do zatwierdzenia” tab shows — ADR 0001 / ADR 0004.
+ */
+export function proposalsForChild(videos: Video[]): Video[] {
+  return videos.filter(v => v.status === 'pending' && (v.source === 'propose' || v.source === 'share'));
+}

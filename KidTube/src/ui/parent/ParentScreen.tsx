@@ -21,6 +21,7 @@ export interface ParentScreenProps {
   onBlockChannel: (channel: Channel) => void;
   onRemoveChannel: (channel: Channel) => void;
   onSetVideoStatus: (video: Video, status: VideoStatus) => void;
+  onPreviewVideo?: (video: Video) => void;
   onSync: () => void;
   onChangePin: () => void;
   onChildName: (name: string) => void;
@@ -42,6 +43,7 @@ export function ParentScreen(props: ParentScreenProps) {
     onBlockChannel,
     onRemoveChannel,
     onSetVideoStatus,
+    onPreviewVideo,
     onSync,
     onChangePin,
     onChildName,
@@ -90,7 +92,11 @@ export function ParentScreen(props: ParentScreenProps) {
 
       <View style={styles.body}>
         {tab === 'pending' ? (
-          <PendingTab videos={pending} onSetStatus={onSetVideoStatus} />
+          <PendingTab
+            videos={pending}
+            onSetStatus={onSetVideoStatus}
+            onPreview={onPreviewVideo}
+          />
         ) : null}
         {tab === 'videos' ? <VideosTab videos={videos} onSetStatus={onSetVideoStatus} /> : null}
         {tab === 'channels' ? (

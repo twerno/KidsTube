@@ -25,11 +25,17 @@ export type IncomingLinkResult =
   | { kind: 'channel-proposal'; proposal: ParsedYouTubeLink & { kind: 'channel' } }
   | { kind: 'unknown'; raw: string };
 
+/**
+ * For an unknown video the record is created with `source`:
+ *  - 'share'  — a link shared from YouTube / the browser (default),
+ *  - 'propose'— the child's “Zaproponuj film” button.
+ */
 export async function handleIncomingLink(
   raw: string,
   repo: Repository,
   fetchFn?: FetchLike,
   now: number = Date.now(),
+  source: 'share' | 'propose' = 'share',
 ): Promise<IncomingLinkResult> {
   const parsed = parseYouTubeLink(raw);
 
@@ -51,7 +57,7 @@ export async function handleIncomingLink(
       title: meta?.title ?? parsed.videoId,
       thumbnailUrl: meta?.thumbnailUrl,
       status: 'pending',
-      source: 'share',
+      source,
       addedAt: now,
     };
     await repo.upsertVideos([video]);

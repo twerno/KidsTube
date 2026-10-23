@@ -27,9 +27,11 @@ export function StatusBadge({ status }: { status: VideoStatus }) {
 export function VideoRow({
   video,
   onSetStatus,
+  onPreview,
 }: {
   video: Video;
   onSetStatus: (video: Video, status: VideoStatus) => void;
+  onPreview?: (video: Video) => void;
 }) {
   return (
     <View style={styles.row}>
@@ -57,6 +59,11 @@ export function VideoRow({
       <View style={styles.actions}>
         {video.status === 'pending' ? (
           <>
+            {onPreview ? (
+              <View style={styles.actionItem}>
+                <Button title="Podgląd" variant="secondary" onPress={() => onPreview(video)} />
+              </View>
+            ) : null}
             <View style={styles.actionItem}>
               <Button title="Odrzuć" variant="danger" onPress={() => onSetStatus(video, 'blocked')} />
             </View>

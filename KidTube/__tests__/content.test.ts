@@ -1,9 +1,11 @@
-import type { Channel, Video } from '../src/domain/types';
+import type { Channel, Video, VideoSource, VideoStatus } from '../src/domain/types';
 import {
   decideNewVideoStatus,
   isPlayable,
   mergeSyncedVideos,
   pendingVideos,
+  proposalsForChild,
+  rssPendingVideos,
   rssToVideos,
   videosForChild,
 } from '../src/domain/content';
@@ -113,5 +115,37 @@ describe('child view helpers', () => {
     ];
     expect(videosForChild(videos).map(v => v.id)).toEqual(['c', 'a']);
     expect(pendingVideos(videos).map(v => v.id)).toEqual(['b']);
+  });
+});
+
+describe('pending source helpers (ADR 0001)', () => {
+  const make = (id: string, status: VideoStatus, source: VideoSource): Video => ({
+    id,
+    title: id,
+    status,
+    source,
+    addedAt: 0,
+  });
+
+  it('rssPendingVideos picks pending RSS scans only', () => {
+    const videos: Video[] = [
+      make('r1', 'pending', 'rss'),
+      make('p1', 'pending', 'propose'),
+      make('s1', 'pending', 'share'),
+      make('m1', 'pending', 'manual'),
+      make('a1', 'allowed', 'rss'),
+    ];
+    expect(rssPendingVideos(videos).map(v => v.id)).toEqual(['r1']);
+  });
+
+  it('proposalsForChild shows only the child\'s own pending entries', () => {
+    const videos: Video[] = [
+      make('r1', 'pending', 'rss'),
+      make('p1', 'pending', 'propose'),
+      make('s1', 'pending', 'share'),
+      make('m1', 'pending', 'manual'),
+      make('p2', 'allowed', 'propose'),
+    ];
+    expect(proposalsForChild(videos).map(v => v.id)).toEqual(['p1', 's1']);
   });
 });
