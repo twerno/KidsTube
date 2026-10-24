@@ -10,6 +10,7 @@ class KidTubePackage : ReactPackage {
   override fun createNativeModules(reactContext: ReactApplicationContext): List<NativeModule> =
     listOf(
       ShareIntentModule(reactContext),
+      YouTubeLinkHandlerModule(reactContext),
       PinCryptoModule(reactContext),
       OrientationModule(reactContext),
     )

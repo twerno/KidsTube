@@ -4,6 +4,7 @@ import { AsyncStorageRepository } from './src/data/asyncStorageRepository';
 import type { Repository } from './src/data/repository';
 import type {
   Channel,
+  ChannelProposal,
   Decision,
   DecisionOutcome,
   ExtraTimePool,
@@ -47,9 +48,23 @@ import {
   recordSuccess,
 } from './src/domain/pinGuard';
 import { extractYouTubeUrl, parseYouTubeLink } from './src/domain/youtubeUrl';
-import { handleIncomingLink } from './src/services/incomingLink';
+import {
+  handleIncomingLink,
+  shouldProcessIncomingLink,
+  type IncomingLinkOrigin,
+} from './src/services/incomingLink';
 import { ENABLE_TEST_SEED, SEED_REPLACED_IDS, SEED_TEST_VIDEOS } from './src/dev/seed';
-import { consumeSharedText, getInitialLink, subscribeIncomingLinks } from './src/native/shareIntent';
+import {
+  approveChannelProposal,
+  rejectChannelProposal,
+  retryChannelProposal,
+} from './src/services/channelProposals';
+import { consumeSharedText, getInitialLink, subscribeLinks } from './src/native/shareIntent';
+import {
+  isYouTubeLinkHandlerDefault,
+  openYouTubeLinkSettings,
+  setYouTubeLinkHandlerEnabled,
+} from './src/native/youtubeLinkHandler';
 import { hashPin, verifyPin } from './src/security/pin';
 import { syncAllChannels, syncChannel, fetchChannelFeed } from './src/services/channelSync';
 import { resolveChannelFromUrl } from './src/services/channelResolve';
@@ -84,6 +99,7 @@ export default function App() {
   const [initError, setInitError] = useState<string | undefined>();
   const [settings, setSettings] = useState<Settings>({});
   const [channels, setChannels] = useState<Channel[]>([]);
+  const [channelProposals, setChannelProposals] = useState<ChannelProposal[]>([]);
   const [videos, setVideos] = useState<Video[]>([]);
   const [decisions, setDecisions] = useState<Decision[]>([]);
   const [parentGate, setParentGate] = useState(false);
@@ -107,12 +123,64 @@ export default function App() {
   const usageDateRef = useRef(dateKey(new Date()));
   const extraTimeRef = useRef<ExtraTimePool>(emptyExtraTime(dateKey(new Date())));
 
+  // Incoming share/VIEW links are queued until settings and the repository are
+  // ready (ADR 0014), then drained exactly once. VIEW links are deduplicated by
+  // their raw URL so a cold start cannot process the same intent twice.
+  const incomingQueueRef = useRef<{ raw: string; origin: IncomingLinkOrigin }[]>([]);
+  const incomingReadyRef = useRef(false);
+  const incomingProcessingRef = useRef(false);
+  const seenViewLinksRef = useRef<Set<string>>(new Set());
+  const processIncomingLinkRef = useRef<
+    ((raw: string, origin: IncomingLinkOrigin) => Promise<void>) | null
+  >(null);
+
+  const drainIncomingQueue = useCallback(async () => {
+    if (!incomingReadyRef.current || incomingProcessingRef.current) {
+      return;
+    }
+    incomingProcessingRef.current = true;
+    try {
+      while (incomingQueueRef.current.length > 0) {
+        const item = incomingQueueRef.current.shift();
+        if (!item) {
+          continue;
+        }
+        try {
+          await processIncomingLinkRef.current?.(item.raw, item.origin);
+        } catch (error) {
+          console.log('[KidTube:link] processing failed', String(error));
+        }
+      }
+    } finally {
+      incomingProcessingRef.current = false;
+    }
+  }, []);
+
+  const enqueueIncomingLink = useCallback(
+    (raw: string, origin: IncomingLinkOrigin) => {
+      const trimmed = raw.trim();
+      if (!trimmed) {
+        return;
+      }
+      if (origin === 'view') {
+        if (seenViewLinksRef.current.has(trimmed)) {
+          return;
+        }
+        seenViewLinksRef.current.add(trimmed);
+      }
+      incomingQueueRef.current.push({ raw: trimmed, origin });
+      drainIncomingQueue().catch(() => undefined);
+    },
+    [drainIncomingQueue],
+  );
+
   const reload = useCallback(async () => {
     const today = dateKey(new Date());
-    const [s, c, v, d, used, progress, history, storedExtra, storedGuard] =
+    const [s, c, proposals, v, d, used, progress, history, storedExtra, storedGuard] =
       await Promise.all([
         repo.getSettings(),
         repo.listChannels(),
+        repo.listChannelProposals(),
         repo.listVideos(),
         repo.listDecisions(),
         repo.getUsage(today),
@@ -128,6 +196,7 @@ export default function App() {
     extraTimeRef.current = normalizedExtra;
     setSettings(s);
     setChannels(c);
+    setChannelProposals(proposals);
     setVideos(v);
     setDecisions(d);
     setUsedSecondsToday(used);
@@ -165,10 +234,12 @@ export default function App() {
       } catch (error) {
         setInitError(error instanceof Error ? error.message : String(error));
       } finally {
+        incomingReadyRef.current = true;
         setReady(true);
+        drainIncomingQueue().catch(() => undefined);
       }
     })();
-  }, [repo, reload]);
+  }, [repo, reload, drainIncomingQueue]);
 
   const blockedChannelIds = useMemo(
     () => new Set(channels.filter(c => c.status === 'blocked').map(c => c.id)),
@@ -383,63 +454,120 @@ export default function App() {
   );
 
   // ---- Incoming links (share / VIEW intent) --------------------------------
+  // Both origins use the same pipeline (ADR 0013). A shared/intercepted film
+  // never starts playback by itself; it is added or resolved and the child
+  // opens it from the library when they want.
   const processIncomingLink = useCallback(
-    async (raw: string) => {
+    async (raw: string, origin: IncomingLinkOrigin) => {
+      // Read the setting from the repository, not from React state: on a cold
+      // start the queue can drain before the first render that carries the
+      // loaded settings (ADR 0014).
+      const storedSettings = await repo.getSettings();
+      if (!shouldProcessIncomingLink(origin, !!storedSettings.youtubeLinkHandlerEnabled)) {
+        Alert.alert(
+          'Otwieranie linków wyłączone',
+          'KidTube nie obsługuje teraz linków YouTube. Możesz włączyć tę opcję w panelu rodzica.',
+        );
+        return;
+      }
+
       const link = extractYouTubeUrl(raw) ?? raw;
       const result = await handleIncomingLink(link, repo);
       switch (result.kind) {
-        case 'play':
-          await startPlay(result.video);
+        case 'allowed':
+          await reload();
+          Alert.alert(
+            result.reason === 'known' ? 'Już w bibliotece' : 'Dodano do biblioteki',
+            result.video.title,
+          );
           break;
         case 'pending':
           await reload();
           Alert.alert('Dodano do zatwierdzenia', result.video.title);
           break;
         case 'blocked':
+          await reload();
           Alert.alert('Zablokowane', 'Ten film znajduje się na czarnej liście.');
           break;
-        case 'channel':
-          Alert.alert('Kanał już obserwowany', result.channel.title);
+        case 'channel-known':
+          Alert.alert('Kanał już dodany', result.channel.title);
+          break;
+        case 'channel-blocked':
+          Alert.alert('Zablokowane', 'Ten kanał jest zablokowany w panelu rodzica.');
           break;
         case 'channel-proposal':
+          await reload();
+          Alert.alert('Kanał dodany do zatwierdzenia', result.proposal.title);
+          break;
+        case 'unknown':
           Alert.alert(
-            'Nowy kanał',
-            'Aby dodać ten kanał, użyj przycisku „Udostępnij” w aplikacji YouTube albo wklej link w panelu rodzica.',
+            'Nie rozpoznano linku',
+            'KidTube obsługuje linki do filmów i kanałów YouTube.',
           );
           break;
         default:
           break;
       }
     },
-    [repo, reload, startPlay],
+    [repo, reload],
   );
 
+  // Keep the queue drainer pointed at the latest callback (settings change).
   useEffect(() => {
-    if (!ready) {
-      return undefined;
-    }
+    processIncomingLinkRef.current = processIncomingLink;
+    drainIncomingQueue().catch(() => undefined);
+  }, [processIncomingLink, drainIncomingQueue]);
+
+  // Subscribe before the repository is ready so links arriving during startup
+  // are buffered instead of lost.
+  useEffect(() => {
+    return subscribeLinks(
+      raw => enqueueIncomingLink(raw, 'share'),
+      url => enqueueIncomingLink(url, 'view'),
+    );
+  }, [enqueueIncomingLink]);
+
+  // Cold start: ACTION_SEND is read from the native store, VIEW from Linking.
+  useEffect(() => {
     let active = true;
     (async () => {
-      const shared = (await consumeSharedText()) ?? (await getInitialLink());
-      if (active && shared) {
-        await processIncomingLink(shared);
+      const [shared, initial] = await Promise.all([consumeSharedText(), getInitialLink()]);
+      if (!active) {
+        return;
+      }
+      if (shared) {
+        enqueueIncomingLink(shared, 'share');
+      }
+      if (initial) {
+        enqueueIncomingLink(initial, 'view');
       }
     })();
-    const unsubscribe = subscribeIncomingLinks(raw => {
-      processIncomingLink(raw).catch(() => undefined);
-    });
     return () => {
       active = false;
-      unsubscribe();
     };
-  }, [ready, processIncomingLink]);
+  }, [enqueueIncomingLink]);
+
+  // Sync the manifest component with the stored setting on every start/change
+  // (ADR 0014). No record means disabled (DEFAULT_SETTINGS has false).
+  useEffect(() => {
+    if (!ready) {
+      return;
+    }
+    setYouTubeLinkHandlerEnabled(!!settings.youtubeLinkHandlerEnabled).catch(() => undefined);
+  }, [ready, settings.youtubeLinkHandlerEnabled]);
 
   // ---- Child proposes a video (ADR 0001: source 'propose') -----------------
   const proposeLink = useCallback(
     async (raw: string) => {
       const link = extractYouTubeUrl(raw) ?? raw;
+      const parsed = parseYouTubeLink(link);
+      if (parsed.kind === 'channel') {
+        Alert.alert('To nie jest film', 'Wklej link do konkretnego filmu, nie kanału.');
+        return;
+      }
+
       const result = await handleIncomingLink(link, repo, undefined, Date.now(), 'propose');
-      if (result.kind === 'play' || result.kind === 'blocked' || result.kind === 'pending') {
+      if (result.kind === 'allowed' || result.kind === 'blocked' || result.kind === 'pending') {
         // A repeat proposal resolves automatically to the latest decision and is
         // recorded as an `auto` entry (ADR 0001). First-time proposals stay pending.
         const auto = repeatProposalDecision(await repo.listDecisions(), result.video.id, Date.now());
@@ -449,7 +577,7 @@ export default function App() {
         }
       }
       switch (result.kind) {
-        case 'play':
+        case 'allowed':
           Alert.alert('Dozwolony', 'Ten film jest już w Twojej bibliotece.');
           break;
         case 'blocked':
@@ -459,7 +587,8 @@ export default function App() {
           await reload();
           Alert.alert('Dodano do zatwierdzenia', result.video.title);
           break;
-        case 'channel':
+        case 'channel-known':
+        case 'channel-blocked':
         case 'channel-proposal':
           Alert.alert('To nie jest film', 'Wklej link do konkretnego filmu, nie kanału.');
           break;
@@ -679,6 +808,95 @@ export default function App() {
     await reload();
   };
 
+  // ---- Channel proposals (ADR 0013) ----------------------------------------
+  // Approving always creates a `manual` channel: one shared link is not enough
+  // trust for auto-approval. Its RSS sync then queues current films for review.
+  const onApproveChannelProposal = async (proposal: ChannelProposal) => {
+    const result = await approveChannelProposal(repo, proposal);
+    await reload();
+    if (result.kind === 'added') {
+      Alert.alert(
+        'Dodano kanał',
+        `Kanał „${result.channel.title}” jest w bibliotece. Filmy z kanału czekają na zatwierdzenie.`,
+      );
+    } else if (result.kind === 'already') {
+      Alert.alert('Kanał już dodany', result.channel.title);
+    } else {
+      Alert.alert(
+        'Nie udało się rozpoznać kanału',
+        'Spróbuj ponownie później albo odrzuć propozycję.',
+      );
+    }
+  };
+
+  const onRejectChannelProposal = async (proposal: ChannelProposal) => {
+    await rejectChannelProposal(repo, proposal);
+    await reload();
+  };
+
+  const onRetryChannelProposal = async (proposal: ChannelProposal) => {
+    const result = await retryChannelProposal(repo, proposal);
+    await reload();
+    if (result.kind === 'resolved') {
+      Alert.alert('Kanał rozpoznany', 'Możesz teraz dodać go do biblioteki.');
+    } else if (result.kind === 'already') {
+      Alert.alert('Kanał już dodany', result.channel.title);
+    } else {
+      Alert.alert(
+        'Nie udało się rozpoznać kanału',
+        'Spróbuj ponownie później albo odrzuć propozycję.',
+      );
+    }
+  };
+
+  // ---- Optional VIEW handler (ADR 0014) ------------------------------------
+  const changeYouTubeLinkHandler = async (enabled: boolean) => {
+    // Turning the option off while KidTube is the default means links will stop
+    // opening here; we cannot change the system default from the app.
+    const wasDefault = enabled ? false : await isYouTubeLinkHandlerDefault();
+    const next = await repo.updateSettings({ youtubeLinkHandlerEnabled: enabled });
+    setSettings(next);
+    try {
+      await setYouTubeLinkHandlerEnabled(enabled);
+    } catch (error) {
+      console.log('[KidTube:link] native component update failed', String(error));
+    }
+
+    if (enabled) {
+      Alert.alert(
+        'Otwieranie linków YouTube',
+        'KidTube zgłosi się jako aplikacja do otwierania linków YouTube. Aby wybrać go jako domyślny, użyj ustawień systemowych. Udostępnianie linków działa niezależnie od tej opcji.',
+        [
+          {
+            text: 'Ustawienia systemowe',
+            onPress: () => {
+              openYouTubeLinkSettings().catch(() => undefined);
+            },
+          },
+          { text: 'OK', style: 'cancel' },
+        ],
+      );
+    } else if (wasDefault) {
+      Alert.alert(
+        'Wyłączono otwieranie linków',
+        'Linki YouTube nie będą już otwierane w KidTube. Wybierz inną aplikację w ustawieniach systemowych.',
+        [
+          {
+            text: 'Ustawienia systemowe',
+            onPress: () => {
+              openYouTubeLinkSettings().catch(() => undefined);
+            },
+          },
+          { text: 'OK', style: 'cancel' },
+        ],
+      );
+    }
+  };
+
+  const openLinkHandlingSettings = () => {
+    openYouTubeLinkSettings().catch(() => undefined);
+  };
+
   // A parent action becomes a `manual` decision in the append-only history.
   const setVideoStatus = async (video: Video, status: VideoStatus) => {
     const outcome: DecisionOutcome = status === 'allowed' ? 'allow' : 'reject';
@@ -837,6 +1055,7 @@ export default function App() {
         <ParentScreen
           childName={settings.childName}
           channels={channels}
+          channelProposals={channelProposals}
           videos={projectedVideos}
           watchHistory={watchHistory}
           onSetVideoStatus={setVideoStatus}
@@ -850,6 +1069,12 @@ export default function App() {
           onChangePin={() => setPinSetup(true)}
           onChildName={setChildName}
           schedule={settings.schedule}
+          onApproveChannelProposal={onApproveChannelProposal}
+          onRejectChannelProposal={onRejectChannelProposal}
+          onRetryChannelProposal={onRetryChannelProposal}
+          youtubeLinkHandlerEnabled={!!settings.youtubeLinkHandlerEnabled}
+          onYouTubeLinkHandlerChange={changeYouTubeLinkHandler}
+          onOpenLinkHandlingSettings={openLinkHandlingSettings}
           extraTime={extraTime}
           usedSecondsToday={usedSecondsToday}
           onResetUsage={resetUsageToday}

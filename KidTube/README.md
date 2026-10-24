@@ -14,17 +14,18 @@ domenowych: `CONTEXT.md` (root repozytorium).
 | --- | --- |
 | Model | **B — kuratorowana biblioteka.** Rodzic dodaje filmy/kanały, dziecko widzi tylko dozwolone. |
 | Źródło danych | **RSS kanału** (`feeds/videos.xml?channel_id=…`) — ok. 15 najnowszych filmów na kanał. Bez YouTube Data API, bez scrapingu. |
-| Metadane filmu | **oEmbed** (`youtube.com/oembed`) — tytuł, autor, miniatura. **Data publikacji** z InnerTube `player` (`microformat.playerMicroformatRenderer.publishDate`) — oEmbed jej nie zwraca. Bez klucza API. |
+| Metadane filmu | **oEmbed** (`youtube.com/oembed`) — tytuł, autor, miniatura. **Data publikacji i `channelId`** z InnerTube `player` (`microformat.playerMicroformatRenderer.publishDate`, `videoDetails.channelId`) — oEmbed ich nie zwraca. Bez klucza API. |
 | Akceptacja | Per kanał: `auto_approve` (nowe filmy od razu do biblioteki po syncu) albo `manual` (przy skanie RSS **wszystkie** filmy kanału trafiają na listę do zatwierdzenia). *(ADR 0001)* |
-| Propozycje i decyzje | Lista oczekująca: propozycje dziecka **+** filmy z kanałów `manual`, źródło wpisu oznaczone (RSS / propozycja). Decyzja (dopuść/odrzuć) zapisywana w historii — append-only, last-wins, zmienialna przez rodzica, auto-rozstrzyganie powtórek. *(ADR 0001)* |
+| Propozycje i decyzje | Lista oczekująca: propozycje dziecka **+** filmy z kanałów `manual` + **propozycje kanałów** (osobna sekcja), źródło wpisu oznaczone. Decyzja filmu — append-only, last-wins, zmienialna przez rodzica, auto-rozstrzyganie powtórek. Propozycja kanału nie jest decyzją filmu. *(ADR 0001, 0013)* |
 | Historia i akcje zbiorcze | Zakładka **Decyzje** (grupa Historia): pełny log append-only od najnowszych (wynik, źródło ręczne/auto, czas), dotknięcie → dialog zmiany (last-wins), przeżywa usunięte filmy/kanały. Akcje masowe (cofnięcie autoakceptacji, usunięcie kanału) z obowiązkowym potwierdzeniem i liczbą filmów — zbiorcze odrzucenia jako osobne decyzje. *(ADR 0010)* |
 | Wyszukiwanie/dodawanie | Link / „Udostępnij” — fundament (działa zawsze). Wyszukiwarka YouTube w panelu rodzica — prototyp z bramką oceny stabilności. Bez klucza API. *(ADR 0005)* |
-| Dodawanie linków | `ACTION_SEND` (Udostępnij) jako główna, pewna droga; intent-filters VIEW jako best-effort. |
+| Udostępnianie linków | Jeden wspólny potok dla **filmu i kanału** (`ACTION_SEND`): film wg ostatniej decyzji / polityki kanału (`allowed` / `pending` / `blocked`), kanał jako **propozycja kanału** widoczna tylko u rodzica. Bez duplikatów, bez autoodtwarzania, bez otwierania przeglądarki. *(ADR 0013)* |
+| Linki otwierane w KidTube | Opcjonalny przełącznik w Ustawieniach rodzica: osobny, domyślnie **wyłączony** alias aktywności z filtrami `VIEW`; włączenie/wyłączenie wg ustawienia. Wybór domyślnego handlera nadal w systemie (bez `autoVerify`). *(ADR 0014)* |
 | Odtwarzanie | WebView (embed — brak reklam pre-roll) + **własne natywne kontrolki**: play/pauza, pasek postępu/seek, napisy (domyślnie OFF), wybór ścieżki audio. Dotyk WebView wyłączony — sterowanie idzie przez most `injectJavaScript` ↔ `movie_player`. **Gesty**: tap w środek = pauza/wznowienie, double-tap na brzegach = −10 s / +10 s. Nawigacja zamknięta allowlistą (tylko embed zatwierdzonego filmu). Koniec filmu: „Zagraj ponownie / Wróć do listy” (w trybie audio — pętla); błędy sieci: jawny retry + wznowienie best-effort; **licznik limitu = czas faktycznego odtwarzania**. *(ADR 0003, 0004b)* |
 | Logo YouTube | **Nie ukrywamy** — widoczne m.in. przy buforowaniu; spełnia wymóg atrybucji. |
 | Ścieżki audio | Tylko **oryginał + polski**, start na oryginale; wybór znika, gdy jest tylko jedna ścieżka. Docelowo lista języków konfigurowana przez rodzica. *(ADR 0008)* |
 | Świat dziecka | 4 zakładki (Feed · Kanały · Do zatwierdzenia · Historia — **Do zatwierdzenia pokazuje tylko własne propozycje**), nawigacja wstecz po ścieżce użytkownika, stan obejrzenia na kafelkach (nowy / minuty / w całości — nie w „Do zatwierdzenia"), wznowienie od zapisanej pozycji (podgląd rodzica od początku), historia oglądania per dzień. *(ADR 0004)* |
-| Świat rodzica | Grupy zakładek (Treści · Historia · Ustawienia), wspólne filtrowanie/grupowanie po kanałach (pasek ikon), lista oczekująca z rozróżnieniem źródła (RSS / propozycja dziecka), **podgląd filmu w każdej liście treści** oraz historia decyzji (last-wins) + podgląd historii oglądania. *(ADR 0005)* |
+| Świat rodzica | Grupy zakładek (Treści · Historia · Ustawienia), wspólne filtrowanie/grupowanie po kanałach (pasek ikon), lista oczekująca z rozróżnieniem źródła (RSS / propozycja dziecka) i propozycjami kanałów, **podgląd filmu w każdej liście treści** oraz historia decyzji (last-wins) + podgląd historii oglądania. *(ADR 0005)* |
 | Czas | **Jedno okno tygodniowe** (bramka wideo) + **dzienny limit wideo** (twarde cięcie, ostrzeżenie 5 min przed) + **audio bez limitu i poza oknem** (tryb audio, nie kategoria treści) + **tryb snu** 1 h z resetem na ekranie audio + **dodatkowy czas wideo** (+15 min / +1 h, pula na dziś, PIN rodzica). Zastąpiło dawny „tryb nocny”. *(ADR 0002, 0011)* |
 | Synchronizacja | Tylko przy otwarciu aplikacji (+ ręczne „Odśwież” / sync z panelu); timer w tle odroczony do backlogu z bramką oceny. *(ADR 0006)* |
 | Import katalogu | Jawny przycisk **„Wczytaj cały katalog”** na kanale: pełna lista przez InnerTube (paginacja), bez klucza API; status wg polityki kanału; **wznawialny** — checkpoint kursora, dzienny budżet stron, miękki stop przy limicie/błędzie. *(ADR 0009)* |
@@ -46,7 +47,7 @@ sync tylko przy otwarciu aplikacji).
 App.tsx                       orkiestracja: bramka PIN, routing, akcje rodzica
 src/
   domain/                     czysta logika (zero I/O, w pełni testowalna)
-    types.ts                  Channel, Video, Settings
+    types.ts                  Channel, ChannelProposal, Video, Settings
     youtubeUrl.ts             parsowanie linków (watch/shorts/embed/youtu.be/vnd.youtube)
     rss.ts                    parser Atom feedu kanału
     content.ts                reguły: auto/manual, merge sync, widok dziecka
@@ -68,11 +69,13 @@ src/
     memoryRepository.ts       implementacja in-memory (testy)
     asyncStorageRepository.ts implementacja na urządzeniu
   services/
-    youtubeMetadata.ts        oEmbed
+    youtubeMetadata.ts        oEmbed + InnerTube player (data, channelId)
     channelSync.ts            pobieranie RSS + merge do repo
-    incomingLink.ts           obsługa linku z share/VIEW
+    channelProposals.ts       propozycje kanałów: resolve, zatwierdź/odrzuć
+    incomingLink.ts           wspólny potok linku z share/VIEW
   security/pin.ts             hashowanie i weryfikacja PIN
   native/shareIntent.ts       most do natywnego modułu ShareIntent / Linking
+  native/youtubeLinkHandler.ts most do włączania/wyłączania aliasu VIEW
   version.ts                  wersja aplikacji (z package.json)
   ui/                         ekrany (bez zewnętrznej nawigacji)
   ui/child/                   siatka Feed, lista kanałów, propozycje dziecka
@@ -80,8 +83,8 @@ src/
   ui/ChannelAvatar.tsx        wspólny awatar kanału (zdjęcie lub inicjał)
   ui/player/PlayerControls.tsx  natywny pasek: play/pauza, seek, CC, audio
 android/app/src/main/
-  AndroidManifest.xml         intent-filters (VIEW + SEND)
-  java/com/kidtube/           ShareIntentModule / Package / Store
+  AndroidManifest.xml         SEND + osobny alias VIEW (domyślnie wyłączony)
+  java/com/kidtube/           ShareIntentModule / YouTubeLinkHandlerModule / Package
 ```
 
 Kształt plików ewoluuje wg ADR-ów. **Log decyzji** (`domain/decisions.ts` +
@@ -92,7 +95,7 @@ obejrzenia dołączą do warstwy `domain/` + `data/` (ADR 0004).
 ## Testy
 
 ```bash
-npm test          # 164 testy: URL, RSS, reguły list, decyzje (last-wins), harmonogram + tryb snu + przeskoki, licznik czasu odtwarzania, stan obejrzenia + historia oglądania, nawigacja dziecka, gesty odtwarzacza, daty, PIN, sync, linki, player, render App
+npm test          # 191 testów: URL, RSS, reguły list, decyzje (last-wins), harmonogram + tryb snu + przeskoki, licznik czasu odtwarzania, stan obejrzenia + historia oglądania, nawigacja dziecka, gesty odtwarzacza, daty, PIN, sync, linki + propozycje kanałów, handler VIEW, player, render App
 npx tsc --noEmit  # typy
 npx eslint .      # lint
 ```
@@ -114,6 +117,22 @@ cd android
 Release jest podpisany domyślnym keystore debug (wygodne do sideloadu w
 rodzinie/GitHubie). Na Google Play trzeba wygenerować własny keystore.
 
+### Otwieranie linków po sideloadzie
+
+Udostępnianie (`Udostępnij` → KidTube) działa od razu po instalacji. Aby linki
+klikane w innych aplikacjach otwierały się w KidTube, rodzic musi:
+
+1. w panelu rodzica → Ustawienia włączyć **„Otwieraj linki YouTube
+   w KidTube”** (domyślnie wyłączone),
+2. w systemie wybrać KidTube jako domyślną aplikację dla linków YouTube
+   (Android 12+: Ustawienia → Aplikacje → Domyślne aplikacje → Otwieranie
+   linków; przycisk w aplikacji otwiera właściwy ekran).
+
+Jeśli zainstalowana jest oficjalna aplikacja YouTube, jej zweryfikowane App
+Links mogą nadal wygrywać — wtedy trzeba wyłączyć YouTube albo wyczyścić jego
+ustawienia domyślne. KidTube nie blokuje innych aplikacji i nie wymusza bycia
+domyślnym handlerem.
+
 ### Uprawnienia / wymagane domeny build-time
 
 Gradle potrzebuje **`repo.reactnative.dev`** (Maven Central przekierowuje tam
@@ -122,17 +141,29 @@ ją dodać.
 
 ## Obsługa linków w Androidzie
 
-- **Udostępnij** z YouTube/przeglądarki → nasz `ACTION_SEND` → natywny moduł
-  `ShareIntent` → `handleIncomingLink`:
-  - film dozwolony → odtwarzanie,
-  - znany i zablokowany → komunikat,
-  - nieznany → wpis `pending` (źródło `share`).
-- **Linki `youtube.com/watch` / `youtu.be` / `vnd.youtube:`** → `Linking`
-  (RN). Uwaga: Google ma zweryfikowane App Links, więc domyślnie wygra
-  oficjalna aplikacja YouTube; rodzic może wskazać KidTube w
-  Ustawienia → Domyślne aplikacje → Otwieranie linków.
+- **Udostępnij** z YouTube/przeglądarki → `ACTION_SEND` → moduł
+  `ShareIntent` → wspólny potok `handleIncomingLink` (ADR 0013):
+  - film znany/dozwolony → „Już w bibliotece”, bez odtwarzania,
+  - film nowy: `channelId` z InnerTube → ostatnia decyzja rodzica wygrywa,
+    inaczej polityka kanału (`auto_approve` → biblioteka, `manual`/nieznany →
+    lista oczekujących),
+  - kanał znany → „Kanał już dodany” / „Zablokowane”,
+  - kanał nieznany → **propozycja kanału** w panelu rodzica (osobna sekcja
+    „Kanały” w zakładce Oczekujące); zatwierdzenie tworzy kanał `manual`
+    i uruchamia RSS, odrzucenie nie zostawia decyzji,
+  - link nieobsługiwany → komunikat, bez otwierania przeglądarki.
+- **Otwieranie linków `youtube.com/...` w KidTube** (ADR 0014):
+  Ustawienia rodzica → „Otwieraj linki YouTube w KidTube”, **domyślnie
+  wyłączone**. Włączenie uaktywnia osobny alias aktywności z filtrami `VIEW`
+  (film i kanał, obsługiwane hosty/ścieżki); wyłączenie usuwa KidTube
+  z kandydatów systemu. Rodzic wybiera KidTube jako domyślny handler
+  w systemie — KidTube tego nie wymusza (brak `autoVerify`/Digital Asset
+  Links dla `youtube.com`). Gdy YouTube jest zainstalowany, jego zweryfikowane
+  App Links mogą wygrywać. Udostępnianie (`ACTION_SEND`) działa zawsze,
+  niezależnie od przełącznika.
 - **Propozycje dziecka** (zakładka „Do zatwierdzenia”) wpadają do tej samej
-  listy oczekującej (źródło `propose`).
+  listy oczekującej (źródło `propose`), ale link do kanału nie tworzy
+  propozycji kanału — kanałami zarządza wyłącznie rodzic.
 
 ## Backlog
 

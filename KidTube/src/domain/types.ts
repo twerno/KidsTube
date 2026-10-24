@@ -86,6 +86,26 @@ export interface Video {
   addedAt: number;
 }
 
+/**
+ * A channel link waiting for the parent's decision (ADR 0013). Deliberately not
+ * a `Channel` yet: it does not sync RSS, never appears in the child's world and
+ * does not take part in the append-only video decision history. Approving it
+ * creates a new `manual` channel and starts its RSS feed.
+ */
+export interface ChannelProposal {
+  /** Stable dedupe key: the resolved channel id or the raw link. */
+  id: string;
+  channelId?: string;
+  /** The link/text that was shared, kept so an unresolved proposal can be retried. */
+  rawUrl: string;
+  title: string;
+  handle?: string;
+  thumbnailUrl?: string;
+  /** False when InnerTube could not resolve the link (network / changed handle). */
+  resolved: boolean;
+  addedAt: number;
+}
+
 /** Playback mode a stretch of watching happened in (ADR 0002 / ADR 0004). */
 export type WatchMode = 'video' | 'audio';
 
@@ -159,6 +179,11 @@ export interface Settings {
   /** Set once the first-run wizard has completed. */
   configured?: boolean;
   schedule?: Schedule;
+  /**
+   * Whether KidTube offers itself as a system handler for YouTube `VIEW`
+   * links (ADR 0014). Off by default: sharing always works independently.
+   */
+  youtubeLinkHandlerEnabled?: boolean;
 }
 
 export const DEFAULT_SCHEDULE: Schedule = {
@@ -169,4 +194,5 @@ export const DEFAULT_SCHEDULE: Schedule = {
 export const DEFAULT_SETTINGS: Settings = {
   configured: false,
   schedule: DEFAULT_SCHEDULE,
+  youtubeLinkHandlerEnabled: false,
 };

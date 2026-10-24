@@ -7,7 +7,7 @@
 
 import type { Channel, Video, VideoStatus } from './types';
 import type { Decision } from './types';
-import { latestDecision } from './decisions';
+import { latestDecision, statusForOutcome } from './decisions';
 import type { RssVideo } from './rss';
 
 /** What status a freshly discovered upload should get. */
@@ -21,6 +21,28 @@ export function decideNewVideoStatus(channel: Pick<Channel, 'policy' | 'status'>
 /** A video only plays when explicitly allowed. */
 export function isPlayable(video: Pick<Video, 'status'>): boolean {
   return video.status === 'allowed';
+}
+
+/**
+ * Status for a video arriving through a shared link (ADR 0013). The order is
+ * deliberate: a blocked channel wins, then the latest parent decision, then the
+ * channel policy. An auto-approved link gets no decision entry — exactly like
+ * an RSS upload (ADR 0001).
+ */
+export function decideIncomingVideoStatus(
+  channel: Pick<Channel, 'policy' | 'status'> | undefined,
+  latest: Pick<Decision, 'outcome'> | undefined,
+): VideoStatus {
+  if (channel?.status === 'blocked') {
+    return 'blocked';
+  }
+  if (latest) {
+    return statusForOutcome(latest.outcome);
+  }
+  if (channel?.status === 'allowed' && channel.policy === 'auto_approve') {
+    return 'allowed';
+  }
+  return 'pending';
 }
 
 /** Turn RSS entries into Video records using the channel policy. */

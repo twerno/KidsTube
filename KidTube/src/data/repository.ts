@@ -6,6 +6,7 @@
 
 import type {
   Channel,
+  ChannelProposal,
   Decision,
   ExtraTimePool,
   PinGuardState,
@@ -26,6 +27,12 @@ export interface Repository {
   getChannel(id: string): Promise<Channel | undefined>;
   upsertChannel(channel: Channel): Promise<void>;
   removeChannel(id: string): Promise<void>;
+
+  /** Channel links waiting for the parent's decision (ADR 0013). */
+  listChannelProposals(): Promise<ChannelProposal[]>;
+  getChannelProposal(id: string): Promise<ChannelProposal | undefined>;
+  upsertChannelProposal(proposal: ChannelProposal): Promise<void>;
+  removeChannelProposal(id: string): Promise<void>;
 
   listVideos(): Promise<Video[]>;
   getVideo(id: string): Promise<Video | undefined>;

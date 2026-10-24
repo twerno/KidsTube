@@ -20,17 +20,29 @@ _Avoid_: Automatyczna akceptacja w znaczeniu „na stałe dozwolone"
 Zgłoszenie filmu przez dziecko do rozstrzygnięcia przez rodzica. Żyje w liście oczekującej.
 _Avoid_: Życzenie, Prośba o film
 
+**Propozycja kanału**:
+Udostępniony link do kanału, którego KidTube jeszcze nie obserwuje. Oczekujący byt **tylko dla rodzica** — nie jest `Channel`, nie synchronizuje RSS, nie trafia do świata dziecka ani do historii decyzji. Zatwierdzenie tworzy kanał `manual`, odrzucenie usuwa propozycję (może wrócić później).
+_Avoid_: Kanał oczekujący, Zablokowany kanał (to inny stan)
+
 **Lista oczekująca („do zatwierdzenia”)**:
-Propozycje dziecka oraz filmy z kanałów `manual` (dołączone skanem RSS), nierozstrzygnięte przez rodzica. U rodzica źródło wpisu jest oznaczone; u dziecka widoczne są tylko własne propozycje.
+Propozycje dziecka, filmy z kanałów `manual` (dołączone skanem RSS) oraz propozycje kanałów (osobna sekcja, tylko u rodzica), nierozstrzygnięte przez rodzica. U rodzica źródło wpisu jest oznaczone; u dziecka widoczne są tylko własne propozycje filmów.
 _Avoid_: Pending jako lista tylko jednego źródła
 
+**Udostępnienie linku**:
+Link do filmu lub kanału przysłany przez `ACTION_SEND`. Trafia do wspólnego potoku: film jest dodawany/rozstrzygany wg decyzji i polityki kanału, kanał staje się propozycją kanału. Nie uruchamia odtwarzania i nie omija bramek czasu.
+_Avoid_: Odtworzenie linku, „Zagraj teraz”
+
+**Przechwycenie linku (VIEW)**:
+Opcjonalne, domyślnie wyłączone przyjęcie przez KidTube systemowego otwarcia linku YouTube (ADR 0014). Przetwarza link tym samym potokiem co udostępnienie; wyłączenie opcji usuwa KidTube z kandydatów systemu.
+_Avoid_: Domyślny handler jako stan domyślny, Blokowanie YouTube
+
 **Decyzja**:
-Rozstrzygnięcie propozycji filmu (dopuść / odrzuć); ręczne (rodzic) lub automatyczne (powtórka wcześniejszej decyzji przy ponownej propozycji). Rodzic może w każdej chwili zmienić dowolną decyzję historyczną; dla wszystkich kolejnych rozstrzygnięć — w tym autoakceptacji — liczy się decyzja najnowsza. Zapisywana w historii decyzji jako nieusuwalny wpis.
+Rozstrzygnięcie propozycji filmu (dopuść / odrzuć); ręczne (rodzic) lub automatyczne (powtórka wcześniejszej decyzji przy ponownej propozycji). Rodzic może w każdej chwili zmienić dowolną decyzję historyczną; dla wszystkich kolejnych rozstrzygnięć — w tym autoakceptacji — liczy się decyzja najnowsza. Zapisywana w historii decyzji jako nieusuwalny wpis. Zatwierdzenie/odrzucenie propozycji kanału nie jest decyzją o filmie.
 _Avoid_: Werdykt, Zatwierdzenie jako jedyny rodzaj
 
 **Pochodzenie filmu**:
-Film zna swój kanał (id). Ręcznie dodawany film automatycznie zakłada też kanał (polityka `manual`), jeśli nie istnieje — żeby panel rodzica mógł grupować i filtrować po kanałach.
-_Avoid_: „Film bez kanału”
+Film może znać swój kanał (id) z RSS albo metadanych (`channelId` z InnerTube). Sam film **nie zakłada kanału** — dodanie kanału jest osobną decyzją strukturalną rodzica (ADR 0013), więc ręcznie dodany film bez rozpoznanego `channelId` pozostaje bez kanału.
+_Avoid_: Automatyczne zakładanie kanału z linku do filmu
 
 **Cofnięcie autoakceptacji kanału**:
 Zmiana polityki kanału z `auto_approve` na `manual` albo usunięcie kanału. Panel rodzica pyta wtedy, czy cofnąć też zatwierdzenia wszystkich dozwolonych filmów z tego kanału; odrzucenie pociąga za sobą zbiorcze decyzje w historii.

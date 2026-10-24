@@ -11,6 +11,7 @@ import { WatchHistoryList } from '../WatchHistoryList';
 import { colors, spacing } from '../theme';
 import type {
   Channel,
+  ChannelProposal,
   ExtraTimePool,
   Schedule,
   Video,
@@ -21,6 +22,8 @@ import type {
 export interface ParentScreenProps {
   childName?: string;
   channels: Channel[];
+  /** Channel links waiting for the parent's decision (ADR 0013). */
+  channelProposals: ChannelProposal[];
   videos: Video[];
   /** The child's viewing history, read-only in the parent panel (ADR 0004a). */
   watchHistory: WatchHistoryEntry[];
@@ -41,6 +44,13 @@ export interface ParentScreenProps {
   onChangePin: () => void;
   onChildName: (name: string) => void;
   onScheduleChange: (schedule: Schedule) => void;
+  onApproveChannelProposal: (proposal: ChannelProposal) => void;
+  onRejectChannelProposal: (proposal: ChannelProposal) => void;
+  onRetryChannelProposal: (proposal: ChannelProposal) => void;
+  /** ADR 0014: optional system handler for YouTube VIEW links. */
+  youtubeLinkHandlerEnabled?: boolean;
+  onYouTubeLinkHandlerChange: (enabled: boolean) => void;
+  onOpenLinkHandlingSettings: () => void;
   onClose: () => void;
 }
 
@@ -50,6 +60,7 @@ export function ParentScreen(props: ParentScreenProps) {
   const {
     childName,
     channels,
+    channelProposals,
     videos,
     watchHistory,
     schedule,
@@ -67,6 +78,12 @@ export function ParentScreen(props: ParentScreenProps) {
     onChangePin,
     onChildName,
     onScheduleChange,
+    onApproveChannelProposal,
+    onRejectChannelProposal,
+    onRetryChannelProposal,
+    youtubeLinkHandlerEnabled,
+    onYouTubeLinkHandlerChange,
+    onOpenLinkHandlingSettings,
     onClose,
   } = props;
 
@@ -78,7 +95,10 @@ export function ParentScreen(props: ParentScreenProps) {
   );
 
   const tabs: { key: TabKey; label: string }[] = [
-    { key: 'pending', label: `Do zatwierdzenia (${pending.length})` },
+    {
+      key: 'pending',
+      label: `Do zatwierdzenia (${pending.length + channelProposals.length})`,
+    },
     { key: 'videos', label: `Filmy (${videos.length})` },
     { key: 'channels', label: `Kanały (${channels.length})` },
     { key: 'history', label: 'Historia oglądania' },
@@ -114,8 +134,12 @@ export function ParentScreen(props: ParentScreenProps) {
         {tab === 'pending' ? (
           <PendingTab
             videos={pending}
+            channelProposals={channelProposals}
             onSetStatus={onSetVideoStatus}
             onPreview={onPreviewVideo}
+            onApproveChannelProposal={onApproveChannelProposal}
+            onRejectChannelProposal={onRejectChannelProposal}
+            onRetryChannelProposal={onRetryChannelProposal}
           />
         ) : null}
         {tab === 'videos' ? (
@@ -160,6 +184,9 @@ export function ParentScreen(props: ParentScreenProps) {
             onChildName={onChildName}
             onChangePin={onChangePin}
             onSync={onSync}
+            youtubeLinkHandlerEnabled={youtubeLinkHandlerEnabled}
+            onYouTubeLinkHandlerChange={onYouTubeLinkHandlerChange}
+            onOpenLinkHandlingSettings={onOpenLinkHandlingSettings}
           />
         ) : null}
       </View>

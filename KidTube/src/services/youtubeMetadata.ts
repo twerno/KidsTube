@@ -68,15 +68,25 @@ export async function fetchOEmbed(
   }
 }
 
+export interface PlayerMetadata {
+  /** Publication time (Unix ms); oEmbed does not carry it. */
+  publishedAt?: number;
+  /** Owning channel id, used to apply the channel policy (ADR 0013). */
+  channelId?: string;
+  /** Channel display name, as a fallback when the channel is not watched yet. */
+  channelTitle?: string;
+}
+
+const CHANNEL_ID_RE = /^UC[A-Za-z0-9_-]{22}$/;
+
 /**
- * Publication date for a video, from InnerTube's `player` response
- * (`microformat.playerMicroformatRenderer.publishDate`). oEmbed does not carry
- * it. Returns a Unix timestamp in ms, or undefined when unavailable.
+ * Publication date and owning channel from InnerTube's `player` response.
+ * Best-effort: a missing field or a network error just leaves it undefined.
  */
-export async function fetchPublishDate(
+export async function fetchPlayerMetadata(
   videoId: string,
   fetchFn: FetchLike = fetch as unknown as FetchLike,
-): Promise<number | undefined> {
+): Promise<PlayerMetadata | undefined> {
   try {
     const res = await fetchFn(INNERTUBE_PLAYER_URL, {
       method: 'POST',
@@ -92,12 +102,31 @@ export async function fetchPublishDate(
     const data = await res.json();
     const microformat = data?.microformat?.playerMicroformatRenderer;
     const raw = microformat?.publishDate ?? microformat?.uploadDate;
-    if (typeof raw !== 'string') {
-      return undefined;
-    }
-    const timestamp = Date.parse(raw);
-    return Number.isFinite(timestamp) ? timestamp : undefined;
+    const timestamp = typeof raw === 'string' ? Date.parse(raw) : NaN;
+    const candidateChannelId = data?.videoDetails?.channelId ?? microformat?.externalChannelId;
+    return {
+      publishedAt: Number.isFinite(timestamp) ? timestamp : undefined,
+      channelId:
+        typeof candidateChannelId === 'string' && CHANNEL_ID_RE.test(candidateChannelId)
+          ? candidateChannelId
+          : undefined,
+      channelTitle:
+        typeof data?.videoDetails?.author === 'string'
+          ? data.videoDetails.author
+          : typeof microformat?.ownerChannelName === 'string'
+            ? microformat.ownerChannelName
+            : undefined,
+    };
   } catch {
     return undefined;
   }
+}
+
+/** Publication date for a video, or undefined when unavailable. */
+export async function fetchPublishDate(
+  videoId: string,
+  fetchFn: FetchLike = fetch as unknown as FetchLike,
+): Promise<number | undefined> {
+  const metadata = await fetchPlayerMetadata(videoId, fetchFn);
+  return metadata?.publishedAt;
 }

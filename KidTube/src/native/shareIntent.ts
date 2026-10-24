@@ -41,12 +41,16 @@ export async function getInitialLink(): Promise<string | undefined> {
 
 /**
  * Subscribe to links arriving while the app runs: both new VIEW intents and
- * shares that bring the app back to the foreground.
+ * shares that bring the app back to the foreground. The two origins are kept
+ * separate because the optional VIEW handler can be disabled (ADR 0014).
  */
-export function subscribeIncomingLinks(handler: (raw: string) => void): () => void {
+export function subscribeLinks(
+  onShare: (raw: string) => void,
+  onView: (url: string) => void,
+): () => void {
   const urlSubscription = Linking.addEventListener('url', event => {
     if (event.url) {
-      handler(event.url);
+      onView(event.url);
     }
   });
 
@@ -54,7 +58,7 @@ export function subscribeIncomingLinks(handler: (raw: string) => void): () => vo
     if (state === 'active') {
       consumeSharedText().then(raw => {
         if (raw) {
-          handler(raw);
+          onShare(raw);
         }
       });
     }

@@ -23,19 +23,6 @@
             <category android:name="android.intent.category.LAUNCHER" />
         </intent-filter>
 
-        <!-- YouTube links: best-effort. The official app usually wins verified
-             app links; parents can pick KidTube in system settings. -->
-        <intent-filter android:autoVerify="false">
-            <action android:name="android.intent.action.VIEW" />
-            <category android:name="android.intent.category.DEFAULT" />
-            <category android:name="android.intent.category.BROWSABLE" />
-            <data android:scheme="https" android:host="youtube.com" android:pathPrefix="/watch" />
-            <data android:scheme="https" android:host="www.youtube.com" android:pathPrefix="/watch" />
-            <data android:scheme="https" android:host="m.youtube.com" android:pathPrefix="/watch" />
-            <data android:scheme="https" android:host="youtu.be" />
-            <data android:scheme="vnd.youtube" />
-        </intent-filter>
-
         <!-- Share a link from YouTube/browser: the reliable add path. -->
         <intent-filter>
             <action android:name="android.intent.action.SEND" />
@@ -43,5 +30,85 @@
             <data android:mimeType="text/plain" />
         </intent-filter>
       </activity>
+
+      <!-- ADR 0014: optional YouTube VIEW handler. Declared disabled; the
+           parent setting flips this alias on/off at runtime. Kept separate from
+           MainActivity so disabling really removes KidTube from the system's
+           link-handling candidates. No autoVerify / Digital Asset Links: we do
+           not control youtube.com. -->
+      <activity-alias
+        android:name=".YouTubeLinkHandlerActivity"
+        android:targetActivity=".MainActivity"
+        android:label="@string/app_name"
+        android:exported="true"
+        android:enabled="false">
+        <intent-filter>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.DEFAULT" />
+            <category android:name="android.intent.category.BROWSABLE" />
+
+            <!-- Films: /watch?v=…, /shorts/…, /live/…, /embed/… -->
+            <data android:scheme="https" android:host="youtube.com" android:pathPattern="/watch" />
+            <data android:scheme="https" android:host="www.youtube.com" android:pathPattern="/watch" />
+            <data android:scheme="https" android:host="m.youtube.com" android:pathPattern="/watch" />
+            <data android:scheme="https" android:host="music.youtube.com" android:pathPattern="/watch" />
+            <data android:scheme="https" android:host="youtube-nocookie.com" android:pathPattern="/watch" />
+            <data android:scheme="https" android:host="www.youtube-nocookie.com" android:pathPattern="/watch" />
+
+            <data android:scheme="https" android:host="youtube.com" android:pathPrefix="/shorts/" />
+            <data android:scheme="https" android:host="www.youtube.com" android:pathPrefix="/shorts/" />
+            <data android:scheme="https" android:host="m.youtube.com" android:pathPrefix="/shorts/" />
+            <data android:scheme="https" android:host="music.youtube.com" android:pathPrefix="/shorts/" />
+            <data android:scheme="https" android:host="youtube-nocookie.com" android:pathPrefix="/shorts/" />
+            <data android:scheme="https" android:host="www.youtube-nocookie.com" android:pathPrefix="/shorts/" />
+
+            <data android:scheme="https" android:host="youtube.com" android:pathPrefix="/live/" />
+            <data android:scheme="https" android:host="www.youtube.com" android:pathPrefix="/live/" />
+            <data android:scheme="https" android:host="m.youtube.com" android:pathPrefix="/live/" />
+            <data android:scheme="https" android:host="music.youtube.com" android:pathPrefix="/live/" />
+            <data android:scheme="https" android:host="youtube-nocookie.com" android:pathPrefix="/live/" />
+            <data android:scheme="https" android:host="www.youtube-nocookie.com" android:pathPrefix="/live/" />
+
+            <data android:scheme="https" android:host="youtube.com" android:pathPrefix="/embed/" />
+            <data android:scheme="https" android:host="www.youtube.com" android:pathPrefix="/embed/" />
+            <data android:scheme="https" android:host="m.youtube.com" android:pathPrefix="/embed/" />
+            <data android:scheme="https" android:host="music.youtube.com" android:pathPrefix="/embed/" />
+            <data android:scheme="https" android:host="youtube-nocookie.com" android:pathPrefix="/embed/" />
+            <data android:scheme="https" android:host="www.youtube-nocookie.com" android:pathPrefix="/embed/" />
+
+            <!-- Channels: /channel/UC…, /@handle, /c/…, /user/… -->
+            <data android:scheme="https" android:host="youtube.com" android:pathPrefix="/channel/" />
+            <data android:scheme="https" android:host="www.youtube.com" android:pathPrefix="/channel/" />
+            <data android:scheme="https" android:host="m.youtube.com" android:pathPrefix="/channel/" />
+            <data android:scheme="https" android:host="music.youtube.com" android:pathPrefix="/channel/" />
+            <data android:scheme="https" android:host="youtube-nocookie.com" android:pathPrefix="/channel/" />
+            <data android:scheme="https" android:host="www.youtube-nocookie.com" android:pathPrefix="/channel/" />
+
+            <data android:scheme="https" android:host="youtube.com" android:pathPrefix="/@" />
+            <data android:scheme="https" android:host="www.youtube.com" android:pathPrefix="/@" />
+            <data android:scheme="https" android:host="m.youtube.com" android:pathPrefix="/@" />
+            <data android:scheme="https" android:host="music.youtube.com" android:pathPrefix="/@" />
+            <data android:scheme="https" android:host="youtube-nocookie.com" android:pathPrefix="/@" />
+            <data android:scheme="https" android:host="www.youtube-nocookie.com" android:pathPrefix="/@" />
+
+            <data android:scheme="https" android:host="youtube.com" android:pathPrefix="/c/" />
+            <data android:scheme="https" android:host="www.youtube.com" android:pathPrefix="/c/" />
+            <data android:scheme="https" android:host="m.youtube.com" android:pathPrefix="/c/" />
+            <data android:scheme="https" android:host="music.youtube.com" android:pathPrefix="/c/" />
+            <data android:scheme="https" android:host="youtube-nocookie.com" android:pathPrefix="/c/" />
+            <data android:scheme="https" android:host="www.youtube-nocookie.com" android:pathPrefix="/c/" />
+
+            <data android:scheme="https" android:host="youtube.com" android:pathPrefix="/user/" />
+            <data android:scheme="https" android:host="www.youtube.com" android:pathPrefix="/user/" />
+            <data android:scheme="https" android:host="m.youtube.com" android:pathPrefix="/user/" />
+            <data android:scheme="https" android:host="music.youtube.com" android:pathPrefix="/user/" />
+            <data android:scheme="https" android:host="youtube-nocookie.com" android:pathPrefix="/user/" />
+            <data android:scheme="https" android:host="www.youtube-nocookie.com" android:pathPrefix="/user/" />
+
+            <!-- Short links and the custom Android scheme. -->
+            <data android:scheme="https" android:host="youtu.be" android:pathPrefix="/" />
+            <data android:scheme="vnd.youtube" />
+        </intent-filter>
+      </activity-alias>
     </application>
 </manifest>

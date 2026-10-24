@@ -3,6 +3,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type {
   Channel,
+  ChannelProposal,
   Decision,
   ExtraTimePool,
   PinGuardState,
@@ -19,6 +20,7 @@ import type { Repository } from './repository';
 const KEYS = {
   settings: '@kidtube/settings/v1',
   channels: '@kidtube/channels/v1',
+  channelProposals: '@kidtube/channel-proposals/v1',
   videos: '@kidtube/videos/v1',
   decisions: '@kidtube/decisions/v1',
   usage: '@kidtube/usage/v1',
@@ -39,6 +41,7 @@ async function readJson<T>(key: string, fallback: T): Promise<T> {
 
 export class AsyncStorageRepository implements Repository {
   private channels = new Map<string, Channel>();
+  private channelProposals = new Map<string, ChannelProposal>();
   private videos = new Map<string, Video>();
   private decisions: Decision[] = [];
   private usage = new Map<string, number>();
@@ -56,6 +59,7 @@ export class AsyncStorageRepository implements Repository {
     const [
       settings,
       channels,
+      channelProposals,
       videos,
       decisions,
       usage,
@@ -66,6 +70,7 @@ export class AsyncStorageRepository implements Repository {
     ] = await Promise.all([
       readJson<Settings>(KEYS.settings, { ...DEFAULT_SETTINGS }),
       readJson<Channel[]>(KEYS.channels, []),
+      readJson<ChannelProposal[]>(KEYS.channelProposals, []),
       readJson<Video[]>(KEYS.videos, []),
       readJson<Decision[]>(KEYS.decisions, []),
       readJson<Record<string, number>>(KEYS.usage, {}),
@@ -76,6 +81,7 @@ export class AsyncStorageRepository implements Repository {
     ]);
     this.settings = { ...DEFAULT_SETTINGS, ...settings };
     channels.forEach(c => this.channels.set(c.id, c));
+    (channelProposals ?? []).forEach(p => this.channelProposals.set(p.id, p));
     videos.forEach(v => this.videos.set(v.id, v));
     this.decisions = [...(decisions ?? [])];
     Object.entries(usage ?? {}).forEach(([key, seconds]) => this.usage.set(key, seconds));
@@ -88,6 +94,13 @@ export class AsyncStorageRepository implements Repository {
 
   private async persistChannels(): Promise<void> {
     await AsyncStorage.setItem(KEYS.channels, JSON.stringify([...this.channels.values()]));
+  }
+
+  private async persistChannelProposals(): Promise<void> {
+    await AsyncStorage.setItem(
+      KEYS.channelProposals,
+      JSON.stringify([...this.channelProposals.values()]),
+    );
   }
 
   private async persistVideos(): Promise<void> {
@@ -145,6 +158,24 @@ export class AsyncStorageRepository implements Repository {
       }
     }
     await Promise.all([this.persistChannels(), this.persistVideos()]);
+  }
+
+  async listChannelProposals(): Promise<ChannelProposal[]> {
+    return [...this.channelProposals.values()].sort((a, b) => b.addedAt - a.addedAt);
+  }
+
+  async getChannelProposal(id: string): Promise<ChannelProposal | undefined> {
+    return this.channelProposals.get(id);
+  }
+
+  async upsertChannelProposal(proposal: ChannelProposal): Promise<void> {
+    this.channelProposals.set(proposal.id, proposal);
+    await this.persistChannelProposals();
+  }
+
+  async removeChannelProposal(id: string): Promise<void> {
+    this.channelProposals.delete(id);
+    await this.persistChannelProposals();
   }
 
   async listVideos(): Promise<Video[]> {

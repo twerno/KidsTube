@@ -2,6 +2,7 @@
 
 import type {
   Channel,
+  ChannelProposal,
   Decision,
   ExtraTimePool,
   PinGuardState,
@@ -18,6 +19,7 @@ import type { Repository } from './repository';
 export class MemoryRepository implements Repository {
   private settings: Settings;
   private channels = new Map<string, Channel>();
+  private channelProposals = new Map<string, ChannelProposal>();
   private videos = new Map<string, Video>();
   private decisions: Decision[] = [];
   private usage = new Map<string, number>();
@@ -29,6 +31,7 @@ export class MemoryRepository implements Repository {
   constructor(seed?: {
     settings?: Settings;
     channels?: Channel[];
+    channelProposals?: ChannelProposal[];
     videos?: Video[];
     decisions?: Decision[];
     usage?: Record<string, number>;
@@ -37,6 +40,7 @@ export class MemoryRepository implements Repository {
   }) {
     this.settings = { ...DEFAULT_SETTINGS, ...seed?.settings };
     seed?.channels?.forEach(c => this.channels.set(c.id, c));
+    seed?.channelProposals?.forEach(p => this.channelProposals.set(p.id, p));
     seed?.videos?.forEach(v => this.videos.set(v.id, v));
     this.decisions = [...(seed?.decisions ?? [])];
     Object.entries(seed?.usage ?? {}).forEach(([key, seconds]) => this.usage.set(key, seconds));
@@ -74,6 +78,22 @@ export class MemoryRepository implements Repository {
         this.videos.delete(videoId);
       }
     }
+  }
+
+  async listChannelProposals(): Promise<ChannelProposal[]> {
+    return [...this.channelProposals.values()].sort((a, b) => b.addedAt - a.addedAt);
+  }
+
+  async getChannelProposal(id: string): Promise<ChannelProposal | undefined> {
+    return this.channelProposals.get(id);
+  }
+
+  async upsertChannelProposal(proposal: ChannelProposal): Promise<void> {
+    this.channelProposals.set(proposal.id, proposal);
+  }
+
+  async removeChannelProposal(id: string): Promise<void> {
+    this.channelProposals.delete(id);
   }
 
   async listVideos(): Promise<Video[]> {
