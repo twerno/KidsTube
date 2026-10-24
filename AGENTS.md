@@ -65,3 +65,4 @@ Architektura, decyzje, testy, build Android — patrz `KidTube/README.md`.
 ## Kompilacje testowe
 
 - pamiętaj o zwiększeniu wersji podczas przygotowywania kolejnej kompilacji testowej
+- pin rodzica to 1111
