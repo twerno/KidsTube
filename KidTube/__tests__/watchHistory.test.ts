@@ -80,6 +80,8 @@ describe('viewing history aggregation (ADR 0004)', () => {
     expect(days.map(d => d.dateKey)).toEqual(['2026-10-22', '2026-10-21']);
     expect(days[0].entries.map(e => e.videoId)).toEqual(['c', 'b']);
     expect(days[0].totalSeconds).toBe(120);
+    expect(days[0].videoSeconds).toBe(120);
+    expect(days[0].audioSeconds).toBe(0);
     expect(days[1].totalSeconds).toBe(60);
   });
 });

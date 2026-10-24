@@ -1,37 +1,57 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
-  FlatList,
-  Image,
+  BackHandler,
   Pressable,
-  RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
 import { colors, radius, spacing } from './theme';
-import { Button, WatchBadge } from './components';
+import { Button } from './components';
 import { APP_VERSION } from '../version';
-import { formatPublishedDate } from '../domain/dates';
-import { watchState } from '../domain/watchState';
-import type { Video, WatchProgress } from '../domain/types';
+import { ChannelAvatar } from './ChannelAvatar';
+import { VideoGrid } from './child/VideoGrid';
+import { ChannelsList } from './child/ChannelsList';
+import { ProposalsList } from './child/ProposalsList';
+import { WatchHistoryList } from './WatchHistoryList';
+import { channelsForChild, videosForChannel } from '../domain/content';
+import {
+  activeChildTab,
+  canGoBackChild,
+  currentChildView,
+  type ChildNavState,
+  type ChildTab,
+} from '../domain/childNavigation';
+import { filmsLabel } from '../domain/plural';
+import type { Channel, Video, WatchHistoryEntry, WatchProgress } from '../domain/types';
 
 export interface ChildHomeScreenProps {
   childName?: string;
   /** Seconds left in today's video budget; undefined when there is no limit. */
   remainingVideoSeconds?: number;
-  /** Only allowed videos — the feed. */
+  /** Only allowed videos — the child's library. */
   videos: Video[];
   /** Per-video watching progress, for the “stan obejrzenia” badge (ADR 0004). */
   watchProgress?: WatchProgress[];
+  channels: Channel[];
+  watchHistory: WatchHistoryEntry[];
   /** The child's own pending proposals (source: propose / share). */
   proposals: Video[];
+  /** Contextual path kept in App, so the player returns to its origin (ADR 0004a). */
+  nav: ChildNavState;
   refreshing?: boolean;
   onRefresh?: () => void;
   onPlay: (video: Video) => void;
   /** Child pasting a YouTube link; becomes a pending proposal (ADR 0001). */
   onPropose: (link: string) => void;
   onOpenParent: () => void;
+  onSelectTab: (tab: ChildTab) => void;
+  onOpenChannel: (channel: Channel) => void;
+  /** Child history entry → player (when the film is still in the library). */
+  onPlayHistoryEntry: (entry: WatchHistoryEntry) => void;
+  onBack: () => void;
 }
 
 export function ChildHomeScreen({
@@ -39,21 +59,49 @@ export function ChildHomeScreen({
   remainingVideoSeconds,
   videos,
   watchProgress,
+  channels,
+  watchHistory,
   proposals,
+  nav,
   refreshing,
   onRefresh,
   onPlay,
   onPropose,
   onOpenParent,
+  onSelectTab,
+  onOpenChannel,
+  onPlayHistoryEntry,
+  onBack,
 }: ChildHomeScreenProps) {
-  const [tab, setTab] = useState<'feed' | 'proposals'>('feed');
   const [proposing, setProposing] = useState(false);
   const [linkText, setLinkText] = useState('');
 
-  const progressByVideoId = React.useMemo(
-    () => new Map((watchProgress ?? []).map(progress => [progress.videoId, progress])),
-    [watchProgress],
+  const view = currentChildView(nav);
+  const activeTab = activeChildTab(nav);
+  const channelId = view.kind === 'channel' ? view.channelId : undefined;
+
+  const childChannels = useMemo(() => channelsForChild(channels, videos), [channels, videos]);
+  const channelVideos = useMemo(
+    () => (channelId ? videosForChannel(videos, channelId) : []),
+    [videos, channelId],
   );
+  const currentChannel = useMemo(
+    () => (channelId ? channels.find(channel => channel.id === channelId) : undefined),
+    [channels, channelId],
+  );
+
+  // Hardware back follows the same contextual path; at a tab root the OS
+  // handles it (and closes the app), so we do not intercept.
+  useEffect(() => {
+    if (!canGoBackChild(nav)) {
+      return undefined;
+    }
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      onBack();
+      return true;
+    });
+    return () => subscription.remove();
+  }, [nav, onBack]);
 
   const submitProposal = () => {
     const trimmed = linkText.trim();
@@ -69,91 +117,15 @@ export function ChildHomeScreen({
     setProposing(false);
   };
 
-  const feedList = (
-    <FlatList
-      data={videos}
-      keyExtractor={item => item.id}
-      contentContainerStyle={videos.length === 0 ? styles.emptyContainer : styles.listContent}
-      // Android defaults `removeClippedSubviews` to true, which makes long
-      // lists jump back to the top; keep it off and pin the visible row.
-      removeClippedSubviews={false}
-      maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
-      refreshControl={
-        onRefresh ? <RefreshControl refreshing={!!refreshing} onRefresh={onRefresh} /> : undefined
-      }
-      ListEmptyComponent={
-        <Text style={styles.empty}>
-          Brak zatwierdzonych filmów. Rodzic może dodać kanał lub film w panelu.
-        </Text>
-      }
-      renderItem={({ item }) => (
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => onPlay(item)}
-          style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
-        >
-          <View style={styles.thumbWrap}>
-            <Image source={{ uri: item.thumbnailUrl }} style={styles.thumb} />
-            <WatchBadge
-              state={watchState(progressByVideoId.get(item.id))}
-              style={styles.thumbBadge}
-            />
-          </View>
-          <View style={styles.rowText}>
-            <Text numberOfLines={2} style={styles.videoTitle}>
-              {item.title}
-            </Text>
-            {item.channelTitle ? (
-              <Text numberOfLines={1} style={styles.channel}>
-                {item.channelTitle}
-              </Text>
-            ) : null}
-            {item.publishedAt ? (
-              <Text style={styles.date}>{formatPublishedDate(item.publishedAt)}</Text>
-            ) : null}
-          </View>
-        </Pressable>
-      )}
-    />
-  );
-
-  const proposalsList = (
-    <FlatList
-      data={proposals}
-      keyExtractor={item => item.id}
-      contentContainerStyle={proposals.length === 0 ? styles.emptyContainer : styles.listContent}
-      removeClippedSubviews={false}
-      maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
-      ListEmptyComponent={
-        <Text style={styles.empty}>
-          Brak oczekujących propozycji. Dotknij „Zaproponuj film" i wklej link z YouTube.
-        </Text>
-      }
-      renderItem={({ item }) => (
-        <View style={styles.row}>
-          {item.thumbnailUrl ? (
-            <Image source={{ uri: item.thumbnailUrl }} style={styles.thumb} />
-          ) : (
-            <View style={[styles.thumb, styles.thumbEmpty]} />
-          )}
-          <View style={styles.rowText}>
-            <Text numberOfLines={2} style={styles.videoTitle}>
-              {item.title}
-            </Text>
-            {item.channelTitle ? (
-              <Text numberOfLines={1} style={styles.channel}>
-                {item.channelTitle}
-              </Text>
-            ) : null}
-            {item.publishedAt ? (
-              <Text style={styles.date}>{formatPublishedDate(item.publishedAt)}</Text>
-            ) : null}
-            <Text style={styles.pendingNote}>Czeka na decyzję rodzica</Text>
-          </View>
-        </View>
-      )}
-    />
-  );
+  const tabs: { key: ChildTab; label: string }[] = [
+    { key: 'feed', label: 'Feed' },
+    { key: 'channels', label: 'Kanały' },
+    {
+      key: 'proposals',
+      label: `Do zatwierdzenia${proposals.length > 0 ? ` (${proposals.length})` : ''}`,
+    },
+    { key: 'history', label: 'Historia' },
+  ];
 
   return (
     <View style={styles.container}>
@@ -178,32 +150,101 @@ export function ChildHomeScreen({
         </Pressable>
       </View>
 
-      <View style={styles.tabs}>
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => setTab('feed')}
-          style={[styles.tab, tab === 'feed' && styles.tabActive]}
-        >
-          <Text style={[styles.tabText, tab === 'feed' && styles.tabTextActive]}>Feed</Text>
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => setTab('proposals')}
-          style={[styles.tab, tab === 'proposals' && styles.tabActive]}
-        >
-          <Text style={[styles.tabText, tab === 'proposals' && styles.tabTextActive]}>
-            {`Do zatwierdzenia${proposals.length > 0 ? ` (${proposals.length})` : ''}`}
-          </Text>
-        </Pressable>
-      </View>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.tabsBar}
+        contentContainerStyle={styles.tabs}
+      >
+        {tabs.map(item => {
+          const active = activeTab === item.key;
+          return (
+            <Pressable
+              key={item.key}
+              accessibilityRole="button"
+              accessibilityState={{ selected: active }}
+              onPress={() => onSelectTab(item.key)}
+              style={[styles.tab, active && styles.tabActive]}
+            >
+              <Text style={[styles.tabText, active && styles.tabTextActive]}>{item.label}</Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
 
-      {tab === 'proposals' ? (
+      {view.kind === 'channel' ? (
+        <View style={styles.channelHeader}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Wróć do kanałów"
+            onPress={onBack}
+            hitSlop={12}
+            style={styles.backButton}
+          >
+            <Text style={styles.backText}>‹ Kanały</Text>
+          </Pressable>
+          <ChannelAvatar
+            title={view.channelTitle}
+            thumbnailUrl={currentChannel?.thumbnailUrl}
+            size={40}
+          />
+          <View style={styles.channelHeaderText}>
+            <Text numberOfLines={1} style={styles.channelHeaderTitle}>
+              {view.channelTitle}
+            </Text>
+            <Text style={styles.channelHeaderCount}>{filmsLabel(channelVideos.length)}</Text>
+          </View>
+        </View>
+      ) : null}
+
+      {view.kind === 'proposals' ? (
         <View style={styles.proposeActionsRow}>
           <Button title="Zaproponuj film" variant="secondary" onPress={() => setProposing(true)} />
         </View>
       ) : null}
 
-      {tab === 'feed' ? feedList : proposalsList}
+      {view.kind === 'feed' ? (
+        <VideoGrid
+          videos={videos}
+          watchProgress={watchProgress}
+          onPlay={onPlay}
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          emptyText="Brak zatwierdzonych filmów. Rodzic może dodać kanał lub film w panelu."
+        />
+      ) : null}
+
+      {view.kind === 'channels' ? (
+        <ChannelsList
+          entries={childChannels}
+          onOpenChannel={onOpenChannel}
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+        />
+      ) : null}
+
+      {view.kind === 'channel' ? (
+        <VideoGrid
+          videos={channelVideos}
+          watchProgress={watchProgress}
+          onPlay={onPlay}
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          emptyText="Ten kanał nie ma jeszcze zatwierdzonych filmów."
+        />
+      ) : null}
+
+      {view.kind === 'proposals' ? <ProposalsList proposals={proposals} /> : null}
+
+      {view.kind === 'history' ? (
+        <WatchHistoryList
+          entries={watchHistory}
+          showThumbnails
+          watchProgress={watchProgress}
+          onPlayEntry={onPlayHistoryEntry}
+          emptyText="Historia jest pusta. Odtworzone filmy pojawią się tutaj."
+        />
+      ) : null}
 
       {proposing ? (
         <View style={styles.proposeBackdrop}>
@@ -249,8 +290,10 @@ const styles = StyleSheet.create({
   parentButton: { paddingVertical: spacing.xs, paddingHorizontal: spacing.sm, alignItems: 'flex-end' },
   parentButtonText: { color: colors.textMuted, fontSize: 13 },
   versionText: { color: colors.textMuted, fontSize: 10, opacity: 0.7, marginTop: 2 },
+  tabsBar: { flexGrow: 0, flexShrink: 0 },
   tabs: {
     flexDirection: 'row',
+    alignItems: 'center',
     gap: spacing.sm,
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.sm,
@@ -259,32 +302,23 @@ const styles = StyleSheet.create({
   tabActive: { backgroundColor: colors.primary },
   tabText: { color: colors.textMuted, fontSize: 14, fontWeight: '700' },
   tabTextActive: { color: colors.black, fontWeight: '800' },
+  channelHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.sm,
+  },
+  backButton: { paddingVertical: spacing.xs, paddingRight: spacing.xs },
+  backText: { color: colors.primary, fontSize: 15, fontWeight: '700' },
+  channelHeaderText: { flex: 1, gap: 1 },
+  channelHeaderTitle: { color: colors.text, fontSize: 17, fontWeight: '800' },
+  channelHeaderCount: { color: colors.textMuted, fontSize: 12 },
   proposeActionsRow: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
     paddingHorizontal: spacing.lg,
   },
-  listContent: { padding: spacing.lg, gap: spacing.md },
-  emptyContainer: { flexGrow: 1, justifyContent: 'center', padding: spacing.xl },
-  empty: { color: colors.textMuted, textAlign: 'center', fontSize: 15, lineHeight: 22 },
-  row: {
-    flexDirection: 'row',
-    backgroundColor: colors.card,
-    borderRadius: radius.md,
-    overflow: 'hidden',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-  },
-  rowPressed: { opacity: 0.85 },
-  thumb: { width: 132, height: 74, backgroundColor: colors.cardAlt },
-  thumbWrap: { width: 132, height: 74 },
-  thumbBadge: { position: 'absolute', left: spacing.xs, bottom: spacing.xs },
-  thumbEmpty: { borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
-  rowText: { flex: 1, padding: spacing.md, justifyContent: 'center' },
-  videoTitle: { color: colors.text, fontSize: 15, fontWeight: '600' },
-  channel: { color: colors.textMuted, fontSize: 13, marginTop: spacing.xs },
-  date: { color: colors.textMuted, fontSize: 12, marginTop: 2 },
-  pendingNote: { color: colors.warning, fontSize: 12, fontWeight: '600', marginTop: spacing.xs },
   proposeBackdrop: {
     ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(0, 0, 0, 0.45)',

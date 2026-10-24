@@ -2,9 +2,17 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ActivityIndicator, Alert, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { AsyncStorageRepository } from './src/data/asyncStorageRepository';
 import type { Repository } from './src/data/repository';
-import type { Channel, Decision, DecisionOutcome, Schedule, Settings, Video, VideoStatus, WatchMode, WatchProgress } from './src/domain/types';
+import type { Channel, Decision, DecisionOutcome, Schedule, Settings, Video, VideoStatus, WatchHistoryEntry, WatchMode, WatchProgress } from './src/domain/types';
 import { proposalsForChild, videosForChild } from './src/domain/content';
 import { manualDecision, projectVideos, repeatProposalDecision } from './src/domain/decisions';
+import {
+  INITIAL_CHILD_NAV,
+  goBackChild,
+  openChildChannel as openChildChannelInNav,
+  selectChildTab as selectChildTabInNav,
+  type ChildNavState,
+  type ChildTab,
+} from './src/domain/childNavigation';
 import { mergeWatchStretch } from './src/domain/watchHistory';
 import { markCompleted, resumeSeconds, updateProgress } from './src/domain/watchState';
 import { canPlay, dateKey, normalizeSchedule, remainingSecondsToday } from './src/domain/schedule';
@@ -53,15 +61,18 @@ export default function App() {
   const [refreshing, setRefreshing] = useState(false);
   const [usedSecondsToday, setUsedSecondsToday] = useState(0);
   const [watchProgress, setWatchProgress] = useState<WatchProgress[]>([]);
+  const [watchHistory, setWatchHistory] = useState<WatchHistoryEntry[]>([]);
+  const [childNav, setChildNav] = useState<ChildNavState>(INITIAL_CHILD_NAV);
 
   const reload = useCallback(async () => {
-    const [s, c, v, d, used, progress] = await Promise.all([
+    const [s, c, v, d, used, progress, history] = await Promise.all([
       repo.getSettings(),
       repo.listChannels(),
       repo.listVideos(),
       repo.listDecisions(),
       repo.getUsage(dateKey(new Date())),
       repo.listWatchProgress(),
+      repo.listWatchHistory(),
     ]);
     setSettings(s);
     setChannels(c);
@@ -69,6 +80,7 @@ export default function App() {
     setDecisions(d);
     setUsedSecondsToday(used);
     setWatchProgress(progress);
+    setWatchHistory(history);
     console.log(
       '[KidTube:usage] loaded used=' +
         used +
@@ -136,6 +148,21 @@ export default function App() {
     [watchProgress],
   );
 
+  // ---- Child navigation (ADR 0004a) ---------------------------------------
+  // The path lives here (not in ChildHomeScreen) so opening the player does not
+  // lose the context: back returns to the channel or feed the child left.
+  const selectChildTab = useCallback((tab: ChildTab) => {
+    setChildNav(state => selectChildTabInNav(state, tab));
+  }, []);
+
+  const openChildChannel = useCallback((channel: Channel) => {
+    setChildNav(state => openChildChannelInNav(state, channel));
+  }, []);
+
+  const backChild = useCallback(() => {
+    setChildNav(state => goBackChild(state));
+  }, []);
+
   // ---- Playback start & time controls (ADR 0002) ---------------------------
 
   // Opening a video resumes where the child stopped (ADR 0004).
@@ -176,6 +203,24 @@ export default function App() {
       openPlayer(video, false);
     },
     [repo, settings.schedule, openPlayer],
+  );
+
+  // History is a snapshot: only materials still in the child's library can be
+  // opened again. Removed/blocked videos keep their history entry but do not
+  // lead anywhere.
+  const playHistoryEntry = useCallback(
+    (entry: WatchHistoryEntry) => {
+      const video = childVideos.find(candidate => candidate.id === entry.videoId);
+      if (!video) {
+        Alert.alert(
+          'Film niedostępny',
+          'Ten film nie jest już dostępny w bibliotece dziecka.',
+        );
+        return;
+      }
+      startPlay(video);
+    },
+    [childVideos, startPlay],
   );
 
   // The player reports actual playback seconds in increments (ADR 0003: the
@@ -604,6 +649,7 @@ export default function App() {
           childName={settings.childName}
           channels={channels}
           videos={projectedVideos}
+          watchHistory={watchHistory}
           onSetVideoStatus={setVideoStatus}
           onPreviewVideo={video => setRoute({ name: 'preview', video })}
           refreshing={refreshing}
@@ -632,12 +678,19 @@ export default function App() {
         remainingVideoSeconds={remainingVideoSeconds}
         videos={childVideos}
         watchProgress={watchProgress}
+        channels={channels}
+        watchHistory={watchHistory}
         proposals={childProposals}
+        nav={childNav}
         refreshing={refreshing}
         onRefresh={sync}
         onPlay={startPlay}
         onPropose={proposeLink}
         onOpenParent={() => setParentGate(true)}
+        onSelectTab={selectChildTab}
+        onOpenChannel={openChildChannel}
+        onPlayHistoryEntry={playHistoryEntry}
+        onBack={backChild}
       />
     </View>
   );

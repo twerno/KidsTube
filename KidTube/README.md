@@ -56,6 +56,10 @@ src/
     watchTime.ts              licznik faktycznego odtwarzania (limit dzienny)
     watchState.ts             stan obejrzenia per film + pozycja wznowienia
     watchHistory.ts           historia oglądania: scalanie i grupowanie po dniach
+    duration.ts               zwarte etykiety czasu (`12m / 1h:40m`)
+    watchHistoryView.ts       etykiety historii: dni i polskie daty
+    childNavigation.ts        stos nawigacji dziecka (zakładki + kanał)
+    plural.ts                 polskie odmiany („1 film / 2 filmy / 5 filmów”)
     playerGuard.ts            allowlist nawigacji WebView (tylko embed białego filmu)
   data/
     repository.ts             interfejs trwałości
@@ -69,6 +73,9 @@ src/
   native/shareIntent.ts       most do natywnego modułu ShareIntent / Linking
   version.ts                  wersja aplikacji (z package.json)
   ui/                         ekrany (bez zewnętrznej nawigacji)
+  ui/child/                   siatka Feed, lista kanałów, propozycje dziecka
+  ui/WatchHistoryList.tsx     historia po dniach: wariant dziecka i rodzica
+  ui/ChannelAvatar.tsx        wspólny awatar kanału (zdjęcie lub inicjał)
   ui/player/PlayerControls.tsx  natywny pasek: play/pauza, seek, CC, audio
 android/app/src/main/
   AndroidManifest.xml         intent-filters (VIEW + SEND)
@@ -83,7 +90,7 @@ obejrzenia dołączą do warstwy `domain/` + `data/` (ADR 0004).
 ## Testy
 
 ```bash
-npm test          # 122 testy: URL, RSS, reguły list, decyzje (last-wins), harmonogram + tryb snu + przeskoki, licznik czasu odtwarzania, stan obejrzenia + historia oglądania, daty, PIN, sync, linki, player, render App
+npm test          # 135 testów: URL, RSS, reguły list, decyzje (last-wins), harmonogram + tryb snu + przeskoki, licznik czasu odtwarzania, stan obejrzenia + historia oglądania, nawigacja dziecka, daty, PIN, sync, linki, player, render App
 npx tsc --noEmit  # typy
 npx eslint .      # lint
 ```

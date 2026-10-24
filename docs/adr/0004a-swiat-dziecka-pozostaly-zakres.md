@@ -1,5 +1,8 @@
 # ADR 0004a — Świat dziecka: pozostały zakres (zakładki, nawigacja, siatka, historia)
 
+> Wdrożone w 0.4.21 — szczegóły i decyzje z sesji:
+> `docs/notes/ADR-0004a-wdrojenie.md`.
+
 ADR 0004 ustalił kształt świata dziecka (cztery zakładki, nawigacja kontekstowa,
 stan obejrzenia, historia oglądania). Ta sesja wdrożyła **warstwę danych i
 wznowienie**: rdzeń `domain/watchState.ts` + `domain/watchHistory.ts`, trwałość

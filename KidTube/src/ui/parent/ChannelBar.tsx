@@ -1,6 +1,8 @@
 import React from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { colors, spacing } from '../theme';
+import { ChannelAvatar } from '../ChannelAvatar';
+import { filmsLabel } from '../../domain/plural';
 
 export interface ChannelBarEntry {
   /** Stable key used for filtering (the channel title, or `__all__`). */
@@ -21,29 +23,7 @@ export interface ChannelBarProps {
   onSelect: (key: string | null) => void;
 }
 
-// Placeholder avatar colours; picked deterministically from the title so a
-// channel keeps the same circle until real avatars are available.
-const PLACEHOLDER_COLORS = ['#3ea6ff', '#35c759', '#ff9f0a', '#bf5af2', '#ff375f', '#5e5ce6'];
-
-function colorFor(title: string): string {
-  let hash = 0;
-  for (let i = 0; i < title.length; i += 1) {
-    hash = (hash * 31 + title.charCodeAt(i)) % 1_000_000_007;
-  }
-  return PLACEHOLDER_COLORS[hash % PLACEHOLDER_COLORS.length];
-}
-
-function filmsLabel(count: number): string {
-  if (count === 1) {
-    return '1 film';
-  }
-  const mod10 = count % 10;
-  const mod100 = count % 100;
-  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) {
-    return `${count} filmy`;
-  }
-  return `${count} filmów`;
-}
+// Placeholder avatars are shared with the child's channel list; see ChannelAvatar.
 
 export function ChannelBar({ entries, selected, onSelect }: ChannelBarProps) {
   return (
@@ -68,12 +48,12 @@ export function ChannelBar({ entries, selected, onSelect }: ChannelBarProps) {
                 <View style={[styles.avatar, styles.allAvatar]}>
                   <Text style={styles.allGlyph}>▦</Text>
                 </View>
-              ) : entry.thumbnailUrl ? (
-                <Image source={{ uri: entry.thumbnailUrl }} style={styles.avatar} />
               ) : (
-                <View style={[styles.avatar, { backgroundColor: colorFor(entry.title) }]}>
-                  <Text style={styles.initial}>{entry.title.slice(0, 1).toUpperCase()}</Text>
-                </View>
+                <ChannelAvatar
+                  title={entry.title}
+                  thumbnailUrl={entry.thumbnailUrl}
+                  size={AVATAR}
+                />
               )}
             </View>
             <Text numberOfLines={1} style={[styles.label, active && styles.labelActive]}>
@@ -110,7 +90,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: colors.cardAlt,
   },
-  initial: { color: colors.black, fontSize: 20, fontWeight: '800' },
   allAvatar: { backgroundColor: colors.cardAlt, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
   allGlyph: { color: colors.primary, fontSize: 18, fontWeight: '800' },
   label: { color: colors.textMuted, fontSize: 11, textAlign: 'center' },

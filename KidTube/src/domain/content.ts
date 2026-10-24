@@ -97,6 +97,39 @@ export function pendingVideos(videos: Video[]): Video[] {
   return videos.filter(v => v.status === 'pending');
 }
 
+/** A channel as the child sees it: the parent's channel plus its allowed films. */
+export interface ChildChannelEntry {
+  channel: Channel;
+  videoCount: number;
+}
+
+/**
+ * Channels of the child's “Kanały” tab (ADR 0004a): only allowed channels that
+ * have at least one playable film. A channel with no approved content is not
+ * part of the child's library yet, so it would only be an empty room.
+ */
+export function channelsForChild(
+  channels: Channel[],
+  childVideos: Video[],
+): ChildChannelEntry[] {
+  const counts = new Map<string, number>();
+  for (const video of childVideos) {
+    if (video.channelId) {
+      counts.set(video.channelId, (counts.get(video.channelId) ?? 0) + 1);
+    }
+  }
+  return channels
+    .filter(channel => channel.status !== 'blocked')
+    .map(channel => ({ channel, videoCount: counts.get(channel.id) ?? 0 }))
+    .filter(entry => entry.videoCount > 0)
+    .sort((a, b) => a.channel.title.localeCompare(b.channel.title));
+}
+
+/** Feed restricted to one channel — the channel detail view (ADR 0004a). */
+export function videosForChannel(videos: Video[], channelId: string): Video[] {
+  return videos.filter(video => video.channelId === channelId);
+}
+
 /**
  * Pending videos that came from a channel RSS scan (parent labels them as
  * “z kanału · RSS” — ADR 0001).

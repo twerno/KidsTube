@@ -1,5 +1,6 @@
 import type { Channel, Video, VideoSource, VideoStatus } from '../src/domain/types';
 import {
+  channelsForChild,
   decideNewVideoStatus,
   isPlayable,
   mergeSyncedVideos,
@@ -9,6 +10,7 @@ import {
   rssToVideos,
   videoSortTime,
   videosForChild,
+  videosForChannel,
 } from '../src/domain/content';
 
 const channel: Channel = {
@@ -163,5 +165,39 @@ describe('pending source helpers (ADR 0001)', () => {
       make('p2', 'allowed', 'propose'),
     ];
     expect(proposalsForChild(videos).map(v => v.id)).toEqual(['p1', 's1']);
+  });
+});
+
+describe('child channels (ADR 0004a)', () => {
+  const secondChannel: Channel = {
+    ...channel,
+    id: 'UC2',
+    title: 'Alpha',
+    status: 'blocked',
+  };
+  const makeVideo = (id: string, channelId: string): Video => ({
+    id,
+    channelId,
+    title: id,
+    status: 'allowed',
+    source: 'rss',
+    addedAt: 0,
+  });
+
+  it('lists allowed channels with at least one playable film, sorted by title', () => {
+    const channels = [channel, secondChannel, { ...channel, id: 'UC3', title: 'Empty' }];
+    const videos = [makeVideo('a', channel.id), makeVideo('b', channel.id)];
+    const entries = channelsForChild(channels, videos);
+    expect(entries.map(entry => entry.channel.id)).toEqual([channel.id]);
+    expect(entries[0].videoCount).toBe(2);
+  });
+
+  it('filters the feed to one channel', () => {
+    const videos = [
+      makeVideo('a', channel.id),
+      makeVideo('b', secondChannel.id),
+      makeVideo('c', channel.id),
+    ];
+    expect(videosForChannel(videos, channel.id).map(v => v.id)).toEqual(['a', 'c']);
   });
 });

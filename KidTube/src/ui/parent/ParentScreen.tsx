@@ -7,13 +7,16 @@ import { VideosTab } from './VideosTab';
 import { ChannelsTab } from './ChannelsTab';
 import { ScheduleTab } from './ScheduleTab';
 import { SettingsTab } from './SettingsTab';
+import { WatchHistoryList } from '../WatchHistoryList';
 import { colors, spacing } from '../theme';
-import type { Channel, Schedule, Video, VideoStatus } from '../../domain/types';
+import type { Channel, Schedule, Video, VideoStatus, WatchHistoryEntry } from '../../domain/types';
 
 export interface ParentScreenProps {
   childName?: string;
   channels: Channel[];
   videos: Video[];
+  /** The child's viewing history, read-only in the parent panel (ADR 0004a). */
+  watchHistory: WatchHistoryEntry[];
   schedule?: Schedule;
   /** Video seconds used today; shown to the parent for verification (ADR 0002). */
   usedSecondsToday?: number;
@@ -32,13 +35,14 @@ export interface ParentScreenProps {
   onClose: () => void;
 }
 
-type TabKey = 'pending' | 'videos' | 'channels' | 'schedule' | 'settings';
+type TabKey = 'pending' | 'videos' | 'channels' | 'history' | 'schedule' | 'settings';
 
 export function ParentScreen(props: ParentScreenProps) {
   const {
     childName,
     channels,
     videos,
+    watchHistory,
     schedule,
     usedSecondsToday,
     onResetUsage,
@@ -67,6 +71,7 @@ export function ParentScreen(props: ParentScreenProps) {
     { key: 'pending', label: `Do zatwierdzenia (${pending.length})` },
     { key: 'videos', label: `Filmy (${videos.length})` },
     { key: 'channels', label: `Kanały (${channels.length})` },
+    { key: 'history', label: 'Historia oglądania' },
     { key: 'schedule', label: 'Czas' },
     { key: 'settings', label: 'Ustawienia' },
   ];
@@ -120,6 +125,13 @@ export function ParentScreen(props: ParentScreenProps) {
             onBlockChannel={onBlockChannel}
             onRemoveChannel={onRemoveChannel}
             onSync={onSync}
+          />
+        ) : null}
+        {tab === 'history' ? (
+          <WatchHistoryList
+            entries={watchHistory}
+            showThumbnails={false}
+            emptyText="Historia oglądania jest pusta."
           />
         ) : null}
         {tab === 'schedule' ? (

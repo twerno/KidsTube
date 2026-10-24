@@ -60,6 +60,8 @@ export function mergeWatchStretch(
 export interface WatchHistoryDay {
   dateKey: string;
   totalSeconds: number;
+  audioSeconds: number;
+  videoSeconds: number;
   entries: WatchHistoryEntry[];
 }
 
@@ -79,6 +81,8 @@ export function groupWatchHistory(entries: WatchHistoryEntry[]): WatchHistoryDay
     .map(([dateKey, dayEntries]) => ({
       dateKey,
       totalSeconds: dayEntries.reduce((sum, entry) => sum + entryTotalSeconds(entry), 0),
+      audioSeconds: dayEntries.reduce((sum, entry) => sum + entry.audioSeconds, 0),
+      videoSeconds: dayEntries.reduce((sum, entry) => sum + entry.videoSeconds, 0),
       entries: [...dayEntries].sort((a, b) => b.lastWatchedAt - a.lastWatchedAt),
     }));
 }

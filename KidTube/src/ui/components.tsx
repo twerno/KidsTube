@@ -9,7 +9,9 @@ import {
   type TextInputProps,
 } from 'react-native';
 import { colors, radius, spacing } from './theme';
-import type { WatchState } from '../domain/watchState';
+import { watchState } from '../domain/watchState';
+import { formatDurationRatio } from '../domain/duration';
+import type { WatchProgress } from '../domain/types';
 
 type Variant = 'primary' | 'secondary' | 'danger' | 'ghost';
 
@@ -84,18 +86,23 @@ export function SectionTitle({ children }: { children: React.ReactNode }) {
 }
 
 /**
- * “Stan obejrzenia” pill for a child tile (ADR 0004): new / partial minutes /
- * watched in full. A never-played video shows “Nowy”; the badge is replaced by
- * the progress or full-watch state after the first playback.
+ * “Stan obejrzenia” pill for a child tile (ADR 0004/0004a): new, watched in
+ * full, or the last watched minute next to the cached film duration
+ * (`12m / 1h:40m`). A never-played video shows “Nowy”.
  */
-export function WatchBadge({ state, style }: { state: WatchState; style?: any }) {
+export function WatchBadge({ progress, style }: { progress?: WatchProgress; style?: any }) {
+  const state = watchState(progress);
   if (state.kind === 'new') {
     return <Text style={[styles.badge, styles.badgeNew, style]}>Nowy</Text>;
   }
   if (state.kind === 'complete') {
     return <Text style={[styles.badge, styles.badgeDone, style]}>✓ W całości</Text>;
   }
-  return <Text style={[styles.badge, styles.badgePartial, style]}>▶ {state.minutes} min</Text>;
+  return (
+    <Text style={[styles.badge, styles.badgePartial, style]}>
+      {formatDurationRatio(progress?.positionSeconds ?? 0, progress?.durationSeconds)}
+    </Text>
+  );
 }
 
 const styles = StyleSheet.create({
