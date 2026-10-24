@@ -49,6 +49,9 @@ export interface ChildHomeScreenProps {
   onOpenParent: () => void;
   onSelectTab: (tab: ChildTab) => void;
   onOpenChannel: (channel: Channel) => void;
+  /** Extra-time action is available only when the schedule has a gate (ADR 0011). */
+  canAddExtraTime?: boolean;
+  onAddExtraTime?: () => void;
   /** Child history entry → player (when the film is still in the library). */
   onPlayHistoryEntry: (entry: WatchHistoryEntry) => void;
   onBack: () => void;
@@ -70,6 +73,8 @@ export function ChildHomeScreen({
   onOpenParent,
   onSelectTab,
   onOpenChannel,
+  canAddExtraTime,
+  onAddExtraTime,
   onPlayHistoryEntry,
   onBack,
 }: ChildHomeScreenProps) {
@@ -139,9 +144,14 @@ export function ChildHomeScreen({
               </Text>
             ) : (
               <Text style={styles.budgetEmpty}>
-                Limit na dziś wykorzystany — możesz słuchać z wyłączonym obrazem
+                Brak czasu wideo na dziś — możesz słuchać z wyłączonym obrazem
               </Text>
             )
+          ) : null}
+          {canAddExtraTime && onAddExtraTime ? (
+            <Pressable onPress={onAddExtraTime} hitSlop={8} style={styles.extraTimeButton}>
+              <Text style={styles.extraTimeText}>＋ Dodaj więcej czasu</Text>
+            </Pressable>
           ) : null}
         </View>
         <Pressable onPress={onOpenParent} hitSlop={12} style={styles.parentButton}>
@@ -287,6 +297,8 @@ const styles = StyleSheet.create({
   title: { color: colors.text, fontSize: 24, fontWeight: '800' },
   budget: { color: colors.textMuted, fontSize: 13, fontWeight: '600', marginTop: spacing.xs },
   budgetEmpty: { color: colors.warning, fontSize: 13, fontWeight: '600', marginTop: spacing.xs },
+  extraTimeButton: { alignSelf: 'flex-start', marginTop: spacing.xs },
+  extraTimeText: { color: colors.primary, fontSize: 13, fontWeight: '700' },
   parentButton: { paddingVertical: spacing.xs, paddingHorizontal: spacing.sm, alignItems: 'flex-end' },
   parentButtonText: { color: colors.textMuted, fontSize: 13 },
   versionText: { color: colors.textMuted, fontSize: 10, opacity: 0.7, marginTop: 2 },

@@ -1,6 +1,16 @@
 /** In-memory Repository used by tests, previews and the first-run demo mode. */
 
-import type { Channel, Decision, Settings, Video, VideoStatus, WatchHistoryEntry, WatchProgress } from '../domain/types';
+import type {
+  Channel,
+  Decision,
+  ExtraTimePool,
+  PinGuardState,
+  Settings,
+  Video,
+  VideoStatus,
+  WatchHistoryEntry,
+  WatchProgress,
+} from '../domain/types';
 import { DEFAULT_SETTINGS } from '../domain/types';
 import { statusForOutcome } from '../domain/decisions';
 import type { Repository } from './repository';
@@ -13,6 +23,8 @@ export class MemoryRepository implements Repository {
   private usage = new Map<string, number>();
   private watchProgress = new Map<string, WatchProgress>();
   private watchHistory: WatchHistoryEntry[] = [];
+  private extraTime?: ExtraTimePool;
+  private pinGuard: PinGuardState = { failedAttempts: 0 };
 
   constructor(seed?: {
     settings?: Settings;
@@ -113,6 +125,22 @@ export class MemoryRepository implements Repository {
 
   async resetUsage(dateKey: string): Promise<void> {
     this.usage.delete(dateKey);
+  }
+
+  async getExtraTime(): Promise<ExtraTimePool | undefined> {
+    return this.extraTime ? { ...this.extraTime } : undefined;
+  }
+
+  async saveExtraTime(pool: ExtraTimePool): Promise<void> {
+    this.extraTime = { ...pool };
+  }
+
+  async getPinGuard(): Promise<PinGuardState> {
+    return { ...this.pinGuard };
+  }
+
+  async savePinGuard(state: PinGuardState): Promise<void> {
+    this.pinGuard = { ...state };
   }
 
   async getWatchProgress(videoId: string): Promise<WatchProgress | undefined> {

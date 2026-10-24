@@ -1,7 +1,17 @@
 /** Device persistence backed by AsyncStorage (single JSON blob per collection). */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { Channel, Decision, Settings, Video, VideoStatus, WatchHistoryEntry, WatchProgress } from '../domain/types';
+import type {
+  Channel,
+  Decision,
+  ExtraTimePool,
+  PinGuardState,
+  Settings,
+  Video,
+  VideoStatus,
+  WatchHistoryEntry,
+  WatchProgress,
+} from '../domain/types';
 import { DEFAULT_SETTINGS } from '../domain/types';
 import { statusForOutcome } from '../domain/decisions';
 import type { Repository } from './repository';
@@ -14,6 +24,8 @@ const KEYS = {
   usage: '@kidtube/usage/v1',
   watchProgress: '@kidtube/watch-progress/v1',
   watchHistory: '@kidtube/watch-history/v1',
+  extraTime: '@kidtube/extra-time/v1',
+  pinGuard: '@kidtube/pin-guard/v1',
 };
 
 async function readJson<T>(key: string, fallback: T): Promise<T> {
@@ -32,6 +44,8 @@ export class AsyncStorageRepository implements Repository {
   private usage = new Map<string, number>();
   private watchProgress = new Map<string, WatchProgress>();
   private watchHistory: WatchHistoryEntry[] = [];
+  private extraTime?: ExtraTimePool;
+  private pinGuard: PinGuardState = { failedAttempts: 0 };
   private settings: Settings = { ...DEFAULT_SETTINGS };
   private loaded = false;
 
@@ -39,16 +53,27 @@ export class AsyncStorageRepository implements Repository {
     if (this.loaded) {
       return;
     }
-    const [settings, channels, videos, decisions, usage, watchProgress, watchHistory] =
-      await Promise.all([
-        readJson<Settings>(KEYS.settings, { ...DEFAULT_SETTINGS }),
-        readJson<Channel[]>(KEYS.channels, []),
-        readJson<Video[]>(KEYS.videos, []),
-        readJson<Decision[]>(KEYS.decisions, []),
-        readJson<Record<string, number>>(KEYS.usage, {}),
-        readJson<WatchProgress[]>(KEYS.watchProgress, []),
-        readJson<WatchHistoryEntry[]>(KEYS.watchHistory, []),
-      ]);
+    const [
+      settings,
+      channels,
+      videos,
+      decisions,
+      usage,
+      watchProgress,
+      watchHistory,
+      extraTime,
+      pinGuard,
+    ] = await Promise.all([
+      readJson<Settings>(KEYS.settings, { ...DEFAULT_SETTINGS }),
+      readJson<Channel[]>(KEYS.channels, []),
+      readJson<Video[]>(KEYS.videos, []),
+      readJson<Decision[]>(KEYS.decisions, []),
+      readJson<Record<string, number>>(KEYS.usage, {}),
+      readJson<WatchProgress[]>(KEYS.watchProgress, []),
+      readJson<WatchHistoryEntry[]>(KEYS.watchHistory, []),
+      readJson<ExtraTimePool | undefined>(KEYS.extraTime, undefined),
+      readJson<PinGuardState>(KEYS.pinGuard, { failedAttempts: 0 }),
+    ]);
     this.settings = { ...DEFAULT_SETTINGS, ...settings };
     channels.forEach(c => this.channels.set(c.id, c));
     videos.forEach(v => this.videos.set(v.id, v));
@@ -56,6 +81,8 @@ export class AsyncStorageRepository implements Repository {
     Object.entries(usage ?? {}).forEach(([key, seconds]) => this.usage.set(key, seconds));
     (watchProgress ?? []).forEach(p => this.watchProgress.set(p.videoId, p));
     this.watchHistory = [...(watchHistory ?? [])];
+    this.extraTime = extraTime;
+    this.pinGuard = pinGuard ?? { failedAttempts: 0 };
     this.loaded = true;
   }
 
@@ -177,6 +204,24 @@ export class AsyncStorageRepository implements Repository {
   async resetUsage(dateKey: string): Promise<void> {
     this.usage.delete(dateKey);
     await this.persistUsage();
+  }
+
+  async getExtraTime(): Promise<ExtraTimePool | undefined> {
+    return this.extraTime ? { ...this.extraTime } : undefined;
+  }
+
+  async saveExtraTime(pool: ExtraTimePool): Promise<void> {
+    this.extraTime = { ...pool };
+    await AsyncStorage.setItem(KEYS.extraTime, JSON.stringify(this.extraTime));
+  }
+
+  async getPinGuard(): Promise<PinGuardState> {
+    return { ...this.pinGuard };
+  }
+
+  async savePinGuard(state: PinGuardState): Promise<void> {
+    this.pinGuard = { ...state };
+    await AsyncStorage.setItem(KEYS.pinGuard, JSON.stringify(this.pinGuard));
   }
 
   async getWatchProgress(videoId: string): Promise<WatchProgress | undefined> {

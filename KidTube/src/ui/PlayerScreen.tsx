@@ -43,8 +43,11 @@ export interface PlayerScreenProps {
   startAtSeconds?: number;
   /** Stored duration, so the slider starts at the right place before load (ADR 0004). */
   startDurationSeconds?: number;
-  /** Seconds left in today's video budget; undefined when there is no limit. */
+  /** Effective seconds left (base budget + extra time) or undefined when unlimited. */
   remainingVideoSeconds?: number;
+  /** The parent can add extra time from the hard-limit overlay (ADR 0011). */
+  canAddExtraTime?: boolean;
+  onAddExtraTime?: () => void;
   onClose: () => void;
 }
 
@@ -76,6 +79,8 @@ export function PlayerScreen({
   startAtSeconds = 0,
   startDurationSeconds = 0,
   remainingVideoSeconds,
+  canAddExtraTime,
+  onAddExtraTime,
   onClose,
 }: PlayerScreenProps) {
   const playerRef = useRef<PlayerHandle>(null);
@@ -243,6 +248,20 @@ export function PlayerScreen({
       setLimitReached(true);
     }
   }, [audioOnly, remainingVideoSeconds, limitReached]);
+
+  // A parent grant while the limit overlay is open resumes the same film
+  // (ADR 0011); the extra-time action comes from App via the prompt.
+  useEffect(() => {
+    if (
+      !audioOnly &&
+      limitReached &&
+      remainingVideoSeconds !== undefined &&
+      remainingVideoSeconds > 0
+    ) {
+      setLimitReached(false);
+      playerRef.current?.play();
+    }
+  }, [audioOnly, limitReached, remainingVideoSeconds]);
 
   // Switching to audio after the cut must resume playback (video was paused).
   const switchToAudio = () => {
@@ -541,8 +560,18 @@ export function PlayerScreen({
           </Text>
           <Text style={styles.audioChannel}>Możesz słuchać dalej z wyłączonym obrazem.</Text>
           <View style={styles.endActions}>
-            <Pressable onPress={switchToAudio} style={[styles.endBtn, styles.endBtnPrimary]}>
-              <Text style={styles.endBtnPrimaryText}>Tylko dźwięk</Text>
+            {canAddExtraTime && onAddExtraTime ? (
+              <Pressable onPress={onAddExtraTime} style={[styles.endBtn, styles.endBtnPrimary]}>
+                <Text style={styles.endBtnPrimaryText}>Dodaj więcej czasu</Text>
+              </Pressable>
+            ) : null}
+            <Pressable
+              onPress={switchToAudio}
+              style={[styles.endBtn, !canAddExtraTime && styles.endBtnPrimary]}
+            >
+              <Text style={canAddExtraTime ? styles.endBtnText : styles.endBtnPrimaryText}>
+                Tylko dźwięk
+              </Text>
             </Pressable>
             <Pressable onPress={handleClose} style={styles.endBtn}>
               <Text style={styles.endBtnText}>Wróć do listy</Text>
@@ -665,7 +694,13 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   endEmoji: { fontSize: 56 },
-  endActions: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.lg },
+  endActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: spacing.md,
+    marginTop: spacing.lg,
+  },
   endBtn: {
     paddingHorizontal: spacing.xl,
     paddingVertical: spacing.md,

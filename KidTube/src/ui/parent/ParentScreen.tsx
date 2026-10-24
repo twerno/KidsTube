@@ -9,7 +9,14 @@ import { ScheduleTab } from './ScheduleTab';
 import { SettingsTab } from './SettingsTab';
 import { WatchHistoryList } from '../WatchHistoryList';
 import { colors, spacing } from '../theme';
-import type { Channel, Schedule, Video, VideoStatus, WatchHistoryEntry } from '../../domain/types';
+import type {
+  Channel,
+  ExtraTimePool,
+  Schedule,
+  Video,
+  VideoStatus,
+  WatchHistoryEntry,
+} from '../../domain/types';
 
 export interface ParentScreenProps {
   childName?: string;
@@ -18,6 +25,8 @@ export interface ParentScreenProps {
   /** The child's viewing history, read-only in the parent panel (ADR 0004a). */
   watchHistory: WatchHistoryEntry[];
   schedule?: Schedule;
+  /** Today's extra-time pool (ADR 0011), for the effective remaining readout. */
+  extraTime?: ExtraTimePool;
   /** Video seconds used today; shown to the parent for verification (ADR 0002). */
   usedSecondsToday?: number;
   onResetUsage: () => void;
@@ -44,6 +53,7 @@ export function ParentScreen(props: ParentScreenProps) {
     videos,
     watchHistory,
     schedule,
+    extraTime,
     usedSecondsToday,
     onResetUsage,
     refreshing,
@@ -138,6 +148,7 @@ export function ParentScreen(props: ParentScreenProps) {
           <ScheduleTab
             schedule={schedule}
             usedSecondsToday={usedSecondsToday ?? 0}
+            extraTime={extraTime}
             onResetUsage={onResetUsage}
             onScheduleChange={onScheduleChange}
           />

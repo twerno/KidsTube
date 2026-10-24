@@ -4,7 +4,17 @@
  * implementation (device) are interchangeable.
  */
 
-import type { Channel, Decision, Settings, Video, VideoStatus, WatchHistoryEntry, WatchProgress } from '../domain/types';
+import type {
+  Channel,
+  Decision,
+  ExtraTimePool,
+  PinGuardState,
+  Settings,
+  Video,
+  VideoStatus,
+  WatchHistoryEntry,
+  WatchProgress,
+} from '../domain/types';
 
 export interface Repository {
   init(): Promise<void>;
@@ -38,6 +48,14 @@ export interface Repository {
   addUsageSeconds(dateKey: string, seconds: number): Promise<void>;
   /** Clear a day's watch time (parent action / test aid). */
   resetUsage(dateKey: string): Promise<void>;
+
+  /** One-off extra video time for a local day (ADR 0011). */
+  getExtraTime(): Promise<ExtraTimePool | undefined>;
+  saveExtraTime(pool: ExtraTimePool): Promise<void>;
+
+  /** Local parent-PIN attempt state (ADR 0012), separate from Settings. */
+  getPinGuard(): Promise<PinGuardState>;
+  savePinGuard(state: PinGuardState): Promise<void>;
 
   /**
    * Per-video watching progress (ADR 0004): resume position and “stan

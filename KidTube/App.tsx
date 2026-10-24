@@ -2,7 +2,20 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ActivityIndicator, Alert, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { AsyncStorageRepository } from './src/data/asyncStorageRepository';
 import type { Repository } from './src/data/repository';
-import type { Channel, Decision, DecisionOutcome, Schedule, Settings, Video, VideoStatus, WatchHistoryEntry, WatchMode, WatchProgress } from './src/domain/types';
+import type {
+  Channel,
+  Decision,
+  DecisionOutcome,
+  ExtraTimePool,
+  PinGuardState,
+  Schedule,
+  Settings,
+  Video,
+  VideoStatus,
+  WatchHistoryEntry,
+  WatchMode,
+  WatchProgress,
+} from './src/domain/types';
 import { proposalsForChild, videosForChild } from './src/domain/content';
 import { manualDecision, projectVideos, repeatProposalDecision } from './src/domain/decisions';
 import {
@@ -15,7 +28,24 @@ import {
 } from './src/domain/childNavigation';
 import { mergeWatchStretch } from './src/domain/watchHistory';
 import { markCompleted, resumeSeconds, updateProgress } from './src/domain/watchState';
-import { canPlay, dateKey, normalizeSchedule, remainingSecondsToday } from './src/domain/schedule';
+import {
+  canPlay,
+  consumeVideoSeconds,
+  dateKey,
+  emptyExtraTime,
+  grantExtraTime,
+  hasTimeGate,
+  normalizeExtraTime,
+  normalizeSchedule,
+  remainingSecondsToday,
+} from './src/domain/schedule';
+import {
+  EMPTY_PIN_GUARD,
+  canAttempt,
+  normalizePinGuard,
+  recordFailure,
+  recordSuccess,
+} from './src/domain/pinGuard';
 import { extractYouTubeUrl, parseYouTubeLink } from './src/domain/youtubeUrl';
 import { handleIncomingLink } from './src/services/incomingLink';
 import { ENABLE_TEST_SEED, SEED_REPLACED_IDS, SEED_TEST_VIDEOS } from './src/dev/seed';
@@ -26,6 +56,7 @@ import { resolveChannelFromUrl } from './src/services/channelResolve';
 import { fetchOEmbed, fetchPublishDate } from './src/services/youtubeMetadata';
 import { ChildHomeScreen } from './src/ui/ChildHomeScreen';
 import { GateScreen } from './src/ui/GateScreen';
+import { PinPrompt } from './src/ui/PinPrompt';
 import { ParentScreen } from './src/ui/parent/ParentScreen';
 import { PlayerScreen } from './src/ui/PlayerScreen';
 import { PreviewScreen } from './src/ui/parent/PreviewScreen';
@@ -63,17 +94,38 @@ export default function App() {
   const [watchProgress, setWatchProgress] = useState<WatchProgress[]>([]);
   const [watchHistory, setWatchHistory] = useState<WatchHistoryEntry[]>([]);
   const [childNav, setChildNav] = useState<ChildNavState>(INITIAL_CHILD_NAV);
+  const [extraTime, setExtraTime] = useState<ExtraTimePool>(() =>
+    emptyExtraTime(dateKey(new Date())),
+  );
+  const [pinGuard, setPinGuard] = useState<PinGuardState>(EMPTY_PIN_GUARD);
+  const [extraTimePrompt, setExtraTimePrompt] = useState<
+    { video?: Video; resume: boolean } | undefined
+  >();
+  // Refs keep per-second playback accounting synchronous (no read-before-write
+  // races between usage and the extra pool) while the UI still gets state.
+  const usedSecondsRef = useRef(0);
+  const usageDateRef = useRef(dateKey(new Date()));
+  const extraTimeRef = useRef<ExtraTimePool>(emptyExtraTime(dateKey(new Date())));
 
   const reload = useCallback(async () => {
-    const [s, c, v, d, used, progress, history] = await Promise.all([
-      repo.getSettings(),
-      repo.listChannels(),
-      repo.listVideos(),
-      repo.listDecisions(),
-      repo.getUsage(dateKey(new Date())),
-      repo.listWatchProgress(),
-      repo.listWatchHistory(),
-    ]);
+    const today = dateKey(new Date());
+    const [s, c, v, d, used, progress, history, storedExtra, storedGuard] =
+      await Promise.all([
+        repo.getSettings(),
+        repo.listChannels(),
+        repo.listVideos(),
+        repo.listDecisions(),
+        repo.getUsage(today),
+        repo.listWatchProgress(),
+        repo.listWatchHistory(),
+        repo.getExtraTime(),
+        repo.getPinGuard(),
+      ]);
+    const normalizedExtra = normalizeExtraTime(storedExtra, today);
+    const normalizedGuard = normalizePinGuard(storedGuard, Date.now());
+    usedSecondsRef.current = used;
+    usageDateRef.current = today;
+    extraTimeRef.current = normalizedExtra;
     setSettings(s);
     setChannels(c);
     setVideos(v);
@@ -81,6 +133,8 @@ export default function App() {
     setUsedSecondsToday(used);
     setWatchProgress(progress);
     setWatchHistory(history);
+    setExtraTime(normalizedExtra);
+    setPinGuard(normalizedGuard);
     console.log(
       '[KidTube:usage] loaded used=' +
         used +
@@ -137,8 +191,18 @@ export default function App() {
 
   // Minutes left in today's video budget, shown to the child (ADR 0002/0004).
   const remainingVideoSeconds = useMemo(
-    () => remainingSecondsToday(normalizeSchedule(settings.schedule), usedSecondsToday),
-    [settings.schedule, usedSecondsToday],
+    () =>
+      remainingSecondsToday(
+        normalizeSchedule(settings.schedule),
+        usedSecondsToday,
+        extraTime,
+      ),
+    [settings.schedule, usedSecondsToday, extraTime],
+  );
+
+  const canAddExtraTime = useMemo(
+    () => hasTimeGate(normalizeSchedule(settings.schedule)),
+    [settings.schedule],
   );
 
   // Watching progress per video (ADR 0004): feeds the “stan obejrzenia” badge
@@ -180,13 +244,25 @@ export default function App() {
     [watchProgressById],
   );
 
+  // Extra time is a parent action: PIN first, then choose the amount
+  // (ADR 0011/0012). `resume` tells the grant handler whether the player is
+  // already showing this film (then the player resumes itself).
+  const requestExtraTime = useCallback(
+    (video?: Video) => {
+      const resume = route.name === 'player' && route.video.id === video?.id;
+      setExtraTimePrompt({ video, resume });
+    },
+    [route],
+  );
+
   // Video is gated by the window and the daily budget; audio never is.
   const startPlay = useCallback(
     async (video: Video) => {
       const schedule = normalizeSchedule(settings.schedule);
       const today = new Date();
       const used = await repo.getUsage(dateKey(today));
-      const decision = canPlay(schedule, 'video', used, today);
+      const extra = normalizeExtraTime(extraTimeRef.current, dateKey(today));
+      const decision = canPlay(schedule, 'video', used, today, extra);
       if (!decision.allowed) {
         Alert.alert(
           'Teraz nie można oglądać',
@@ -196,13 +272,16 @@ export default function App() {
           [
             { text: 'Wróć', style: 'cancel' },
             { text: 'Tylko dźwięk', isPreferred: true, onPress: () => openPlayer(video, true) },
+            ...(canAddExtraTime
+              ? [{ text: 'Dodaj czas', onPress: () => requestExtraTime(video) }]
+              : []),
           ],
         );
         return;
       }
       openPlayer(video, false);
     },
-    [repo, settings.schedule, openPlayer],
+    [repo, settings.schedule, openPlayer, canAddExtraTime, requestExtraTime],
   );
 
   // History is a snapshot: only materials still in the child's library can be
@@ -232,12 +311,31 @@ export default function App() {
       if (seconds <= 0) {
         return;
       }
+      const now = new Date();
+      const today = dateKey(now);
       if (mode === 'video') {
+        if (usageDateRef.current !== today) {
+          usageDateRef.current = today;
+          usedSecondsRef.current = 0;
+        }
+        const currentPool = normalizeExtraTime(extraTimeRef.current, today);
+        const nextPool = consumeVideoSeconds(
+          normalizeSchedule(settings.schedule),
+          now,
+          usedSecondsRef.current,
+          currentPool,
+          seconds,
+        );
+        usedSecondsRef.current += seconds;
+        extraTimeRef.current = nextPool;
+        setUsedSecondsToday(usedSecondsRef.current);
+        setExtraTime(nextPool);
         console.log('[KidTube:usage] +' + seconds + 's');
-        setUsedSecondsToday(previous => previous + seconds);
-        repo.addUsageSeconds(dateKey(new Date()), seconds).catch(() => undefined);
+        repo.addUsageSeconds(today, seconds).catch(() => undefined);
+        if (nextPool.remainingSeconds !== currentPool.remainingSeconds) {
+          repo.saveExtraTime(nextPool).catch(() => undefined);
+        }
       }
-      const today = dateKey(new Date());
       const entry = mergeWatchStretch(await repo.getWatchHistoryEntry(video.id, today), {
         video,
         dateKey: today,
@@ -247,7 +345,7 @@ export default function App() {
       });
       await repo.saveWatchHistory(entry);
     },
-    [repo],
+    [repo, settings.schedule],
   );
 
   // Store the resume position (ADR 0004). The player throttles this to a few
@@ -389,15 +487,35 @@ export default function App() {
     return true;
   };
 
+  // Shared PIN check for the parent panel and the extra-time prompt
+  // (ADR 0012). The guard state is re-read from the repository so both entry
+  // points share the same counter and lockout.
+  const verifyParentPin = useCallback(
+    async (pin: string): Promise<boolean> => {
+      if (!settings.pinHash || !settings.pinSalt || !settings.pinIterations) {
+        return false;
+      }
+      const now = Date.now();
+      const stored = normalizePinGuard(await repo.getPinGuard(), now);
+      if (!canAttempt(stored, now)) {
+        setPinGuard(stored);
+        return false;
+      }
+      const ok = await verifyPin(pin, {
+        hash: settings.pinHash,
+        salt: settings.pinSalt,
+        iterations: settings.pinIterations,
+      });
+      const next = ok ? recordSuccess() : recordFailure(stored, now);
+      await repo.savePinGuard(next);
+      setPinGuard(next);
+      return ok;
+    },
+    [repo, settings.pinHash, settings.pinSalt, settings.pinIterations],
+  );
+
   const onUnlock = async (pin: string) => {
-    if (!settings.pinHash || !settings.pinSalt || !settings.pinIterations) {
-      return false;
-    }
-    const ok = await verifyPin(pin, {
-      hash: settings.pinHash,
-      salt: settings.pinSalt,
-      iterations: settings.pinIterations,
-    });
+    const ok = await verifyParentPin(pin);
     if (ok) {
       setParentGate(false);
       setRoute({ name: 'parent' });
@@ -405,6 +523,54 @@ export default function App() {
       reload().catch(() => undefined);
     }
     return ok;
+  };
+
+  const grantExtraTimeAmount = async (
+    pending: { video?: Video; resume: boolean },
+    amountSeconds: number,
+  ) => {
+    const today = dateKey(new Date());
+    const current = normalizeExtraTime(extraTimeRef.current, today);
+    const next = grantExtraTime(current, today, amountSeconds);
+    extraTimeRef.current = next;
+    setExtraTime(next);
+    await repo.saveExtraTime(next);
+    if (pending.video && !pending.resume) {
+      openPlayer(pending.video, false);
+    }
+  };
+
+  // PIN passed: close the PIN prompt, then ask how much extra time to grant.
+  const submitExtraTime = async (pin: string) => {
+    const ok = await verifyParentPin(pin);
+    if (!ok) {
+      return false;
+    }
+    const pending = extraTimePrompt;
+    setExtraTimePrompt(undefined);
+    if (!pending) {
+      return true;
+    }
+    Alert.alert(
+      'Ile dodatkowego czasu?',
+      'Wybierz ilość czasu wideo na dziś.',
+      [
+        {
+          text: '+15 minut',
+          onPress: () => {
+            grantExtraTimeAmount(pending, 15 * 60).catch(() => undefined);
+          },
+        },
+        {
+          text: '+1 godzina',
+          onPress: () => {
+            grantExtraTimeAmount(pending, 60 * 60).catch(() => undefined);
+          },
+        },
+        { text: 'Anuluj', style: 'cancel' },
+      ],
+    );
+    return true;
   };
 
   // ---- Parent actions ------------------------------------------------------
@@ -536,7 +702,14 @@ export default function App() {
   };
 
   const resetUsageToday = async () => {
-    await repo.resetUsage(dateKey(new Date()));
+    const today = dateKey(new Date());
+    await repo.resetUsage(today);
+    const pool = emptyExtraTime(today);
+    usedSecondsRef.current = 0;
+    usageDateRef.current = today;
+    extraTimeRef.current = pool;
+    setExtraTime(pool);
+    await repo.saveExtraTime(pool);
     await reload();
   };
 
@@ -546,6 +719,18 @@ export default function App() {
   };
 
   // ---- Render --------------------------------------------------------------
+
+  const extraTimePinPrompt = extraTimePrompt ? (
+    <PinPrompt
+      visible
+      title="Dodaj więcej czasu"
+      subtitle="Najpierw potwierdź kodem rodzica. Potem wybierzesz, ile czasu dodać."
+      lockedUntil={pinGuard.lockedUntil}
+      onSubmit={submitExtraTime}
+      onCancel={() => setExtraTimePrompt(undefined)}
+    />
+  ) : null;
+
 
   if (initError) {
     return (
@@ -585,6 +770,7 @@ export default function App() {
         <GateScreen
           mode="unlock"
           title="Panel rodzica"
+          lockedUntil={pinGuard.lockedUntil}
           onSubmit={onUnlock}
           onCancel={() => setParentGate(false)}
         />
@@ -614,12 +800,15 @@ export default function App() {
           onProgress={(position, duration) => recordProgress(route.video, position, duration)}
           onCompleted={() => recordCompleted(route.video)}
           remainingVideoSeconds={remainingVideoSeconds}
+          canAddExtraTime={canAddExtraTime}
+          onAddExtraTime={() => requestExtraTime(route.video)}
           onClose={() => {
             setRoute({ name: 'child' });
             // Refresh today's used time after a playback session.
             reload().catch(() => undefined);
           }}
         />
+        {extraTimePinPrompt}
       </View>
     );
   }
@@ -661,6 +850,7 @@ export default function App() {
           onChangePin={() => setPinSetup(true)}
           onChildName={setChildName}
           schedule={settings.schedule}
+          extraTime={extraTime}
           usedSecondsToday={usedSecondsToday}
           onResetUsage={resetUsageToday}
           onScheduleChange={changeSchedule}
@@ -690,8 +880,11 @@ export default function App() {
         onSelectTab={selectChildTab}
         onOpenChannel={openChildChannel}
         onPlayHistoryEntry={playHistoryEntry}
+        canAddExtraTime={canAddExtraTime}
+        onAddExtraTime={() => requestExtraTime()}
         onBack={backChild}
       />
+      {extraTimePinPrompt}
     </View>
   );
 }

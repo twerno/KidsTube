@@ -11,7 +11,7 @@
  * Pure functions, easy to test.
  */
 
-import type { Schedule, TimeWindow } from './types';
+import type { ExtraTimePool, Schedule, TimeWindow } from './types';
 import { DEFAULT_SCHEDULE } from './types';
 
 export type PlaybackBlockReason = 'outside-window' | 'daily-limit';
@@ -91,6 +91,103 @@ export function isWithinWindow(schedule: Schedule, date: Date = new Date()): boo
   return window.startMinute > window.endMinute && minute < window.endMinute;
 }
 
+/** An empty pool for a local day (ADR 0011). */
+export function emptyExtraTime(dayKey: string): ExtraTimePool {
+  return { dateKey: dayKey, grantedSeconds: 0, remainingSeconds: 0 };
+}
+
+/** A stored pool from another day is expired; treat it as empty for today. */
+export function normalizeExtraTime(
+  pool: ExtraTimePool | undefined,
+  dayKey: string,
+): ExtraTimePool {
+  if (!pool || pool.dateKey !== dayKey) {
+    return emptyExtraTime(dayKey);
+  }
+  const granted = Math.max(0, pool.grantedSeconds);
+  return {
+    dateKey: dayKey,
+    grantedSeconds: granted,
+    remainingSeconds: Math.min(granted, Math.max(0, pool.remainingSeconds)),
+  };
+}
+
+/** Seconds already consumed from the extra pool. */
+export function extraTimeUsedSeconds(pool: ExtraTimePool): number {
+  return Math.max(0, pool.grantedSeconds - pool.remainingSeconds);
+}
+
+/** Base-limit consumption, i.e. total video time minus what came from the pool. */
+export function baseUsedSeconds(totalUsedSeconds: number, pool: ExtraTimePool): number {
+  return Math.max(0, totalUsedSeconds - extraTimeUsedSeconds(pool));
+}
+
+/** Add a one-off grant; consecutive grants sum up (ADR 0011). */
+export function grantExtraTime(
+  pool: ExtraTimePool | undefined,
+  dayKey: string,
+  seconds: number,
+): ExtraTimePool {
+  const base = normalizeExtraTime(pool, dayKey);
+  const added = Math.max(0, seconds);
+  return {
+    ...base,
+    grantedSeconds: base.grantedSeconds + added,
+    remainingSeconds: base.remainingSeconds + added,
+  };
+}
+
+/** Does the schedule currently have any gate the extra pool could lift? */
+export function hasTimeGate(schedule: Schedule): boolean {
+  const normalized = normalizeSchedule(schedule);
+  return (
+    normalized.enabled &&
+    (normalized.window != null || (normalized.dailyLimitMinutes ?? 0) > 0)
+  );
+}
+
+/**
+ * Fold a stretch of actual video playback into the extra pool (ADR 0011).
+ * Greedy: inside the window, base-limit seconds are used first; extra seconds
+ * are consumed only after the base limit is exhausted or outside the window.
+ * With no base limit, the window itself is unlimited, so only outside-window
+ * playback consumes the pool.
+ */
+export function consumeVideoSeconds(
+  schedule: Schedule,
+  date: Date,
+  usedSecondsBefore: number,
+  pool: ExtraTimePool | undefined,
+  seconds: number,
+): ExtraTimePool {
+  const normalized = normalizeSchedule(schedule);
+  const dayKey = dateKey(date);
+  const current = normalizeExtraTime(pool, dayKey);
+  if (!normalized.enabled || seconds <= 0 || current.remainingSeconds <= 0) {
+    return current;
+  }
+
+  const inWindow = isWithinWindow(normalized, date);
+  const limitSeconds = (normalized.dailyLimitMinutes ?? 0) * 60;
+  const usedFromBase = baseUsedSeconds(usedSecondsBefore, current);
+
+  let extraWanted: number;
+  if (!inWindow) {
+    extraWanted = seconds;
+  } else if (limitSeconds > 0) {
+    const baseRemaining = Math.max(0, limitSeconds - usedFromBase);
+    extraWanted = Math.max(0, seconds - baseRemaining);
+  } else {
+    // Inside the window with no base limit: playback was already allowed.
+    extraWanted = 0;
+  }
+
+  const consumed = Math.min(current.remainingSeconds, extraWanted);
+  return consumed > 0
+    ? { ...current, remainingSeconds: current.remainingSeconds - consumed }
+    : current;
+}
+
 /**
  * Decide whether playback of the given mode may start now.
  * Audio is always allowed; video is gated by the window and the daily budget.
@@ -103,16 +200,26 @@ export function canPlay(
   mode: PlaybackMode,
   usedSecondsToday: number,
   date: Date = new Date(),
+  extraTime?: ExtraTimePool,
 ): PlaybackDecision {
   const normalized = normalizeSchedule(schedule);
   if (mode === 'audio' || !normalized.enabled) {
     return { allowed: true };
   }
+
+  const extra = normalizeExtraTime(extraTime, dateKey(date));
+  // Any remaining extra time unlocks the window and covers an exhausted limit
+  // (ADR 0011). It is consumed only when the base gate would otherwise block.
+  if (extra.remainingSeconds > 0) {
+    return { allowed: true };
+  }
+
   if (!isWithinWindow(normalized, date)) {
     return { allowed: false, reason: 'outside-window' };
   }
   const limitMinutes = normalized.dailyLimitMinutes ?? 0;
-  if (limitMinutes > 0 && usedSecondsToday >= limitMinutes * 60) {
+  const usedForBase = baseUsedSeconds(usedSecondsToday, extra);
+  if (limitMinutes > 0 && usedForBase >= limitMinutes * 60) {
     return { allowed: false, reason: 'daily-limit' };
   }
   return { allowed: true };
@@ -122,6 +229,8 @@ export function canPlay(
 export function remainingSecondsToday(
   schedule: Schedule,
   usedSecondsToday: number,
+  extraTime?: ExtraTimePool,
+  date: Date = new Date(),
 ): number | undefined {
   const normalized = normalizeSchedule(schedule);
   // A disabled schedule turns off every time control — including the daily
@@ -129,11 +238,23 @@ export function remainingSecondsToday(
   if (!normalized.enabled) {
     return undefined;
   }
+
+  const extra = normalizeExtraTime(extraTime, dateKey(date));
   const limitMinutes = normalized.dailyLimitMinutes ?? 0;
-  if (limitMinutes <= 0) {
-    return undefined;
+  const inWindow = isWithinWindow(normalized, date);
+
+  if (limitMinutes > 0) {
+    const baseRemaining = Math.max(
+      0,
+      limitMinutes * 60 - baseUsedSeconds(usedSecondsToday, extra),
+    );
+    // Outside the window only the extra pool is usable; in the window both.
+    return inWindow ? baseRemaining + extra.remainingSeconds : extra.remainingSeconds;
   }
-  return Math.max(0, limitMinutes * 60 - usedSecondsToday);
+
+  // No base limit: inside the window playback is unlimited, but a granted pool
+  // is still the only counter shown to the child (ADR 0011).
+  return extra.remainingSeconds > 0 ? extra.remainingSeconds : undefined;
 }
 
 /** Parse "HH:MM" into minutes from midnight, or undefined when malformed. */

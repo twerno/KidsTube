@@ -25,11 +25,11 @@ domenowych: `CONTEXT.md` (root repozytorium).
 | Ścieżki audio | Tylko **oryginał + polski**, start na oryginale; wybór znika, gdy jest tylko jedna ścieżka. Docelowo lista języków konfigurowana przez rodzica. *(ADR 0008)* |
 | Świat dziecka | 4 zakładki (Feed · Kanały · Do zatwierdzenia · Historia — **Do zatwierdzenia pokazuje tylko własne propozycje**), nawigacja wstecz po ścieżce użytkownika, stan obejrzenia na kafelkach (nowy / minuty / w całości — nie w „Do zatwierdzenia"), wznowienie od zapisanej pozycji (podgląd rodzica od początku), historia oglądania per dzień. *(ADR 0004)* |
 | Świat rodzica | Grupy zakładek (Treści · Historia · Ustawienia), wspólne filtrowanie/grupowanie po kanałach (pasek ikon), lista oczekująca z rozróżnieniem źródła (RSS / propozycja dziecka), **podgląd filmu w każdej liście treści** oraz historia decyzji (last-wins) + podgląd historii oglądania. *(ADR 0005)* |
-| Czas | **Jedno okno tygodniowe** (bramka wideo) + **dzienny limit wideo** (twarde cięcie, ostrzeżenie 5 min przed) + **audio bez limitu i poza oknem** (tryb audio, nie kategoria treści) + **tryb snu** 1 h z resetem na ekranie audio. Zastąpiło dawny „tryb nocny”. *(ADR 0002)* |
+| Czas | **Jedno okno tygodniowe** (bramka wideo) + **dzienny limit wideo** (twarde cięcie, ostrzeżenie 5 min przed) + **audio bez limitu i poza oknem** (tryb audio, nie kategoria treści) + **tryb snu** 1 h z resetem na ekranie audio + **dodatkowy czas wideo** (+15 min / +1 h, pula na dziś, PIN rodzica). Zastąpiło dawny „tryb nocny”. *(ADR 0002, 0011)* |
 | Synchronizacja | Tylko przy otwarciu aplikacji (+ ręczne „Odśwież” / sync z panelu); timer w tle odroczony do backlogu z bramką oceny. *(ADR 0006)* |
 | Import katalogu | Jawny przycisk **„Wczytaj cały katalog”** na kanale: pełna lista przez InnerTube (paginacja), bez klucza API; status wg polityki kanału; **wznawialny** — checkpoint kursora, dzienny budżet stron, miękki stop przy limicie/błędzie. *(ADR 0009)* |
 | Dystrybucja | Rodzinny sideload z GitHub Releases (debug keystore). Google Play — przyszła, odwracalna decyzja z bramką oceny. *(ADR 0007)* |
-| PIN | PBKDF2-SHA256, losowa sól (`@noble/hashes`). |
+| PIN | PBKDF2-SHA256, losowa sól (`@noble/hashes`); blokada profilu rodzica na 3 min po 3 błędnych PIN-ach, stan lokalny i wspólny dla panelu i dodatkowego czasu. *(ADR 0012)* |
 | Wersje | `minSdk 26` (Android 8), `targetSdk 36`, `compileSdk 37`. |
 
 ### Dlaczego RSS, a nie „wszystkie filmy”
@@ -52,7 +52,8 @@ src/
     content.ts                reguły: auto/manual, merge sync, widok dziecka
     decisions.ts              historia decyzji (append-only, last-wins) + rzut statusu
     dates.ts                  format daty publikacji (bez Intl)
-    schedule.ts               okno oglądania, limit dzienny wideo, tryb audio / tryb snu
+    pinGuard.ts               blokada profilu rodzica po błędnych PIN-ach
+    schedule.ts               okno, limit dzienny, pula dodatkowego czasu, tryb audio / sen
     watchTime.ts              licznik faktycznego odtwarzania (limit dzienny)
     watchState.ts             stan obejrzenia per film + pozycja wznowienia
     watchHistory.ts           historia oglądania: scalanie i grupowanie po dniach
@@ -91,7 +92,7 @@ obejrzenia dołączą do warstwy `domain/` + `data/` (ADR 0004).
 ## Testy
 
 ```bash
-npm test          # 145 testów: URL, RSS, reguły list, decyzje (last-wins), harmonogram + tryb snu + przeskoki, licznik czasu odtwarzania, stan obejrzenia + historia oglądania, nawigacja dziecka, gesty odtwarzacza, daty, PIN, sync, linki, player, render App
+npm test          # 164 testy: URL, RSS, reguły list, decyzje (last-wins), harmonogram + tryb snu + przeskoki, licznik czasu odtwarzania, stan obejrzenia + historia oglądania, nawigacja dziecka, gesty odtwarzacza, daty, PIN, sync, linki, player, render App
 npx tsc --noEmit  # typy
 npx eslint .      # lint
 ```

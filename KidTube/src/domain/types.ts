@@ -109,6 +109,30 @@ export interface WatchProgress {
 }
 
 /**
+ * One-off extra video time granted by the parent for a local day (ADR 0011).
+ * It expires at local midnight together with the daily budget; it is separate
+ * from `Schedule` so the lasting rule is never edited for a one-off exception.
+ */
+export interface ExtraTimePool {
+  /** Local day (YYYY-MM-DD) the pool belongs to. */
+  dateKey: string;
+  /** Total seconds granted that day (all grants summed). */
+  grantedSeconds: number;
+  /** Seconds still available; consumed only after the base limit / outside the window. */
+  remainingSeconds: number;
+}
+
+/**
+ * Local PIN attempt state (ADR 0012). Kept out of `Settings` so editing the
+ * settings cannot clear the counter.
+ */
+export interface PinGuardState {
+  failedAttempts: number;
+  /** Unix ms; when the profile is locked. Absent/expired means attempts allowed. */
+  lockedUntil?: number;
+}
+
+/**
  * One material's watch time on a given local day, for the viewing history
  * (ADR 0004). Carries a snapshot of the video metadata so the history survives
  * removed videos and channels.

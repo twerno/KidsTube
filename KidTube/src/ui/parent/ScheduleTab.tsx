@@ -4,7 +4,7 @@ import { Button, Card } from '../components';
 import { ScheduleEditor } from '../ScheduleEditor';
 import { colors, spacing } from '../theme';
 import { normalizeSchedule, remainingSecondsToday } from '../../domain/schedule';
-import type { Schedule } from '../../domain/types';
+import type { ExtraTimePool, Schedule } from '../../domain/types';
 
 function formatMinutes(seconds: number): number {
   return Math.floor(seconds / 60);
@@ -13,17 +13,21 @@ function formatMinutes(seconds: number): number {
 export function ScheduleTab({
   schedule,
   usedSecondsToday,
+  extraTime,
   onResetUsage,
   onScheduleChange,
 }: {
   schedule?: Schedule;
   usedSecondsToday: number;
+  extraTime?: ExtraTimePool;
   onResetUsage: () => void;
   onScheduleChange: (schedule: Schedule) => void;
 }) {
   const normalized = normalizeSchedule(schedule);
-  const remaining = remainingSecondsToday(normalized, usedSecondsToday);
+  const remaining = remainingSecondsToday(normalized, usedSecondsToday, extraTime);
   const limit = normalized.dailyLimitMinutes ?? 0;
+  const extraGranted = extraTime?.grantedSeconds ?? 0;
+  const extraRemaining = extraTime?.remainingSeconds ?? 0;
 
   return (
     <ScrollView contentContainerStyle={styles.content}>
@@ -40,8 +44,14 @@ export function ScheduleTab({
             ? 'Limit wyłączony (bez ograniczenia).'
             : `Limit: ${limit} min · Pozostało: ${formatMinutes(remaining)} min`}
         </Text>
+        {extraGranted > 0 ? (
+          <Text style={styles.usageHint}>
+            Dodatkowy czas: +{formatMinutes(extraGranted)} min · pozostało{' '}
+            {formatMinutes(extraRemaining)} min
+          </Text>
+        ) : null}
         <Button
-          title="Wyzeruj dzisiejszy licznik"
+          title="Wyzeruj licznik i dodatkowy czas"
           variant="secondary"
           onPress={onResetUsage}
         />
