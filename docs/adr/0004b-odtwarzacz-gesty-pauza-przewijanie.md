@@ -1,11 +1,13 @@
 # ADR 0004b — Odtwarzacz: gesty na ekranie (pauza w centrum, ±10 s na brzegach)
 
+> Wdrożone w 0.4.24 — szczegóły: `docs/notes/ADR-0004b-wdrozenie.md`.
+
 ADR 0003 ustanowił w pełni natywne kontrolki i całkowicie wyłączony dotyk w
 WebView; dziś cała powierzchnia odtwarzacza to jedna warstwa `Pressable`, która
 po dotknięciu tylko pokazuje pasek kontrolek. Dla dziecka naturalniejszy jest
 bezpośredni gest na obrazie, jak w YouTube: dotknięcie środka zatrzymuje/wznawia,
 a podwójne dotknięcie przy brzegach przewija w tył/w przód. Ten ADR ustala ten
-model; implementacja — osobny krok (niezaimplementowane).
+model; implementacja — 0.4.24.
 
 ## Decyzja
 
@@ -28,7 +30,7 @@ obrazem):
 ### Rozpoznanie gestu
 
 Podwójne dotknięcie składa się z dwóch pojedynczych, więc pojedynczego tapnięcia
-w centrum **nie wykonujemy natychmiast** — czekamy krótko (~250 ms) na ewentualne
+w centrum **nie wykonujemy natychmiast** — czekamy krótko (~350 ms) na ewentualne
 drugie dotknięcie. Bez tego pauza włączałaby się w trakcie podwójnego tapnięcia
 na brzegu. Strefy: środek ~50% szerokości, brzegi po ~25% z każdej strony.
 
@@ -47,7 +49,7 @@ na brzegu. Strefy: środek ~50% szerokości, brzegi po ~25% z każdej strony.
 
 - Nowa warstwa rozpoznawania gestów nad `EmbedPlayer`, współdzieląca `seekTo`
   z paskiem (`PlayerHandle.seekTo`) i logikę pokazywania paska (`showControls`).
-- Opóźnienie pojedynczego tapnięcia (~250 ms) jest odczuwalne; dotyczy tylko
+- Opóźnienie pojedynczego tapnięcia (~350 ms) jest odczuwalne; dotyczy tylko
   pauzy w centrum.
 - Bez zmian w DTO postępu (ADR 0004): seek przez gest zapisuje pozycję tak samo
   jak każdy inny seek.

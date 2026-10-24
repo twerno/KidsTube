@@ -1,5 +1,14 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { BackHandler, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  BackHandler,
+  Image,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+  type GestureResponderEvent,
+} from 'react-native';
 import { EmbedPlayer, type PlayerHandle, type PlayerState } from './EmbedPlayer';
 import { PlayerControls } from './player/PlayerControls';
 import { AudioControls } from './player/AudioControls';
@@ -8,6 +17,16 @@ import { colors, radius, spacing } from './theme';
 import type { Video, WatchMode } from '../domain/types';
 import { freshSleepTimer, resetSleepTimer, tickSleepTimer, type SleepTimerState } from '../domain/sleepMode';
 import { advanceWatch, beginWatch, unreportedSeconds } from '../domain/watchTime';
+import { relativeSeek } from '../domain/playback';
+import {
+  INITIAL_GESTURE_STATE,
+  TAP_SEQUENCE_MS,
+  resolveTap,
+  seekFeedbackLabel,
+  tapZone,
+  type GestureState,
+  type TapZone,
+} from '../domain/playerGestures';
 
 export interface PlayerScreenProps {
   video: Video;
@@ -45,6 +64,7 @@ const CONTROLS_HIDE_MS = 4000;
 const CONTROLS_HIDE_INITIAL_MS = 8000;
 // How often the resume position is persisted while playing (ADR 0004).
 const PROGRESS_SAVE_MS = 5000;
+const SEEK_FEEDBACK_MS = 700;
 
 export function PlayerScreen({
   video,
@@ -78,14 +98,20 @@ export function PlayerScreen({
     position: startAtSeconds,
     duration: startDurationSeconds > 0 ? startDurationSeconds : 0,
   }));
+  const { width: surfaceWidth } = useWindowDimensions();
   const [controlsVisible, setControlsVisible] = useState(true);
   const [scrubbing, setScrubbing] = useState(false);
   const [interacted, setInteracted] = useState(false);
   const [interactionNonce, setInteractionNonce] = useState(0);
+  const [seekFeedback, setSeekFeedback] = useState<string | undefined>();
   const [sleepTimer, setSleepTimer] = useState<SleepTimerState>(freshSleepTimer);
   const [loop, setLoop] = useState(false);
   // Read by the end handler without re-creating the callback on every toggle.
   const loopRef = useRef(loop);
+  // Gesture recognition (ADR 0004b): the first tap waits briefly for a second.
+  const gestureStateRef = useRef<GestureState>(INITIAL_GESTURE_STATE);
+  const tapTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const feedbackTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   useEffect(() => {
     loopRef.current = loop;
@@ -234,6 +260,87 @@ export function PlayerScreen({
     setInteractionNonce(value => value + 1);
   }, []);
 
+  const resetGestureState = useCallback(() => {
+    if (tapTimerRef.current) {
+      clearTimeout(tapTimerRef.current);
+      tapTimerRef.current = undefined;
+    }
+    gestureStateRef.current = INITIAL_GESTURE_STATE;
+  }, []);
+
+  const flashSeekFeedback = useCallback((seconds: number) => {
+    setSeekFeedback(seekFeedbackLabel(seconds));
+    if (feedbackTimerRef.current) {
+      clearTimeout(feedbackTimerRef.current);
+    }
+    feedbackTimerRef.current = setTimeout(() => {
+      feedbackTimerRef.current = undefined;
+      setSeekFeedback(undefined);
+    }, SEEK_FEEDBACK_MS);
+  }, []);
+
+  // Single tap: centre toggles playback, an edge tap only reveals the bar.
+  const applySingleTap = (zone: TapZone) => {
+    if (zone === 'center') {
+      playerRef.current?.togglePlay();
+    }
+    showControls();
+  };
+
+  const seekByGesture = (deltaSeconds: number, feedbackSeconds: number) => {
+    const target = relativeSeek(positionRef.current, deltaSeconds, durationRef.current);
+    playerRef.current?.seekTo(target);
+    setState(previous => ({ ...previous, position: target }));
+    flashSeekFeedback(feedbackSeconds);
+  };
+
+  const handleGestureTap = (event: GestureResponderEvent) => {
+    const zone = tapZone(event.nativeEvent.locationX, surfaceWidth);
+    const decision = resolveTap(gestureStateRef.current, zone, Date.now());
+    if (tapTimerRef.current) {
+      clearTimeout(tapTimerRef.current);
+      tapTimerRef.current = undefined;
+    }
+    gestureStateRef.current = decision.state;
+
+    if (decision.kind === 'wait') {
+      tapTimerRef.current = setTimeout(() => {
+        tapTimerRef.current = undefined;
+        const pending = gestureStateRef.current.pending;
+        gestureStateRef.current = INITIAL_GESTURE_STATE;
+        if (pending) {
+          applySingleTap(pending.zone);
+        }
+      }, TAP_SEQUENCE_MS);
+      return;
+    }
+    if (decision.kind === 'single') {
+      applySingleTap(decision.zone);
+      return;
+    }
+    seekByGesture(decision.deltaSeconds, decision.feedbackSeconds);
+  };
+
+  // Gestures belong to video playback only; overlays and audio own their input.
+  useEffect(() => {
+    if (audioOnly || ended || error || limitReached) {
+      resetGestureState();
+      setSeekFeedback(undefined);
+    }
+  }, [audioOnly, ended, error, limitReached, resetGestureState]);
+
+  useEffect(
+    () => () => {
+      if (tapTimerRef.current) {
+        clearTimeout(tapTimerRef.current);
+      }
+      if (feedbackTimerRef.current) {
+        clearTimeout(feedbackTimerRef.current);
+      }
+    },
+    [],
+  );
+
   useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
       handleClose();
@@ -321,9 +428,10 @@ export function PlayerScreen({
         onState={handleState}
       />
 
-      {/* Tap anywhere to toggle the control bar (does not reach YouTube). */}
-      {!audioOnly && !ended ? (
-        <Pressable style={StyleSheet.absoluteFill} onPress={showControls} />
+      {/* Gesture layer over the video (does not reach YouTube): centre tap
+          pauses/resumes, edge double tap seeks ±10 s (ADR 0004b). */}
+      {!audioOnly && !ended && !error && !limitReached ? (
+        <Pressable style={StyleSheet.absoluteFill} onPress={handleGestureTap} />
       ) : null}
 
       {ended ? (
@@ -389,6 +497,12 @@ export function PlayerScreen({
             onScrubStart={() => setScrubbing(true)}
             onScrubEnd={() => setScrubbing(false)}
           />
+        </View>
+      ) : null}
+
+      {seekFeedback && !audioOnly && !ended && !error && !limitReached ? (
+        <View pointerEvents="none" style={styles.seekFeedback}>
+          <Text style={styles.seekFeedbackText}>{seekFeedback}</Text>
         </View>
       ) : null}
 
@@ -563,4 +677,21 @@ const styles = StyleSheet.create({
   endBtnText: { color: colors.text, fontSize: 15, fontWeight: '700' },
   endBtnPrimary: { backgroundColor: colors.primary },
   endBtnPrimaryText: { color: colors.black, fontSize: 15, fontWeight: '800' },
+  seekFeedback: {
+    position: 'absolute',
+    top: '42%',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+  },
+  seekFeedbackText: {
+    overflow: 'hidden',
+    backgroundColor: 'rgba(16,20,24,0.82)',
+    color: colors.text,
+    fontSize: 24,
+    fontWeight: '800',
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.md,
+    borderRadius: radius.lg,
+  },
 });

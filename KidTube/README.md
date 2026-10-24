@@ -60,6 +60,7 @@ src/
     watchHistoryView.ts       etykiety historii: dni i polskie daty
     childNavigation.ts        stos nawigacji dziecka (zakładki + kanał)
     plural.ts                 polskie odmiany („1 film / 2 filmy / 5 filmów”)
+    playerGestures.ts         strefy gestów odtwarzacza (środek / brzegi)
     playerGuard.ts            allowlist nawigacji WebView (tylko embed białego filmu)
   data/
     repository.ts             interfejs trwałości
@@ -90,7 +91,7 @@ obejrzenia dołączą do warstwy `domain/` + `data/` (ADR 0004).
 ## Testy
 
 ```bash
-npm test          # 135 testów: URL, RSS, reguły list, decyzje (last-wins), harmonogram + tryb snu + przeskoki, licznik czasu odtwarzania, stan obejrzenia + historia oglądania, nawigacja dziecka, daty, PIN, sync, linki, player, render App
+npm test          # 145 testów: URL, RSS, reguły list, decyzje (last-wins), harmonogram + tryb snu + przeskoki, licznik czasu odtwarzania, stan obejrzenia + historia oglądania, nawigacja dziecka, gesty odtwarzacza, daty, PIN, sync, linki, player, render App
 npx tsc --noEmit  # typy
 npx eslint .      # lint
 ```
