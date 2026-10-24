@@ -3,13 +3,8 @@ import { Image, StyleSheet, Text, View } from 'react-native';
 import { Button } from '../components';
 import { colors, radius, spacing } from '../theme';
 import { formatPublishedDate } from '../../domain/dates';
+import { SOURCE_LABEL, STATUS_LABEL } from './labels';
 import type { Video, VideoStatus } from '../../domain/types';
-
-const STATUS_LABEL: Record<VideoStatus, string> = {
-  allowed: 'Dozwolony',
-  pending: 'Oczekuje',
-  blocked: 'Zablokowany',
-};
 
 const STATUS_COLOR: Record<VideoStatus, string> = {
   allowed: colors.success,
@@ -17,23 +12,45 @@ const STATUS_COLOR: Record<VideoStatus, string> = {
   blocked: colors.danger,
 };
 
-export function StatusBadge({ status }: { status: VideoStatus }) {
+export function StatusBadge({
+  status,
+  label,
+  color,
+}: {
+  status: VideoStatus;
+  label?: string;
+  color?: string;
+}) {
+  const tone = color ?? STATUS_COLOR[status];
   return (
-    <View style={[styles.badge, { borderColor: STATUS_COLOR[status] }]}>
-      <Text style={[styles.badgeText, { color: STATUS_COLOR[status] }]}>{STATUS_LABEL[status]}</Text>
+    <View style={[styles.badge, { borderColor: tone }]}>
+      <Text style={[styles.badgeText, { color: tone }]}>{label ?? STATUS_LABEL[status]}</Text>
     </View>
   );
+}
+
+export interface VideoRowProps {
+  video: Video;
+  /** Parent decision; when absent the row is read-only apart from preview. */
+  onSetStatus?: (video: Video, status: VideoStatus) => void;
+  onPreview?: (video: Video) => void;
+  /** Overrides the status badge (e.g. “wstrzymany” for a blocked channel). */
+  statusLabel?: string;
+  statusColor?: string;
+  /** False hides the decision buttons but keeps the preview. */
+  showActions?: boolean;
 }
 
 export function VideoRow({
   video,
   onSetStatus,
   onPreview,
-}: {
-  video: Video;
-  onSetStatus: (video: Video, status: VideoStatus) => void;
-  onPreview?: (video: Video) => void;
-}) {
+  statusLabel,
+  statusColor,
+  showActions = true,
+}: VideoRowProps) {
+  const actions = showActions && onSetStatus;
+
   return (
     <View style={styles.row}>
       <View style={styles.top}>
@@ -52,7 +69,8 @@ export function VideoRow({
                 {video.channelTitle}
               </Text>
             ) : null}
-            <StatusBadge status={video.status} />
+            <StatusBadge status={video.status} label={statusLabel} color={statusColor} />
+            <Text style={styles.source}>{SOURCE_LABEL[video.source]}</Text>
             {video.publishedAt ? (
               <Text style={styles.date}>{formatPublishedDate(video.publishedAt)}</Text>
             ) : null}
@@ -63,27 +81,47 @@ export function VideoRow({
       <View style={styles.actions}>
         {onPreview ? (
           <View style={styles.actionItem}>
-            <Button compact title="Podgląd" variant="secondary" onPress={() => onPreview(video)} />
+            <Button compact title="Podgląd" variant="preview" onPress={() => onPreview(video)} />
           </View>
         ) : null}
-        {video.status === 'pending' ? (
+        {actions && video.status === 'pending' ? (
           <>
             <View style={styles.actionItem}>
-              <Button compact title="Odrzuć" variant="danger" onPress={() => onSetStatus(video, 'blocked')} />
+              <Button
+                compact
+                title="Odrzuć"
+                variant="danger"
+                onPress={() => onSetStatus(video, 'blocked')}
+              />
             </View>
             <View style={styles.actionItem}>
-              <Button compact title="Akceptuj" variant="primary" onPress={() => onSetStatus(video, 'allowed')} />
+              <Button
+                compact
+                title="Akceptuj"
+                variant="primary"
+                onPress={() => onSetStatus(video, 'allowed')}
+              />
             </View>
           </>
         ) : null}
-        {video.status === 'allowed' ? (
+        {actions && video.status === 'allowed' ? (
           <View style={styles.actionItem}>
-            <Button compact title="Cofnij zgodę" variant="danger" onPress={() => onSetStatus(video, 'blocked')} />
+            <Button
+              compact
+              title="Cofnij zgodę"
+              variant="danger"
+              onPress={() => onSetStatus(video, 'blocked')}
+            />
           </View>
         ) : null}
-        {video.status === 'blocked' ? (
+        {actions && video.status === 'blocked' ? (
           <View style={styles.actionItem}>
-            <Button compact title="Przywróć" variant="secondary" onPress={() => onSetStatus(video, 'allowed')} />
+            <Button
+              compact
+              title="Przywróć"
+              variant="secondary"
+              onPress={() => onSetStatus(video, 'allowed')}
+            />
           </View>
         ) : null}
       </View>
@@ -109,6 +147,7 @@ const styles = StyleSheet.create({
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' },
   channel: { color: colors.textMuted, fontSize: 13, flexShrink: 1 },
   date: { color: colors.textMuted, fontSize: 12 },
+  source: { color: colors.textMuted, fontSize: 11 },
   badge: {
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: radius.sm,

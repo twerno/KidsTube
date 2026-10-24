@@ -4,13 +4,11 @@ import { Button, Card } from '../components';
 import { ScheduleEditor } from '../ScheduleEditor';
 import { colors, spacing } from '../theme';
 import { normalizeSchedule, remainingSecondsToday } from '../../domain/schedule';
+import { formatCompactDuration } from '../../domain/duration';
 import type { ExtraTimePool, Schedule } from '../../domain/types';
 
-function formatMinutes(seconds: number): number {
-  return Math.floor(seconds / 60);
-}
-
-export function ScheduleTab({
+/** “Kontrola czasu oglądania” (ADR 0016): usage, extra pool, reset, editor. */
+export function ScheduleSection({
   schedule,
   usedSecondsToday,
   extraTime,
@@ -33,21 +31,21 @@ export function ScheduleTab({
     <ScrollView contentContainerStyle={styles.content}>
       <Text style={styles.hint}>
         Jedno okno oglądania (od–do, każdego dnia) i dzienny limit wideo. Tryb audio działa
-        zawsze — np. do audiobooków na dobranoc — i nie zużywa limitu.
+        zawsze — np. do słuchania na dobranoc — i nie zużywa limitu.
       </Text>
 
       <Card style={styles.usage}>
         <Text style={styles.usageTitle}>Wykorzystanie dzisiaj</Text>
-        <Text style={styles.usageValue}>{formatMinutes(usedSecondsToday)} min</Text>
+        <Text style={styles.usageValue}>{formatCompactDuration(usedSecondsToday)}</Text>
         <Text style={styles.usageHint}>
           {remaining === undefined
             ? 'Limit wyłączony (bez ograniczenia).'
-            : `Limit: ${limit} min · Pozostało: ${formatMinutes(remaining)} min`}
+            : `Limit: ${limit} min · Pozostało: ${formatCompactDuration(remaining)}`}
         </Text>
         {extraGranted > 0 ? (
           <Text style={styles.usageHint}>
-            Dodatkowy czas: +{formatMinutes(extraGranted)} min · pozostało{' '}
-            {formatMinutes(extraRemaining)} min
+            Dodatkowy czas: +{formatCompactDuration(extraGranted)} · pozostało{' '}
+            {formatCompactDuration(extraRemaining)}
           </Text>
         ) : null}
         <Button
@@ -68,5 +66,10 @@ const styles = StyleSheet.create({
   usage: { marginBottom: spacing.md },
   usageTitle: { color: colors.textMuted, fontSize: 13, fontWeight: '700', marginBottom: spacing.xs },
   usageValue: { color: colors.text, fontSize: 28, fontWeight: '800' },
-  usageHint: { color: colors.textMuted, fontSize: 13, marginTop: spacing.xs, marginBottom: spacing.md },
+  usageHint: {
+    color: colors.textMuted,
+    fontSize: 13,
+    marginTop: spacing.xs,
+    marginBottom: spacing.md,
+  },
 });

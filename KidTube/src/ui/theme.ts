@@ -10,6 +10,8 @@ export const colors = {
   success: '#35c759',
   danger: '#ff453a',
   warning: '#ff9f0a',
+  /** Preview action (parent panel): a hue of its own, away from decisions. */
+  preview: '#a78bfa',
   black: '#000000',
 };
 

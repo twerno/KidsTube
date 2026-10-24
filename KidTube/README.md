@@ -17,7 +17,7 @@ domenowych: `CONTEXT.md` (root repozytorium).
 | Metadane filmu | **oEmbed** (`youtube.com/oembed`) — tytuł, autor, miniatura. **Data publikacji i `channelId`** z InnerTube `player` (`microformat.playerMicroformatRenderer.publishDate`, `videoDetails.channelId`) — oEmbed ich nie zwraca. Bez klucza API. |
 | Akceptacja | Per kanał: `auto_approve` (nowe filmy od razu do biblioteki po syncu) albo `manual` (przy skanie RSS **wszystkie** filmy kanału trafiają na listę do zatwierdzenia). *(ADR 0001)* |
 | Kanał wyciszony | Kanał widoczny w panelu (grupy, filtry, filmy), ale **bez pobierania RSS**. Zatwierdzenie filmu z nieobserwowanego kanału zakłada go jako wyciszony; jawne dodanie kanału lub zatwierdzenie propozycji odcisza go. Wyciszenie ≠ blokada — filmy zostają u dziecka. *(ADR 0015)* |
-| Propozycje i decyzje | Lista oczekująca: propozycje dziecka **+** filmy z kanałów `manual` + **propozycje kanałów** (osobna sekcja), źródło wpisu oznaczone. Decyzja filmu — append-only, last-wins, zmienialna przez rodzica, auto-rozstrzyganie powtórek. Propozycja kanału nie jest decyzją filmu. *(ADR 0001, 0013)* |
+| Propozycje i decyzje | Lista oczekująca: propozycje dziecka **+** filmy z kanałów `manual` + **propozycje kanałów** (osobna sekcja), źródło wpisu oznaczone. Decyzja filmu — append-only, last-wins, zmienialna przez rodzica, auto-rozstrzyganie powtórek. Cofnięcie z paska (10 s) to nowa decyzja `retract` — film wraca do kolejki. Propozycja kanału nie jest decyzją filmu. *(ADR 0001, 0013, 0016)* |
 | Historia i akcje zbiorcze | Zakładka **Decyzje** (grupa Historia): pełny log append-only od najnowszych (wynik, źródło ręczne/auto, czas), dotknięcie → dialog zmiany (last-wins), przeżywa usunięte filmy/kanały. Akcje masowe (cofnięcie autoakceptacji, usunięcie kanału) z obowiązkowym potwierdzeniem i liczbą filmów — zbiorcze odrzucenia jako osobne decyzje. *(ADR 0010)* |
 | Wyszukiwanie/dodawanie | Link / „Udostępnij” — fundament (działa zawsze). Wyszukiwarka YouTube w panelu rodzica — prototyp z bramką oceny stabilności. Bez klucza API. *(ADR 0005)* |
 | Udostępnianie linków | Jeden wspólny potok dla **filmu i kanału** (`ACTION_SEND`): film wg ostatniej decyzji / polityki kanału (`allowed` / `pending` / `blocked`), kanał jako **propozycja kanału** widoczna tylko u rodzica. Bez duplikatów, bez autoodtwarzania, bez otwierania przeglądarki. *(ADR 0013)* |
@@ -63,6 +63,9 @@ src/
     watchHistoryView.ts       etykiety historii: dni i polskie daty
     childNavigation.ts        stos nawigacji dziecka (zakładki + kanał)
     plural.ts                 polskie odmiany („1 film / 2 filmy / 5 filmów”)
+    panel.ts                  selektory panelu: kolejka, biblioteka, archiwum, pasek kanałów
+    watchStats.ts             statystyki czasu: dziś i średnia 7 dni (filmy/audio)
+    log.ts                    bufor sesyjny zdarzeń (ring, 100 wpisów)
     playerGestures.ts         strefy gestów odtwarzacza (środek / brzegi)
     playerGuard.ts            allowlist nawigacji WebView (tylko embed białego filmu)
     channels.ts               flaga wyciszenia, kanał z zatwierdzonego filmu
@@ -76,11 +79,16 @@ src/
     channelProposals.ts       propozycje kanałów: resolve, zatwierdź/odrzuć
     channelMuting.ts          kanały wyciszone: tworzenie przy decyzji + backfill
     incomingLink.ts           wspólny potok linku z share/VIEW
+    addByLink.ts              dodawanie filmu/kanału z linku (wszystko albo nic)
+    logStore.ts               magazyn logu sesji dla sekcji „Log”
   security/pin.ts             hashowanie i weryfikacja PIN
   native/shareIntent.ts       most do natywnego modułu ShareIntent / Linking
   native/youtubeLinkHandler.ts most do włączania/wyłączania aliasu VIEW
   version.ts                  wersja aplikacji (z package.json)
   ui/                         ekrany (bez zewnętrznej nawigacji)
+  ui/parent/ParentPanel.tsx   stos ekranów panelu rodzica (ADR 0016)
+  ui/parent/PanelIndex.tsx    indeks: podsumowanie + sekcje
+  ui/parent/*Section.tsx      sekcje panelu (oczekujące, biblioteka, zablokowane, dodaj, …)
   ui/child/                   siatka Feed, lista kanałów, propozycje dziecka
   ui/WatchHistoryList.tsx     historia po dniach: wariant dziecka i rodzica
   ui/ChannelAvatar.tsx        wspólny awatar kanału (zdjęcie lub inicjał)
@@ -98,7 +106,7 @@ obejrzenia dołączą do warstwy `domain/` + `data/` (ADR 0004).
 ## Testy
 
 ```bash
-npm test          # 204 testy: URL, RSS, reguły list, decyzje (last-wins), harmonogram + tryb snu + przeskoki, licznik czasu odtwarzania, stan obejrzenia + historia oglądania, nawigacja dziecka, gesty odtwarzacza, daty, PIN, sync (także przy starcie, pull-to-refresh i kanałach wyciszonych), linki + propozycje kanałów, handler VIEW, player, render App
+npm test          # 224 testy: URL, RSS, reguły list, decyzje (last-wins), harmonogram + tryb snu + przeskoki, licznik czasu odtwarzania, stan obejrzenia + historia oglądania, nawigacja dziecka, gesty odtwarzacza, daty, PIN, sync (także przy starcie, pull-to-refresh i kanałach wyciszonych), linki + propozycje kanałów, handler VIEW, player, render App
 npx tsc --noEmit  # typy
 npx eslint .      # lint
 ```

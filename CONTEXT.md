@@ -45,8 +45,12 @@ Opcjonalne, domyślnie wyłączone przyjęcie przez KidTube systemowego otwarcia
 _Avoid_: Domyślny handler jako stan domyślny, Blokowanie YouTube
 
 **Decyzja**:
-Rozstrzygnięcie propozycji filmu (dopuść / odrzuć); ręczne (rodzic) lub automatyczne (powtórka wcześniejszej decyzji przy ponownej propozycji). Rodzic może w każdej chwili zmienić dowolną decyzję historyczną; dla wszystkich kolejnych rozstrzygnięć — w tym autoakceptacji — liczy się decyzja najnowsza. Zapisywana w historii decyzji jako nieusuwalny wpis. Zatwierdzenie/odrzucenie propozycji kanału nie jest decyzją o filmie.
+Rozstrzygnięcie propozycji filmu (dopuść / odrzuć / cofnij); ręczne (rodzic) lub automatyczne (powtórka wcześniejszej decyzji przy ponownej propozycji). Rodzic może w każdej chwili zmienić dowolną decyzję historyczną; dla wszystkich kolejnych rozstrzygnięć — w tym autoakceptacji — liczy się decyzja najnowsza. Zapisywana w historii decyzji jako nieusuwalny wpis. Zatwierdzenie/odrzucenie propozycji kanału nie jest decyzją o filmie.
 _Avoid_: Werdykt, Zatwierdzenie jako jedyny rodzaj
+
+**Cofnięcie decyzji**:
+Nowa decyzja, która przywraca film do stanu sprzed rozstrzygnięcia — zwykle z powrotem do kolejki. Historia pozostaje append-only: ostatnia decyzja znaczy „brak decyzji”. W panelu dostępna przez 10 s od decyzji.
+_Avoid_: Usunięcie wpisu, Kasowanie decyzji
 
 **Widoczność filmu**:
 Czy film jest widoczny dziecku: wynika z decyzji najnowszej i stanu kanału. Stan kanału nigdy nie nadpisuje statusu filmu — zablokowany kanał ukrywa wszystkie swoje filmy bez zapisywania decyzji.

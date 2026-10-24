@@ -13,7 +13,7 @@ import { watchState } from '../domain/watchState';
 import { formatDurationRatio } from '../domain/duration';
 import type { WatchProgress } from '../domain/types';
 
-type Variant = 'primary' | 'secondary' | 'danger' | 'ghost';
+type Variant = 'primary' | 'secondary' | 'danger' | 'ghost' | 'preview';
 
 export function Button({
   title,
@@ -36,6 +36,7 @@ export function Button({
     secondary: { bg: colors.cardAlt, fg: colors.text },
     danger: { bg: colors.danger, fg: '#fff' },
     ghost: { bg: 'transparent', fg: colors.primary },
+    preview: { bg: colors.preview, fg: '#171029' },
   }[variant];
 
   return (

@@ -29,6 +29,10 @@ describe('statusForOutcome', () => {
     expect(statusForOutcome('allow')).toBe('allowed');
     expect(statusForOutcome('reject')).toBe('blocked');
   });
+
+  it('maps retract back onto pending (the undo bar)', () => {
+    expect(statusForOutcome('retract')).toBe('pending');
+  });
 });
 
 describe('latestDecision (last-wins)', () => {
@@ -75,6 +79,11 @@ describe('projectStatus / projectVideos', () => {
     expect(projectStatus(video('v1', 'allowed'), log)).toBe('blocked');
   });
 
+  it('projects a retract back to pending', () => {
+    const log = [decision('v1', 'allow', 10), decision('v1', 'retract', 20)];
+    expect(projectStatus(video('v1', 'allowed'), log)).toBe('pending');
+  });
+
   it('projects a whole list without mutating the input', () => {
     const videos = [video('v1', 'pending'), video('v2', 'allowed')];
     const log = [decision('v1', 'allow', 10)];
@@ -99,6 +108,11 @@ describe('repeatProposalDecision', () => {
       at: 100,
       channelId: undefined,
     });
+  });
+
+  it('stays pending after the parent retracts the decision', () => {
+    const log = [decision('v1', 'allow', 10), decision('v1', 'retract', 20)];
+    expect(repeatProposalDecision(log, 'v1', 100)).toBeUndefined();
   });
 
   it('follows a changed decision (last-wins)', () => {

@@ -14,6 +14,7 @@ import { colors, radius, spacing } from './theme';
 import { entryTotalSeconds, groupWatchHistory } from '../domain/watchHistory';
 import { formatCompactDuration, formatDurationRatio } from '../domain/duration';
 import { formatHistoryDay } from '../domain/watchHistoryView';
+import { Button } from './components';
 import type { WatchHistoryEntry, WatchProgress } from '../domain/types';
 
 export function WatchHistoryList({
@@ -21,6 +22,7 @@ export function WatchHistoryList({
   showThumbnails,
   watchProgress,
   onPlayEntry,
+  onPreviewEntry,
   emptyText,
 }: {
   entries: WatchHistoryEntry[];
@@ -29,6 +31,8 @@ export function WatchHistoryList({
   watchProgress?: WatchProgress[];
   /** Child only: open a still-available material in the player. */
   onPlayEntry?: (entry: WatchHistoryEntry) => void;
+  /** Parent only: preview the material, even when it left the library (ADR 0016). */
+  onPreviewEntry?: (entry: WatchHistoryEntry) => void;
   emptyText: string;
 }) {
   const sections = useMemo(
@@ -68,7 +72,10 @@ export function WatchHistoryList({
             onPress={onPlayEntry ? () => onPlayEntry(item) : undefined}
           />
         ) : (
-          <ParentHistoryRow entry={item} />
+          <ParentHistoryRow
+            entry={item}
+            onPreview={onPreviewEntry ? () => onPreviewEntry(item) : undefined}
+          />
         )
       }
     />
@@ -127,7 +134,13 @@ function ChildHistoryRow({
   );
 }
 
-function ParentHistoryRow({ entry }: { entry: WatchHistoryEntry }) {
+function ParentHistoryRow({
+  entry,
+  onPreview,
+}: {
+  entry: WatchHistoryEntry;
+  onPreview?: () => void;
+}) {
   return (
     <View style={styles.parentRow}>
       <View style={styles.entryText}>
@@ -143,6 +156,9 @@ function ParentHistoryRow({ entry }: { entry: WatchHistoryEntry }) {
       <Text style={styles.entryTime}>
         Sesja {formatCompactDuration(entryTotalSeconds(entry))}
       </Text>
+      {onPreview ? (
+        <Button compact title="Podgląd" variant="preview" onPress={onPreview} />
+      ) : null}
     </View>
   );
 }

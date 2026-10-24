@@ -12,7 +12,14 @@ import type { Decision, DecisionOutcome, Video, VideoStatus } from './types';
 
 /** Map a decision outcome onto the projected `Video.status`. */
 export function statusForOutcome(outcome: DecisionOutcome): VideoStatus {
-  return outcome === 'allow' ? 'allowed' : 'blocked';
+  if (outcome === 'allow') {
+    return 'allowed';
+  }
+  if (outcome === 'reject') {
+    return 'blocked';
+  }
+  // `retract` takes the decision back: the film is undecided again.
+  return 'pending';
 }
 
 /** The most recent decision for a video. Later entries win on equal timestamps. */
@@ -61,7 +68,9 @@ export function repeatProposalDecision(
   now: number,
 ): Decision | undefined {
   const latest = latestDecision(decisions, videoId);
-  if (!latest) {
+  // A retracted decision means “undecided”: a repeat proposal must not
+  // auto-resolve to it, it simply stays pending (ADR 0016).
+  if (!latest || latest.outcome === 'retract') {
     return undefined;
   }
   return {

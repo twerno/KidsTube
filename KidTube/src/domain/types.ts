@@ -11,8 +11,13 @@ export type VideoStatus = 'allowed' | 'pending' | 'blocked';
 /** Where a video record came from. */
 export type VideoSource = 'rss' | 'manual' | 'share' | 'propose';
 
-/** Outcome of a decision: the parent lets the video in or keeps it out. */
-export type DecisionOutcome = 'allow' | 'reject';
+/**
+ * Outcome of a decision: the parent lets the video in, keeps it out, or takes
+ * the decision back and returns the video to the queue (the panel's 10-second
+ * undo bar, ADR 0016). `retract` is appended like any other decision — the
+ * history stays append-only.
+ */
+export type DecisionOutcome = 'allow' | 'reject' | 'retract';
 
 /** Who decided: the parent directly, or the system repeating a prior decision. */
 export type DecisionSource = 'manual' | 'auto';

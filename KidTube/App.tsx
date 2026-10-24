@@ -66,28 +66,25 @@ import {
   setYouTubeLinkHandlerEnabled,
 } from './src/native/youtubeLinkHandler';
 import { hashPin, verifyPin } from './src/security/pin';
-import { syncAllChannels, syncChannel, fetchChannelFeed } from './src/services/channelSync';
+import { syncAllChannels, syncChannel } from './src/services/channelSync';
 import {
   ensureChannelForApprovedVideo,
   ensureMutedChannelsForApprovedVideos,
 } from './src/services/channelMuting';
 import { isChannelMuted, withChannelMuted } from './src/domain/channels';
-import { resolveChannelFromUrl } from './src/services/channelResolve';
-import { fetchOEmbed, fetchPlayerMetadata } from './src/services/youtubeMetadata';
+import { addByLink, type AddLinkResult } from './src/services/addByLink';
+import { recordLog } from './src/services/logStore';
 import { ChildHomeScreen } from './src/ui/ChildHomeScreen';
 import { GateScreen } from './src/ui/GateScreen';
 import { PinPrompt } from './src/ui/PinPrompt';
-import { ParentScreen } from './src/ui/parent/ParentScreen';
+import { ParentPanel } from './src/ui/parent/ParentPanel';
 import { PlayerScreen } from './src/ui/PlayerScreen';
-import { PreviewScreen } from './src/ui/parent/PreviewScreen';
-import { SOURCE_LABEL } from './src/ui/parent/PendingTab';
 import { colors } from './src/ui/theme';
 
 type Route =
   | { name: 'child' }
   | { name: 'parent' }
-  | { name: 'player'; video: Video; audioOnly: boolean; startAtSeconds: number; startDurationSeconds: number }
-  | { name: 'preview'; video: Video };
+  | { name: 'player'; video: Video; audioOnly: boolean; startAtSeconds: number; startDurationSeconds: number };
 
 function createRepository(): Repository {
   return new AsyncStorageRepository();
@@ -232,16 +229,16 @@ export default function App() {
     const run = (async () => {
       try {
         const result = await syncAllChannels(repo);
-        console.log(
-          '[KidTube:sync] channels=' +
-            Object.keys(result.perChannel).length +
-            ' added=' +
-            result.added.length,
+        recordLog(
+          'info',
+          'sync',
+          `kanały=${Object.keys(result.perChannel).length} nowe=${result.added.length}`,
         );
         await reload();
       } catch (error) {
         // Network failures are already swallowed per channel; anything left is
         // unexpected, but it must not leave the child stuck in a spinner.
+        recordLog('error', 'sync', String(error));
         console.warn('[KidTube:sync] failed', error);
       } finally {
         syncPromiseRef.current = null;
@@ -668,7 +665,10 @@ export default function App() {
     });
     setSettings(next);
     setPinSetup(false);
-    setRoute({ name: 'child' });
+    recordLog('info', 'pin', 'kod rodzica zmieniony');
+    // Changing the PIN from the panel returns to the panel (ADR 0016); the
+    // first-run setup still lands in the child's world.
+    setRoute(current => (current.name === 'parent' ? current : { name: 'child' }));
     return true;
   };
 
@@ -760,88 +760,16 @@ export default function App() {
 
   // ---- Parent actions ------------------------------------------------------
 
-  const addChannelLink = async (link: string, autoApprove: boolean): Promise<string | undefined> => {
-    const parsed = parseYouTubeLink(link);
-    const policy = autoApprove ? 'auto_approve' : 'manual';
-    console.log('[KidTube:addChannel]', link, 'parsed=', JSON.stringify(parsed));
-
-    if (parsed.kind === 'video') {
-      const [meta, player] = await Promise.all([
-        fetchOEmbed(parsed.videoId),
-        fetchPlayerMetadata(parsed.videoId),
-      ]);
-      const video: Video = {
-        id: parsed.videoId,
-        channelId: player?.channelId,
-        channelTitle: player?.channelTitle ?? meta?.authorName,
-        title: meta?.title ?? parsed.videoId,
-        thumbnailUrl: meta?.thumbnailUrl,
-        publishedAt: player?.publishedAt,
-        status: autoApprove ? 'allowed' : 'pending',
-        source: 'manual',
-        addedAt: Date.now(),
-      };
-      await repo.upsertVideos([video]);
-      if (autoApprove) {
-        // The parent approved it by hand — record that as a manual decision and
-        // park an unknown channel as muted (ADR 0015).
-        await repo.recordDecision(manualDecision(video, 'allow', video.addedAt));
-        await ensureChannelForApprovedVideo(repo, video, video.addedAt);
+  const addLink = useCallback(
+    async (link: string): Promise<AddLinkResult> => {
+      const result = await addByLink(link, repo);
+      if (result.ok) {
+        await reload();
       }
-      await reload();
-      return undefined;
-    }
-
-    if (parsed.kind === 'channel' && parsed.channelId) {
-      const existing = await repo.getChannel(parsed.channelId);
-      const entries = await fetchChannelFeed(parsed.channelId);
-      const title = existing?.title ?? entries[0]?.channelTitle ?? parsed.channelId;
-      const channel: Channel = {
-        id: parsed.channelId,
-        title,
-        handle: existing?.handle,
-        thumbnailUrl: existing?.thumbnailUrl,
-        policy,
-        status: 'allowed',
-        muted: false,
-        addedAt: existing?.addedAt ?? Date.now(),
-      };
-      await repo.upsertChannel(channel);
-      await syncChannel(repo, channel);
-      await reload();
-      return undefined;
-    }
-
-    if (parsed.kind === 'channel') {
-      const pageUrl = /^https?:\/\//i.test(parsed.raw)
-        ? parsed.raw
-        : parsed.handle
-          ? `https://www.youtube.com/@${parsed.handle}`
-          : `https://www.youtube.com/c/${parsed.slug ?? ''}`;
-      const resolved = await resolveChannelFromUrl(pageUrl);
-      console.log('[KidTube:addChannel] resolved=', JSON.stringify(resolved));
-      if (!resolved) {
-        return 'Nie udało się rozpoznać kanału z tego linku. Spróbuj wkleić pełny link do kanału z YouTube.';
-      }
-      const existing = await repo.getChannel(resolved.channelId);
-      const channel: Channel = {
-        id: resolved.channelId,
-        title: resolved.title,
-        handle: resolved.handle ?? existing?.handle,
-        thumbnailUrl: existing?.thumbnailUrl,
-        policy,
-        status: 'allowed',
-        muted: false,
-        addedAt: existing?.addedAt ?? Date.now(),
-      };
-      await repo.upsertChannel(channel);
-      await syncChannel(repo, channel);
-      await reload();
-      return undefined;
-    }
-
-    return 'Nie rozpoznaję tego linku.';
-  };
+      return result;
+    },
+    [repo, reload],
+  );
 
   const toggleChannelPolicy = async (channel: Channel) => {
     const next: Channel = {
@@ -858,15 +786,19 @@ export default function App() {
       for (const v of toApprove) {
         await repo.recordDecision(manualDecision(v, 'allow', Date.now()));
       }
+      recordLog(
+        'warn',
+        'channel',
+        `auto-akceptacja ${channel.title}: dopuszczono ${toApprove.length} oczekujących`,
+      );
     }
     await reload();
   };
 
   const toggleChannelBlocked = async (channel: Channel) => {
-    await repo.upsertChannel({
-      ...channel,
-      status: channel.status === 'blocked' ? 'allowed' : 'blocked',
-    });
+    const status = channel.status === 'blocked' ? 'allowed' : 'blocked';
+    await repo.upsertChannel({ ...channel, status });
+    recordLog('info', 'channel', `${channel.title}: ${status === 'blocked' ? 'zablokowany' : 'odblokowany'}`);
     await reload();
   };
 
@@ -883,11 +815,6 @@ export default function App() {
         setRefreshing(false);
       }
     }
-    await reload();
-  };
-
-  const removeChannel = async (channel: Channel) => {
-    await repo.removeChannel(channel.id);
     await reload();
   };
 
@@ -986,9 +913,18 @@ export default function App() {
   };
 
   // A parent action becomes a `manual` decision in the append-only history.
+  // Undo from the panel's 10-second bar: the decision is taken back with a
+  // `retract` entry, so the history stays append-only (ADR 0016).
+  const retractDecision = async (video: Video) => {
+    recordLog('info', 'decision', `retract ${video.id} (${video.title})`);
+    await repo.recordDecision(manualDecision(video, 'retract', Date.now()));
+    await reload();
+  };
+
   const setVideoStatus = async (video: Video, status: VideoStatus) => {
     const outcome: DecisionOutcome = status === 'allowed' ? 'allow' : 'reject';
     const at = Date.now();
+    recordLog('info', 'decision', `${outcome} ${video.id} (${video.title})`);
     await repo.recordDecision(manualDecision(video, outcome, at));
     if (status === 'allowed') {
       // Approving a film from an unknown channel parks that channel as muted
@@ -996,11 +932,6 @@ export default function App() {
       await ensureChannelForApprovedVideo(repo, video, at);
     }
     await reload();
-  };
-
-  const setChildName = async (childName: string) => {
-    const next = await repo.updateSettings({ childName });
-    setSettings(next);
   };
 
   const resetUsageToday = async () => {
@@ -1115,56 +1046,38 @@ export default function App() {
     );
   }
 
-  if (route.name === 'preview') {
-    return (
-      <View style={styles.root}>
-        <StatusBar barStyle="light-content" hidden />
-        <PreviewScreen
-          video={route.video}
-          sourceLabel={SOURCE_LABEL[route.video.source]}
-          onClose={() => setRoute({ name: 'parent' })}
-          onDecide={async (video, status) => {
-            await setVideoStatus(video, status);
-            setRoute({ name: 'parent' });
-          }}
-        />
-      </View>
-    );
-  }
-
   if (route.name === 'parent') {
     return (
       <View style={styles.root}>
         <StatusBar barStyle="light-content" />
-        <ParentScreen
-          childName={settings.childName}
+        <ParentPanel
+          videos={projectedVideos}
           channels={channels}
           channelProposals={channelProposals}
-          videos={projectedVideos}
           watchHistory={watchHistory}
-          onSetVideoStatus={setVideoStatus}
-          onPreviewVideo={video => setRoute({ name: 'preview', video })}
-          refreshing={refreshing}
-          onAddChannelLink={addChannelLink}
-          onToggleChannelPolicy={toggleChannelPolicy}
-          onToggleChannelMuted={toggleChannelMuted}
-          onBlockChannel={toggleChannelBlocked}
-          onRemoveChannel={removeChannel}
-          onSync={sync}
-          onChangePin={() => setPinSetup(true)}
-          onChildName={setChildName}
           schedule={settings.schedule}
-          onApproveChannelProposal={onApproveChannelProposal}
-          onRejectChannelProposal={onRejectChannelProposal}
-          onRetryChannelProposal={onRetryChannelProposal}
-          youtubeLinkHandlerEnabled={!!settings.youtubeLinkHandlerEnabled}
-          onYouTubeLinkHandlerChange={changeYouTubeLinkHandler}
-          onOpenLinkHandlingSettings={openLinkHandlingSettings}
           extraTime={extraTime}
           usedSecondsToday={usedSecondsToday}
+          refreshing={refreshing}
+          youtubeLinkHandlerEnabled={!!settings.youtubeLinkHandlerEnabled}
+          onClose={() => setRoute({ name: 'child' })}
+          onRefresh={() => {
+            sync().catch(() => undefined);
+          }}
+          onSetStatus={setVideoStatus}
+          onRetract={retractDecision}
+          onTogglePolicy={toggleChannelPolicy}
+          onToggleMuted={toggleChannelMuted}
+          onToggleBlocked={toggleChannelBlocked}
+          onApproveChannel={onApproveChannelProposal}
+          onRejectChannel={onRejectChannelProposal}
+          onRetryChannel={onRetryChannelProposal}
+          onAddLink={addLink}
           onResetUsage={resetUsageToday}
           onScheduleChange={changeSchedule}
-          onClose={() => setRoute({ name: 'child' })}
+          onChangePin={() => setPinSetup(true)}
+          onYouTubeLinkHandlerChange={changeYouTubeLinkHandler}
+          onOpenLinkHandlingSettings={openLinkHandlingSettings}
         />
       </View>
     );

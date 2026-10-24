@@ -7,7 +7,7 @@ liście, a zakładka „Decyzje” (ADR 0010) nigdy nie powstała. Ten ADR porz�
 sekcjami**, z jawnym stosem nawigacji i jednym zestawem reguł dla filtrów,
 liczników, pustych stanów i podglądu. Reguły domenowe (decyzje, polityka
 kanału, limity czasu, uprawnienia dziecka) **nie zmieniają się** — poza
-pięcioma świadomymi wyjątkami wypisanymi niżej. Grupowanie zakładek z ADR 0005
+sześcioma świadomymi wyjątkami wypisanymi niżej. Grupowanie zakładek z ADR 0005
 zostaje zastąpione; reszta ADR 0005 obowiązuje.
 
 ## Decyzja
@@ -19,8 +19,9 @@ Panel po PIN-ie otwiera **indeks**: pionowo przewijana lista.
 - Na górze **podsumowanie** — trzy wiersze, dane wyłącznie z istniejącego stanu:
   1. `Pozostało wideo dziś: 1h:15m` (albo `Bez limitu`, gdy bramka wyłączona),
   2. `Dziś — Filmy: 1h:15m (3) · Audio: 12m (2)`,
-  3. `7 dni — Filmy: 25m · Audio: 7m` (średnia dzienna / 7 dni kalendarzowych,
-     dni bez oglądania liczą się jako zero).
+  3. `7 dni — Filmy: 25m (2) · Audio: 7m (1)` (średnia dzienna / 7 dni
+     kalendarzowych, dni bez oglądania liczą się jako zero; wartości ułamkowe
+     są zaokrąglane).
   Nawias w wierszu 2 to liczba **materiałów odtworzonych w danym trybie**
   (materiał częściowo wideo, częściowo audio liczy się w obu). Legenda pod
   wierszem wyjaśnia nawias. Format czasu: `formatCompactDuration`.
@@ -97,7 +98,8 @@ jest on sygnałem do działania.
   **kafelek filmu** (ten sam co w „Filmach”): `Podgląd`, `Cofnij zgodę`.
 - **Kanał → `policy: 'manual'`, `muted: false`, `status: 'allowed'`**, od razu
   synchronizacja RSS (filmy trafiają do sekcji 1). Pod polem pojawia się
-  **karta kanału**.
+  **karta kanału**. Nowy kanał dostaje `manual`; kanał już istniejący
+  zachowuje politykę, którą rodzic wybrał wcześniej.
 - **Czerwone ostrzeżenie**, gdy kanał dodawanego filmu jest zablokowany: film
   zostaje dodany (`allowed`), ale kafelek mówi, że dziecko go nie widzi;
   cofnięcie = istniejące `Cofnij zgodę` (nowa decyzja `manual: reject`,
@@ -140,6 +142,22 @@ otwierania linków.
   też do bufora. Sekcja jest jedynym kanałem diagnozy dla rodzica, bo aplikacja
   jest sideloadowana (ADR 0007) i nie ma dostępu do `logcat`.
 
+### Pasek decyzji (10 s)
+
+- Po każdej decyzji podjętej w panelu (wiersz listy albo podgląd) na dole
+  pojawia się pasek: wynik („Zatwierdzono” / „Odrzucono”), tytuł filmu i
+  **`Cofnij`**. Znika po 10 sekundach; kolejna decyzja zastępuje pasek
+  i resetuje licznik.
+- `Cofnij` przywraca stan sprzed decyzji: film był `pending` → wpis
+  `retract` (wraca do kolejki); był `allowed` → nowa decyzja `allow`; był
+  `blocked` → nowa decyzja `reject`.
+- To rozszerza model ADR 0001 o **trzeci wynik decyzji `retract`**
+  (projekcja: `pending`). Historia pozostaje **append-only** — cofnięcie jest
+  nowym wpisem, nie usunięciem. Powtórka propozycji po `retract` nie
+  auto-rozstrzyga: film zostaje w kolejce.
+- Pasek dotyczy wyłącznie decyzji podejmowanych w panelu; świat dziecka nie
+  ma takiej akcji.
+
 ### Nawigacja
 
 - Jawny **stos ekranów panelu**: `indeks → sekcja → karta kanału → podgląd`.
@@ -177,6 +195,8 @@ otwierania linków.
   pod kanał w sekcji „Zablokowane”; filmy zatwierdzone zachowują `allowed`.
 - Odblokowanie **przywraca** filmy do stanu sprzed blokady: oczekujące wracają
   do kolejki, dozwolone do biblioteki. Żadne decyzje nie są przy tym zapisywane.
+- Filmy kanału zablokowanego są **tylko do odczytu** (podgląd, znacznik
+  „wstrzymany”) — decyzja per film nic by nie zmieniła, więc nie jest oferowana.
 - **„Usuń kanał” znika.** Rolę usuwania przejmuje blokada: kanał znika z listy
   i z oczu dziecka, ale pozostaje odwracalny. Kasowanie rekordu kanału zostawiało
   filmy dziecku widoczne i odtwarzało kanał w pasku jako „nieobserwowany”.
@@ -203,9 +223,11 @@ To refactor UX, ale pięć rzeczy **celowo** zmienia zachowanie — zapisane,
 4. **Pole „Imię dziecka” znika z panelu** do czasu ADR personalizacji. Zapisane
    imię nadal się wyświetla u dziecka; nie da się go zmienić ani ustawić.
 5. **Nowa sekcja „Log”** — bufor sesyjny, jak wyżej.
+6. **Trzeci wynik decyzji `retract` + pasek cofnięcia (10 s)** — opis wyżej;
+   dotyka modelu decyzji z ADR 0001 (dopuść / odrzuć / cofnij).
 
-Zmiany **1–3 są trwałe**, **4** jest regresją tymczasową wpisaną do backlogu,
-a **5** jest dodatkiem diagnostycznym — nie zmienia reguł domenowych.
+Zmiany **1–3 oraz 6 są trwałe**, **4** jest regresją tymczasową wpisaną do backlogu,
+a **5** jest dodatkiem diagnostycznym.
 
 ## Poza zakresem
 
