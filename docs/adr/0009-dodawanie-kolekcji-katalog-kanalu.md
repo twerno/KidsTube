@@ -1,5 +1,7 @@
 # ADR 0009 — Dodawanie kolekcji: pełny katalog kanału przez InnerTube
 
+> Status: **wdrożone** (0.10.0).
+
 Kanałowy RSS zwraca tylko ~15 najnowszych filmów (ADR 0001). Dla kanałów z
 dużą biblioteką (np. audiobooki, ~250 pozycji) ręczne dodawanie linków jest
 niepraktyczne. Potrzebujemy masowego dociągnięcia starszych pozycji.
@@ -15,31 +17,47 @@ wszystkie oczekujące (ADR 0001). Istniejące decyzje rodzica nie są nadpisywan
 (merge zachowuje status znanych filmów).
 
 Import jest świadomą akcją, nie automatycznym efektem dodania kanału — dodanie
-kanału zostaje szybkie (RSS). Import pokazuje postęp/licznik („zaimportowano X
-filmów") i ogranicza się do **budżetu stron na jedno uruchomienie**, więc kanał
-z dziesiątkami tysięcy filmów nie zamuli telefonu ani nie wyczerpie limitu —
-całość dopełnia się stopniowo, w kolejnych dniach.
+kanału zostaje szybkie (RSS). Import pokazuje postęp/licznik („wczytano X
+filmów") i **tempo jest celowo ludzkie**: przed każdym kolejnym żądaniem losowa
+pauza `5 s ± 2 s`. To bezpiecznik, a nie odwzorowanie limitu Google — limit
+niezalogowanego InnerTube jest nieznany i nieudokumentowany. Bieg trwa do końca
+katalogu albo do pierwszego błędu (429/403/sieć/parse/timeout 20 s); nie ma
+dziennego budżetu stron.
 
-### Wznawianie i odporność na limity
+### Tempo, przebieg i wznawianie
 
-InnerTube bez klucza może podlegać limitom (np. dzienny budżet, 429, chwilowa
-blokada). Import jest więc **wznawialny**, a nie jednorazowy:
-
-- Po każdej stronie zapisujemy **kursor kontynuacji** (token), liczbę
-  zaimportowanych pozycji i status (`done`) — per kanał, w repo (obok kanału).
-- Jedno uruchomienie pobiera tylko **budżet stron** w danym dniu (np. 10 stron
-  ≈ 300 filmów). Po wykorzystaniu budżetu import **pauzuje** i wraca przy
-  następnej okazji, kontynuując od kursora — nie od początku.
-- Błąd/limit/brak tokenu kończy bieg **miękko**: zachowujemy checkpoint,
-  pokazujemy „wczytano do X, dokończ później", i nie psujemy już pobranych
-  danych.
+- **Tempo**: pierwsze żądanie od razu, każde kolejne po losowej pauzie
+  `3000 + Math.random()*4000` (3–7 s). Żadnych równoległych stron.
+- **Koniec biegu**: wyczerpany katalog (`brak nextToken`) albo **pierwszy błąd**
+  — 429/403, błąd sieci, nieparsowalna odpowiedź lub **timeout 20 s** na
+  żądanie. Błąd kończy bieg miękko: checkpoint zostaje, panel pokazuje
+  „Wczytano X · dokończ później".
+- **Checkpoint per kanał**: token strony, która wyprodukowała ostatnią
+  wczytaną stronę (`resumeToken`), licznik `imported`, `done` i ostatni błąd.
+  Zapis po każdej stronie; przeżywa zamknięcie aplikacji. Licznik to **liczba
+  filmów kanału po scaleniu**, nie suma stron — dzięki temu powtórka ostatniej
+  strony przy wznowieniu niczego nie gubi ani nie dubluje.
+- **Wznowienie tylko po jawnym tapnięciu** („Kontynuuj pobieranie”); start
+  aplikacji niczego nie wznawia.
 - Przed wznowieniem **ponawiamy ostatnią wczytaną stronę**, by wykryć, czy nowe
-  filmy nie przesunęły zakresu; duplikaty i tak są odsiewane po `videoId`.
-- Wyczerpany/wygasły token (YouTube je unieważnia) oznacza restart od początku —
-  bezpieczny, bo merge deduplikuje; licznik pokazuje postęp.
+  filmy nie przesunęły zakresu; duplikaty są odsiewane po `videoId`, a licznik
+  nie rośnie od powtórki.
+- Wygasły token: powtórzona strona wraca pusta → checkpoint jest zerowany
+  i następne pobranie startuje od początku (bezpieczne dzięki deduplikacji).
+- **Panel postępu** jest modalny i blokuje panel na czas biegu; ma „Przerwij”
+  (checkpoint zostaje) oraz licznik wczytanych filmów. Po `done` przycisk na
+  karcie kanału jest nieaktywny: „Katalog wczytany”.
 
-Stan importu jest trwały (przeżywa zamknięcie aplikacji), więc kolejny dzień
-startuje z kursora, a nie od zera.
+### Kanały wyciszone i zablokowane
+
+- Przycisk „Pobierz wszystkie” jest na **każdym niezablokowanym** kanale, także
+  wyciszonym — import jest jawną akcją i nie zmienia polityki ani wyciszenia.
+- Filmy z kanału wyciszonego są **pobierane i zapisywane**, ale **nie pojawiają
+  się w „Do zatwierdzenia”** dopóki kanał jest wyciszony. Po odciszeniu wracają
+  do kolejki; akcje zbiorcze na karcie kanału obejmują je także wtedy, gdy są
+  ukryte.
+- Kanał zablokowany nie ma akcji importu — jego filmy i tak są niewidoczne dla
+  dziecka, a karta w archiwum ma tylko „Odblokuj”.
 
 ## Rozważone opcje
 
@@ -58,14 +76,16 @@ startuje z kursora, a nie od zera.
   jest więc akcją **best-effort**: przy błędzie/zmianie odpowiedzi zostaje RSS
   (~15) i komunikat, bez psucia reszty. Kształt odpowiedzi trzeba pokryć
   testami na utrwalonym JSON.
-- Repo trzyma checkpoint importu per kanał (kursor, licznik, `done`) — to nowe
-  pole w modelu kanału; usunięcie i ponowne dodanie kanału zeruje checkpoint.
+- Repo trzyma checkpoint importu per kanał (`resumeToken`, `imported`, `done`,
+  `error`) — nowe pole `catalog` w modelu kanału, walidowane i eksportowane
+  w kopii bazy (ADR 0017). Zablokowanie kanału checkpointu nie zeruje.
 - Import rozłożony na dni jest z natury częściowy: dziecko widzi to, co już
   zaimportowane; reszta dochodzi stopniowo.
 - RSS nadal odpowiada za „świeżość" (nowe filmy, ADR 0006), InnerTube tylko
   za jednorazowy backfill historii.
 - Deduplikacja po `videoId` (merge). Kanały `manual` po imporcie mogą mieć
-  setki pozycji oczekujących — panel rodzica potrzebuje zbiorczej akcji
-  „zatwierdź wszystkie" (naturalne rozszerzenie w duchu ADR 0001/0005).
+  setki pozycji oczekujących, dlatego karta kanału dostaje **„Akceptuj
+  wszystkie” / „Odrzuć wszystkie”** z toastem cofnięcia (10 s, `retract` dla
+  każdego filmu) — w duchu ADR 0001/0010/0016.
 - „Kolekcja" w tym ADR oznacza katalog kanału. Import pojedynczej playlisty
   to odrębny, przyszły temat.

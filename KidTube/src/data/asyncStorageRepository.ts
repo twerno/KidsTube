@@ -319,14 +319,28 @@ export class AsyncStorageRepository implements Repository {
   }
 
   async recordDecision(decision: Decision): Promise<void> {
-    this.decisions.push(decision);
-    const video = this.videos.get(decision.videoId);
-    if (video) {
-      this.videos.set(video.id, { ...video, status: statusForOutcome(decision.outcome) });
-      await Promise.all([this.persistDecisions(), this.persistVideos()]);
-    } else {
-      await this.persistDecisions();
+    await this.recordDecisions([decision]);
+  }
+
+  async recordDecisions(decisions: Decision[]): Promise<void> {
+    if (decisions.length === 0) {
+      return;
     }
+    let videosTouched = false;
+    for (const decision of decisions) {
+      this.decisions.push(decision);
+      const video = this.videos.get(decision.videoId);
+      if (video) {
+        this.videos.set(video.id, { ...video, status: statusForOutcome(decision.outcome) });
+        videosTouched = true;
+      }
+    }
+    // One write per collection instead of one per decision: bulk actions on a
+    // channel with hundreds of films must not hammer AsyncStorage.
+    await Promise.all([
+      this.persistDecisions(),
+      videosTouched ? this.persistVideos() : Promise.resolve(),
+    ]);
   }
 
   async getUsage(dateKey: string): Promise<number> {

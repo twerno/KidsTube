@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { FlatList, StyleSheet, View } from 'react-native';
 import { ChannelDetails } from './ChannelCard';
 import { Chip } from './Chip';
 import { EmptyState } from './EmptyState';
@@ -44,6 +44,9 @@ export interface ChannelScreenProps {
   onTogglePolicy: (channel: Channel) => void;
   onToggleMuted: (channel: Channel) => void;
   onBlock: (channel: Channel) => void;
+  onStartCatalog?: (channel: Channel) => void;
+  catalogRunning?: boolean;
+  onBulkDecide?: (channel: Channel, outcome: 'allow' | 'reject') => void;
 }
 
 /**
@@ -58,6 +61,9 @@ export function ChannelScreen({
   onTogglePolicy,
   onToggleMuted,
   onBlock,
+  onStartCatalog,
+  catalogRunning,
+  onBulkDecide,
 }: ChannelScreenProps) {
   const [filter, setFilter] = useState<ChannelStatusFilter>(DEFAULT_CHANNEL_STATUS_FILTER);
   const counts = useMemo(
@@ -72,44 +78,56 @@ export function ChannelScreen({
   const blockedChannel = channel.status === 'blocked';
 
   return (
-    <ScrollView contentContainerStyle={styles.content}>
-      <ChannelDetails
-        channel={channel}
-        videos={videos}
-        onTogglePolicy={onTogglePolicy}
-        onToggleMuted={onToggleMuted}
-        onBlock={onBlock}
-      />
-
-      <View style={styles.chips}>
-        {CHANNEL_STATUS_CHIPS.map(chip => (
-          <Chip
-            key={chip.key}
-            compact
-            style={styles.chip}
-            label={`${chip.label} (${counts[chip.key]})`}
-            active={filter === chip.key}
-            onPress={() => setFilter(chip.key)}
+    <FlatList
+      data={films}
+      keyExtractor={item => item.id}
+      // A catalog import can leave hundreds of films in one status: the list
+      // must stay virtualised (ADR 0009).
+      initialNumToRender={12}
+      windowSize={9}
+      removeClippedSubviews={false}
+      contentContainerStyle={styles.content}
+      ListHeaderComponent={
+        <>
+          <ChannelDetails
+            channel={channel}
+            videos={videos}
+            onTogglePolicy={onTogglePolicy}
+            onToggleMuted={onToggleMuted}
+            onBlock={onBlock}
+            onStartCatalog={onStartCatalog}
+            catalogRunning={catalogRunning}
+            onBulkDecide={onBulkDecide}
           />
-        ))}
-      </View>
 
-      {films.length === 0 ? (
+          <View style={styles.chips}>
+            {CHANNEL_STATUS_CHIPS.map(chip => (
+              <Chip
+                key={chip.key}
+                compact
+                style={styles.chip}
+                label={`${chip.label} (${counts[chip.key]})`}
+                active={filter === chip.key}
+                onPress={() => setFilter(chip.key)}
+              />
+            ))}
+          </View>
+        </>
+      }
+      ListEmptyComponent={
         <EmptyState>{activeFilter?.empty ?? 'Brak filmów w tym filtrze.'}</EmptyState>
-      ) : (
-        films.map(video => (
-          <VideoRow
-            key={video.id}
-            video={video}
-            onSetStatus={blockedChannel ? undefined : onSetStatus}
-            onPreview={onPreview}
-            statusLabel={blockedChannel ? 'wstrzymany' : undefined}
-            statusColor={blockedChannel ? colors.warning : undefined}
-            showActions={!blockedChannel}
-          />
-        ))
+      }
+      renderItem={({ item: video }) => (
+        <VideoRow
+          video={video}
+          onSetStatus={blockedChannel ? undefined : onSetStatus}
+          onPreview={onPreview}
+          statusLabel={blockedChannel ? 'wstrzymany' : undefined}
+          statusColor={blockedChannel ? colors.warning : undefined}
+          showActions={!blockedChannel}
+        />
       )}
-    </ScrollView>
+    />
   );
 }
 

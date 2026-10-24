@@ -59,6 +59,8 @@ export interface Repository {
    */
   listDecisions(): Promise<Decision[]>;
   recordDecision(decision: Decision): Promise<void>;
+  /** Append several decisions in one write (bulk actions on a channel). */
+  recordDecisions(decisions: Decision[]): Promise<void>;
 
   /** Seconds of playback recorded for a local date key (YYYY-MM-DD). */
   getUsage(dateKey: string): Promise<number>;

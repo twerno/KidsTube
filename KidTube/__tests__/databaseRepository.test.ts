@@ -125,6 +125,47 @@ describe.each([
   });
 });
 
+describe.each([
+  ['memory', () => new MemoryRepository()],
+  ['async storage', () => new AsyncStorageRepository()],
+])('bulk decisions in %s repository', (_name, make) => {
+  beforeEach(async () => {
+    await AsyncStorage.clear();
+  });
+
+  it('appends every decision in order and updates the cached statuses', async () => {
+    const repo = make();
+    await repo.init();
+    await repo.upsertVideos([
+      {
+        id: 'v1',
+        channelId: 'UC1',
+        title: 'v1',
+        status: 'pending',
+        source: 'rss',
+        addedAt: 0,
+      },
+      {
+        id: 'v2',
+        channelId: 'UC1',
+        title: 'v2',
+        status: 'pending',
+        source: 'rss',
+        addedAt: 0,
+      },
+    ]);
+
+    await repo.recordDecisions([
+      { videoId: 'v1', outcome: 'allow', source: 'manual', at: 10 },
+      { videoId: 'v2', outcome: 'reject', source: 'manual', at: 11 },
+    ]);
+
+    expect((await repo.listDecisions()).map(decision => decision.videoId)).toEqual(['v1', 'v2']);
+    expect((await repo.getVideo('v1'))?.status).toBe('allowed');
+    expect((await repo.getVideo('v2'))?.status).toBe('blocked');
+  });
+});
+
 describe('failed replace rolls back (ADR 0017)', () => {
   beforeEach(async () => {
     await AsyncStorage.clear();

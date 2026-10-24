@@ -13,7 +13,7 @@ Kanał YouTube dodany przez rodzica; niesie politykę, może być zablokowany al
 _Avoid_: Strona, Twórca
 
 **Kanał wyciszony**:
-Kanał widoczny w liście kanałów rodzica, ale niepobierający RSS. Powstaje, gdy rodzic zatwierdzi film z kanału, którego jeszcze nie obserwuje; jawne dodanie kanału zdejmuje wyciszenie. Wyciszenie nie blokuje ani nie usuwa filmów.
+Kanał widoczny w liście kanałów rodzica, ale niepobierający RSS. Powstaje, gdy rodzic zatwierdzi film z kanału, którego jeszcze nie obserwuje; jawne dodanie kanału zdejmuje wyciszenie. Wyciszenie nie blokuje ani nie usuwa filmów; filmy zaimportowane z katalogu są zapisane, ale nie pojawiają się w kolejce, dopóki kanał jest wyciszony.
 _Avoid_: Kanał zablokowany, Kanał usunięty, Kanał nieobserwowany
 
 **Kanał zablokowany**:
@@ -140,6 +140,16 @@ _Avoid_: Dump AsyncStorage, Kopia w chmurze
 **Zablokowane (sekcja)**:
 Archiwum kanałów i filmów zablokowanych przez rodzica — jedyne miejsce, w którym działa „Odblokuj” i „Przywróć”. Nie jest kolejką, więc nie pokazuje liczby.
 _Avoid_: Czarna lista (jako nazwa widoku), Kosz
+
+## Katalog i kopia
+
+**Katalog kanału**:
+Pełna lista filmów kanału pobrana przez InnerTube (poza ~15 pozycjami z RSS). Import jest jawny, powolny i wznawialny; polityka kanału decyduje o statusie filmów.
+_Avoid_: Backfill, Pełny RSS, Import playlisty (to inny, przyszły temat)
+
+**Kursor importu**:
+Token kontynuacji ostatniej wczytanej strony katalogu, zapisany przy kanale. Pozwala dokończyć import bez zaczynania od zera i wykryć wygasły token.
+_Avoid_: Offset, Strona
 
 ## Kolejność prezentacji
 

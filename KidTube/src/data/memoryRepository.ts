@@ -157,10 +157,16 @@ export class MemoryRepository implements Repository {
   }
 
   async recordDecision(decision: Decision): Promise<void> {
-    this.decisions.push(decision);
-    const video = this.videos.get(decision.videoId);
-    if (video) {
-      this.videos.set(video.id, { ...video, status: statusForOutcome(decision.outcome) });
+    await this.recordDecisions([decision]);
+  }
+
+  async recordDecisions(decisions: Decision[]): Promise<void> {
+    for (const decision of decisions) {
+      this.decisions.push(decision);
+      const video = this.videos.get(decision.videoId);
+      if (video) {
+        this.videos.set(video.id, { ...video, status: statusForOutcome(decision.outcome) });
+      }
     }
   }
 

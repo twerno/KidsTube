@@ -11,6 +11,7 @@ import {
   libraryVideos,
   matchesSource,
   normalizeChannelFilter,
+  pendingForChannel,
   pendingVideos,
 } from '../src/domain/panel';
 import type { Channel, Video } from '../src/domain/types';
@@ -62,6 +63,14 @@ describe('panel selectors (ADR 0016)', () => {
   it('keeps films of blocked channels out of the decision queue', () => {
     const pending = pendingVideos(VIDEOS, [CHANNEL_A, CHANNEL_BLOCKED]);
     expect(pending.map(v => v.id)).toEqual(['v-rss', 'v-child', 'v-link', 'v-manual']);
+  });
+
+  it('hides pending films of muted channels from the queue but keeps them for the channel', () => {
+    const mutedChannel = channel({ id: 'UC_MUTED', title: 'Wyciszony', muted: true });
+    const film = video({ id: 'v-muted', channelId: 'UC_MUTED', channelTitle: 'Wyciszony' });
+
+    expect(pendingVideos([film], [mutedChannel])).toEqual([]);
+    expect(pendingForChannel([film], 'UC_MUTED')).toEqual([film]);
   });
 
   it('keeps films of blocked channels out of the library', () => {

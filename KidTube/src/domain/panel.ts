@@ -8,6 +8,7 @@
  */
 
 import type { Channel, Video, VideoStatus } from './types';
+import { isChannelMuted } from './channels';
 
 /** Source chips of the “Do zatwierdzenia” section (ADR 0016). */
 export type SourceFilter = 'all' | 'rss' | 'child' | 'link';
@@ -59,9 +60,21 @@ export function isBlockedChannelVideo(video: Video, channels: Channel[]): boolea
  */
 export function pendingVideos(videos: Video[], channels: Channel[]): Video[] {
   const blocked = blockedChannelIds(channels);
-  return videos.filter(
-    video => video.status === 'pending' && (!video.channelId || !blocked.has(video.channelId)),
+  // Films of a muted channel are stored after a catalog import but stay out of
+  // the queue until the parent unmutes the channel (ADR 0009/0016).
+  const muted = new Set(
+    channels.filter(channel => isChannelMuted(channel)).map(channel => channel.id),
   );
+  return videos.filter(
+    video =>
+      video.status === 'pending' &&
+      (!video.channelId || (!blocked.has(video.channelId) && !muted.has(video.channelId))),
+  );
+}
+
+/** Pending films of one channel, including films hidden from the queue (muted). */
+export function pendingForChannel(videos: Video[], channelId: string): Video[] {
+  return videos.filter(video => video.channelId === channelId && video.status === 'pending');
 }
 
 /** The child's library: allowed films whose channel is not blocked. */

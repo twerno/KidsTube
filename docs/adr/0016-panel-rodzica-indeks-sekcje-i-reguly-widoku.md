@@ -80,7 +80,8 @@ jest on sygnałem do działania.
 - **Karta kanału** (jeden komponent w trzech kontekstach: tutaj, z paska w
   „Filmach”, inline w sekcji 4): nazwa, handle, avatar, liczby `dozwolone /
   oczekujące`, polityka (`auto_approve` / `manual`), wyciszenie, blokada.
-  **Bez „Usuń”** i bez „Synchronizuj”.
+  **Bez „Usuń”** i bez „Synchronizuj”; dochodzą „Pobierz wszystkie”
+  i akcje zbiorcze (ADR 0009).
 
 ### Sekcja 3 — Zablokowane
 
@@ -239,8 +240,6 @@ a **5** jest dodatkiem diagnostycznym.
   oglądania”. Do tego czasu przełączenie polityki na `auto_approve` nadal
   **po cichu dopuszcza wszystkie oczekujące filmy** kanału — znany dług.
 - **Personalizacja dziecka** (imię, avatar, kolor) — osobny ADR.
-- **Import katalogu kanału (ADR 0009)** — osobny cykl życia (paginacja,
-  checkpoint, budżet stron).
 - **Wyjątek „zachowaj jeden film z zablokowanego kanału”.** Wymaga rozdzielenia
   tego, co dziś skleja `Channel.status`: obecność w panelu, pobieranie RSS,
   widoczność filmów u dziecka. Do czasu tego ADR-a blokada ukrywa wszystkie

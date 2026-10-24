@@ -64,6 +64,20 @@ export interface Schedule {
   dailyLimitMinutes?: number;
 }
 
+/**
+ * One-time full-catalog import state (ADR 0009). Persisted with the channel so a
+ * run survives app restarts; cleared when the catalog is imported from scratch.
+ */
+export interface CatalogCheckpoint {
+  /** Continuation token that produced the last fetched page (absent = first page). */
+  resumeToken?: string;
+  /** Catalog entries fetched so far (monotonic across runs). */
+  imported: number;
+  done: boolean;
+  /** Last soft-stop reason, shown on the channel card. */
+  error?: string;
+}
+
 export interface Channel {
   /** YouTube channel id, e.g. "UC_x5XG1OV2P6uZZ5FSM9Ttw". */
   id: string;
@@ -82,6 +96,8 @@ export interface Channel {
    */
   muted?: boolean;
   addedAt: number;
+  /** Catalog import checkpoint (ADR 0009); absent = never started. */
+  catalog?: CatalogCheckpoint;
 }
 
 export interface Video {

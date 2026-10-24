@@ -2,7 +2,9 @@ import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
 import { ChannelScreen } from '../src/ui/parent/ChannelScreen';
 import { Chip } from '../src/ui/parent/Chip';
+import { Text } from 'react-native';
 import { EmptyState } from '../src/ui/parent/EmptyState';
+import { Button } from '../src/ui/components';
 import { VideoRow } from '../src/ui/parent/VideoRow';
 import type { Channel, Video } from '../src/domain/types';
 
@@ -163,5 +165,110 @@ describe('channel screen status filters (ADR 0018)', () => {
 
     const second = await render(VIDEOS);
     expect(visibleVideoIds(second)).toEqual(['v-accepted']);
+  });
+});
+
+describe('channel catalog import and bulk actions (ADR 0009)', () => {
+  const renderWith = async (
+    channel: Channel,
+    options: Partial<React.ComponentProps<typeof ChannelScreen>> = {},
+    videos: Video[] = VIDEOS,
+  ): Promise<ReactTestRenderer.ReactTestRenderer> => {
+    let tree: ReactTestRenderer.ReactTestRenderer | undefined;
+    await ReactTestRenderer.act(async () => {
+      tree = ReactTestRenderer.create(
+        <ChannelScreen
+          channel={channel}
+          videos={videos}
+          onSetStatus={noop}
+          onPreview={noop}
+          onTogglePolicy={noop}
+          onToggleMuted={noop}
+          onBlock={noop}
+          {...options}
+        />,
+      );
+    });
+    return tree!;
+  };
+
+  const button = (tree: ReactTestRenderer.ReactTestRenderer, prefix: string) => {
+    const found = tree.root
+      .findAllByType(Button)
+      .find(node => String(node.props.title).startsWith(prefix));
+    if (!found) {
+      throw new Error(`Brak przycisku ${prefix}`);
+    }
+    return found;
+  };
+
+  it('offers “Pobierz wszystkie” and starts the import', async () => {
+    const onStartCatalog = jest.fn();
+    const tree = await renderWith(CHANNEL, { onStartCatalog });
+
+    const importButton = button(tree, 'Pobierz wszystkie');
+    await ReactTestRenderer.act(async () => {
+      importButton.props.onPress();
+    });
+    expect(onStartCatalog).toHaveBeenCalledWith(CHANNEL);
+  });
+
+  it('shows a disabled “Katalog wczytany” once the catalog is done', async () => {
+    const done: Channel = { ...CHANNEL, catalog: { imported: 40, done: true } };
+    const tree = await renderWith(done, { onStartCatalog: noop });
+
+    const importButton = button(tree, 'Katalog wczytany');
+    expect(importButton.props.disabled).toBe(true);
+  });
+
+  it('offers to continue a paused import and shows its progress', async () => {
+    const paused: Channel = {
+      ...CHANNEL,
+      catalog: { imported: 120, resumeToken: 'T1', done: false, error: 'HTTP 429' },
+    };
+    const tree = await renderWith(paused, { onStartCatalog: noop });
+
+    expect(button(tree, 'Kontynuuj pobieranie')).toBeTruthy();
+    const texts = tree.root.findAllByType(Text).map(node =>
+      Array.isArray(node.props.children)
+        ? node.props.children.join('')
+        : String(node.props.children),
+    );
+    expect(texts.some(text => text.includes('Wczytano 120 filmów'))).toBe(true);
+    expect(texts.some(text => text.includes('HTTP 429'))).toBe(true);
+  });
+
+  it('bulk decisions cover all pending films of the channel', async () => {
+    const onBulkDecide = jest.fn();
+    const tree = await renderWith(CHANNEL, { onBulkDecide });
+
+    await ReactTestRenderer.act(async () => {
+      button(tree, 'Akceptuj wszystkie (2)').props.onPress();
+      button(tree, 'Odrzuć wszystkie (2)').props.onPress();
+    });
+
+    expect(onBulkDecide).toHaveBeenNthCalledWith(1, CHANNEL, 'allow');
+    expect(onBulkDecide).toHaveBeenNthCalledWith(2, CHANNEL, 'reject');
+  });
+
+  it('hides bulk buttons when the channel has no pending films', async () => {
+    const tree = await renderWith(CHANNEL, { onBulkDecide: noop }, [
+      video({ id: 'v-accepted', status: 'allowed' }),
+    ]);
+    expect(
+      tree.root.findAllByType(Button).some(node => String(node.props.title).startsWith('Akceptuj')),
+    ).toBe(false);
+  });
+
+  it('disables the catalog and bulk actions while an import runs', async () => {
+    const tree = await renderWith(CHANNEL, {
+      onStartCatalog: noop,
+      onBulkDecide: noop,
+      catalogRunning: true,
+    });
+
+    expect(button(tree, 'Pobierz wszystkie').props.disabled).toBe(true);
+    expect(button(tree, 'Akceptuj wszystkie').props.disabled).toBe(true);
+    expect(button(tree, 'Odrzuć wszystkie').props.disabled).toBe(true);
   });
 });

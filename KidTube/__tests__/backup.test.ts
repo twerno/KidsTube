@@ -26,6 +26,7 @@ const SNAPSHOT: DatabaseSnapshot = {
       status: 'allowed',
       muted: true,
       addedAt: 10,
+      catalog: { imported: 120, resumeToken: 'T1', done: false, error: 'HTTP 429' },
     },
   ],
   channelProposals: [
@@ -237,6 +238,15 @@ describe('backup format (ADR 0017)', () => {
       expect(parsed.file.data.settings.pinSalt).toBeUndefined();
       expect(parsed.file.data.settings.pinIterations).toBeUndefined();
     }
+  });
+
+  it('rejects an invalid catalog checkpoint', () => {
+    const parsed = parseBackup(
+      document(file => {
+        file.data.channels[0].catalog.imported = -1;
+      }),
+    );
+    expect(parsed.ok).toBe(false);
   });
 
   it('rejects malformed usage keys', () => {

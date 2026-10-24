@@ -53,6 +53,11 @@ export interface ChannelDetailsProps {
   onBlock: (channel: Channel) => void;
   /** False in the archive, where only “Odblokuj” makes sense. */
   showManage?: boolean;
+  /** Catalog import (ADR 0009); hidden when omitted. */
+  onStartCatalog?: (channel: Channel) => void;
+  catalogRunning?: boolean;
+  /** Bulk decisions on all pending films of the channel (ADR 0009/0016). */
+  onBulkDecide?: (channel: Channel, outcome: 'allow' | 'reject') => void;
 }
 
 /** The channel card: the same component inline in “Dodaj” and as a screen. */
@@ -63,6 +68,9 @@ export function ChannelDetails({
   onToggleMuted,
   onBlock,
   showManage = true,
+  onStartCatalog,
+  catalogRunning = false,
+  onBulkDecide,
 }: ChannelDetailsProps) {
   const { allowed, pending } = useMemo(() => counts(videos, channel.id), [videos, channel.id]);
 
@@ -102,6 +110,50 @@ export function ChannelDetails({
             />
           </View>
         </>
+      ) : null}
+
+      {showManage && onStartCatalog ? (
+        <View style={styles.catalog}>
+          {channel.catalog?.done ? (
+            <Button title="Katalog wczytany" variant="secondary" disabled onPress={() => undefined} />
+          ) : (
+            <Button
+              title={
+                channel.catalog && channel.catalog.imported > 0
+                  ? 'Kontynuuj pobieranie'
+                  : 'Pobierz wszystkie'
+              }
+              variant="secondary"
+              onPress={() => onStartCatalog(channel)}
+              disabled={catalogRunning}
+              loading={catalogRunning}
+            />
+          )}
+          {channel.catalog && !channel.catalog.done && channel.catalog.imported > 0 ? (
+            <Text style={styles.catalogInfo}>
+              Wczytano {filmsLabel(channel.catalog.imported)}
+            </Text>
+          ) : null}
+          {channel.catalog?.error ? (
+            <Text style={styles.catalogError}>{channel.catalog.error}</Text>
+          ) : null}
+        </View>
+      ) : null}
+
+      {showManage && onBulkDecide && pending > 0 ? (
+        <View style={styles.bulk}>
+          <Button
+            title={`Akceptuj wszystkie (${pending})`}
+            onPress={() => onBulkDecide(channel, 'allow')}
+            disabled={catalogRunning}
+          />
+          <Button
+            title={`Odrzuć wszystkie (${pending})`}
+            variant="danger"
+            onPress={() => onBulkDecide(channel, 'reject')}
+            disabled={catalogRunning}
+          />
+        </View>
       ) : null}
 
       <View style={styles.actions}>
@@ -148,4 +200,8 @@ const styles = StyleSheet.create({
   },
   switchLabel: { color: colors.text, flex: 1, fontSize: 14 },
   actions: { flexDirection: 'row', justifyContent: 'flex-end' },
+  catalog: { gap: spacing.xs },
+  catalogInfo: { color: colors.textMuted, fontSize: 12 },
+  catalogError: { color: colors.warning, fontSize: 12, lineHeight: 17 },
+  bulk: { gap: spacing.sm },
 });

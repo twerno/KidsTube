@@ -214,6 +214,24 @@ function parseChannels(value: unknown): Channel[] {
     if (raw.muted !== undefined) {
       channel.muted = asBoolean(raw.muted, `${path}.muted`);
     }
+    if (raw.catalog !== undefined) {
+      const catalogPath = `${path}.catalog`;
+      const catalog = asObject(raw.catalog, catalogPath);
+      const checkpoint = {
+        imported: asNumber(catalog.imported, `${catalogPath}.imported`, {
+          integer: true,
+          min: 0,
+        }),
+        done: asBoolean(catalog.done, `${catalogPath}.done`),
+      } as Channel['catalog'];
+      if (catalog.resumeToken !== undefined) {
+        checkpoint!.resumeToken = asString(catalog.resumeToken, `${catalogPath}.resumeToken`);
+      }
+      if (catalog.error !== undefined) {
+        checkpoint!.error = asString(catalog.error, `${catalogPath}.error`);
+      }
+      channel.catalog = checkpoint;
+    }
     if (seen.has(channel.id)) {
       fail(`${path}.id`, `zduplikowany identyfikator kanału „${channel.id}”`);
     }

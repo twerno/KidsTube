@@ -1,20 +1,18 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { spacing } from '../theme';
-import type { Video, VideoStatus } from '../../domain/types';
+import type { VideoStatus } from '../../domain/types';
 
 const TONE = {
   allowed: '#12803a',
   blocked: '#c62828',
 } as const;
 
-const LABEL = {
-  allowed: 'Zatwierdzono',
-  blocked: 'Odrzucono',
-} as const;
-
 export interface DecisionToastProps {
-  video: Video;
+  /** Short outcome line, e.g. “Zatwierdzono” or “Zatwierdzono 12 filmów”. */
+  label: string;
+  /** The film title or the channel of a bulk decision. */
+  title: string;
   status: VideoStatus;
   onUndo: () => void;
 }
@@ -24,7 +22,7 @@ export interface DecisionToastProps {
  * on the dark panel: it must be the first thing the eye catches, because it is
  * the only place where a fresh decision can be taken back.
  */
-export function DecisionToast({ video, status, onUndo }: DecisionToastProps) {
+export function DecisionToast({ label, title, status, onUndo }: DecisionToastProps) {
   if (status === 'pending') {
     return null;
   }
@@ -32,9 +30,9 @@ export function DecisionToast({ video, status, onUndo }: DecisionToastProps) {
   return (
     <View style={[styles.bar, { borderLeftColor: tone }]}>
       <View style={styles.text}>
-        <Text style={[styles.outcome, { color: tone }]}>{LABEL[status]}</Text>
+        <Text style={[styles.outcome, { color: tone }]}>{label}</Text>
         <Text numberOfLines={2} style={styles.title}>
-          {video.title}
+          {title}
         </Text>
       </View>
       <Pressable

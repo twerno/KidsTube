@@ -28,6 +28,7 @@ domenowych: `CONTEXT.md` (root repozytorium).
 | Świat dziecka | 4 zakładki (Feed · Kanały · Do zatwierdzenia · Historia — **Do zatwierdzenia pokazuje tylko własne propozycje**), nawigacja wstecz po ścieżce użytkownika, stan obejrzenia na kafelkach (nowy / minuty / w całości — nie w „Do zatwierdzenia"), wznowienie od zapisanej pozycji (podgląd rodzica od początku), historia oglądania per dzień. *(ADR 0004)* |
 | Świat rodzica | **Indeks** panelu: podsumowanie (pozostały czas wideo dziś, dziś i średnia 7 dni w rozbiciu filmy/audio) + sekcje z podglądem stanu: Do zatwierdzenia · Biblioteka · Zablokowane · Dodaj film/kanał · Historia oglądania · Kontrola czasu · Zmień kod · Linki YouTube · Baza danych · Log. Nawigacja stosem (cofnięcie wraca po ścieżce, 2× zamyka panel), pull-to-refresh zamiast przycisku sync, filtry źródła i kanału z licznikami „ile zobaczę”, **ekran kanału z filtrami Zaakceptowane / Odrzucone / Oczekujące (bez „Wszystkie”)**, podgląd filmu wszędzie, blokada kanału zamiast usuwania. *(ADR 0005, 0016, 0018)* |
 | Czas | **Jedno okno tygodniowe** (bramka wideo) + **dzienny limit wideo** (twarde cięcie, ostrzeżenie 5 min przed) + **audio bez limitu i poza oknem** (tryb audio, nie kategoria treści) + **tryb snu** 1 h z resetem na ekranie audio + **dodatkowy czas wideo** (+15 min / +1 h, pula na dziś, PIN rodzica). Zastąpiło dawny „tryb nocny”. *(ADR 0002, 0011)* |
+| Katalog kanału | **„Pobierz wszystkie”** na karcie kanału: pełna lista przez InnerTube `browse` z paginacją, tempo 3–7 s, checkpoint per kanał (wznawialne po tapnięciu), stop na pierwszym błędzie, timeout 20 s; filmy z kanałów wyciszonych są zapisywane, ale poza kolejką; **Akceptuj/Odrzuć wszystkie** z toastem cofnięcia. *(ADR 0009)* |
 | Synchronizacja | Przy otwarciu aplikacji (jeden przebieg po pokazaniu biblioteki z pamięci) i na żądanie: przeciągnięcie w dół w widoku dziecka (feed / kanały / kanał) albo „Synchronizuj” w panelu. Równoległe żądania są scalane w jeden przebieg; timer w tle odroczony do backlogu z bramką oceny. *(ADR 0006)* |
 | Import katalogu | Jawny przycisk **„Wczytaj cały katalog”** na kanale: pełna lista przez InnerTube (paginacja), bez klucza API; status wg polityki kanału; **wznawialny** — checkpoint kursora, dzienny budżet stron, miękki stop przy limicie/błędzie. *(ADR 0009)* |
 | Dystrybucja | Rodzinny sideload z GitHub Releases (debug keystore). Google Play — przyszła, odwracalna decyzja z bramką oceny. *(ADR 0007)* |
@@ -71,6 +72,7 @@ src/
     playerGuard.ts            allowlist nawigacji WebView (tylko embed białego filmu)
     channels.ts               flaga wyciszenia, kanał z zatwierdzonego filmu
     backup.ts                 format kopii bazy: koperta, wersja schematu, walidacja
+    catalog.ts                tempo importu katalogu (5 s ± 2 s) i checkpoint
   data/
     repository.ts             interfejs trwałości
     memoryRepository.ts       implementacja in-memory (testy)
@@ -83,6 +85,7 @@ src/
     incomingLink.ts           wspólny potok linku z share/VIEW
     addByLink.ts              dodawanie filmu/kanału z linku (wszystko albo nic)
     databaseBackup.ts         eksport/import bazy: snapshot, walidacja, zastąpienie
+    youtubeCatalog.ts         InnerTube browse: strony katalogu, wznawianie, checkpoint
     logStore.ts               magazyn logu sesji dla sekcji „Log”
   security/pin.ts             hashowanie i weryfikacja PIN
   native/shareIntent.ts       most do natywnego modułu ShareIntent / Linking
@@ -95,6 +98,7 @@ src/
   ui/parent/ChannelScreen.tsx ekran kanału: karta + filtry statusów + lista filmów
   ui/parent/*Section.tsx      sekcje panelu (oczekujące, biblioteka, zablokowane, dodaj, …)
   ui/parent/DatabaseSection.tsx  eksport/import bazy z potwierdzeniem PIN
+  ui/parent/CatalogProgressModal.tsx  modalny postęp importu katalogu
   ui/child/                   siatka Feed, lista kanałów, propozycje dziecka
   ui/WatchHistoryList.tsx     historia po dniach: wariant dziecka i rodzica
   ui/ChannelAvatar.tsx        wspólny awatar kanału (zdjęcie lub inicjał)
@@ -112,7 +116,7 @@ obejrzenia dołączą do warstwy `domain/` + `data/` (ADR 0004).
 ## Testy
 
 ```bash
-npm test          # 265 testów: URL, RSS, reguły list, decyzje (last-wins), harmonogram + tryb snu + przeskoki, licznik czasu odtwarzania, stan obejrzenia + historia oglądania, nawigacja dziecka, gesty odtwarzacza, daty, PIN, sync (także przy starcie, pull-to-refresh i kanałach wyciszonych), linki + propozycje kanałów, handler VIEW, kopia bazy (walidacja formatu, rollback, przerwany import), filtry statusów ekranu kanału, player, render App
+npm test          # 285 testów: URL, RSS, reguły list, decyzje (last-wins), harmonogram + tryb snu + przeskoki, licznik czasu odtwarzania, stan obejrzenia + historia oglądania, nawigacja dziecka, gesty odtwarzacza, daty, PIN, sync (także przy starcie, pull-to-refresh i kanałach wyciszonych), linki + propozycje kanałów, handler VIEW, kopia bazy (walidacja formatu, rollback, przerwany import), filtry statusów ekranu kanału, katalog kanału (paginacja, tempo, checkpoint, wznowienie), player, render App
 npx tsc --noEmit  # typy
 npx eslint .      # lint
 ```
@@ -182,6 +186,21 @@ ją dodać.
   listy oczekującej (źródło `propose`), ale link do kanału nie tworzy
   propozycji kanału — kanałami zarządza wyłącznie rodzic.
 
+## Katalog kanału
+
+Na karcie kanału (Biblioteka → Kanały → kanał) jest **„Pobierz wszystkie”**:
+
+- pełna lista filmów kanału przez InnerTube `browse` (RSS daje tylko ~15),
+- tempo celowo ludzkie: 3–7 s losowej pauzy między stronami,
+- postęp w modalnym panelu z „Przerwij”; bieg kończy się na końcu katalogu albo
+  na pierwszym błędzie/timeoucie (20 s), checkpoint zostaje i „Kontynuuj
+  pobieranie” wznawia od kursora,
+- polityka kanału decyduje o statusie (`manual` → oczekujące, `auto_approve` →
+  dozwolone),
+- filmy kanału **wyciszonego** są zapisywane, ale nie trafiają do kolejki, póki
+  kanał jest wyciszony; karta ma wtedy **Akceptuj/Odrzuć wszystkie** z toastem
+  cofnięcia (10 s).
+
 ## Kopia bazy (eksport/import)
 
 Panel rodzica → **Baza danych**:
@@ -207,7 +226,6 @@ PIN i log sesji również nie są częścią kopii.
   oczekujące filmy kanału.
 - **Personalizacja dziecka** (imię, avatar/kolor) — pole imienia usunięte
   z panelu (ADR 0016); zapisane imię nadal się wyświetla, nie da się go zmienić.
-- **Import katalogu kanału** (ADR 0009) — jawne „Wczytaj cały katalog”.
 - **Wyjątek „zachowaj jeden film z zablokowanego kanału”** — wymaga rozdzielenia
   flag kanału (panel / RSS / widoczność u dziecka), ADR 0016 zostawia to poza zakresem.
 - Sync RSS w tle / timer — odroczony z bramką oceny (ADR 0006).

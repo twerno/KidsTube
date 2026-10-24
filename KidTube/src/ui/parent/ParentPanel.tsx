@@ -4,6 +4,7 @@ import { WatchHistoryList } from '../WatchHistoryList';
 import { AddSection } from './AddSection';
 import { BlockedSection } from './BlockedSection';
 import { DatabaseSection } from './DatabaseSection';
+import { CatalogProgressModal } from './CatalogProgressModal';
 import { DecisionToast } from './DecisionToast';
 import { ChannelScreen } from './ChannelScreen';
 import { EmptyState } from './EmptyState';
@@ -16,9 +17,11 @@ import { PendingSection } from './PendingSection';
 import { PreviewScreen, type PreviewAction } from './PreviewScreen';
 import { ScheduleSection } from './ScheduleSection';
 import { SECTION_TITLE, type SectionKey } from './sections';
+import { filmsLabel } from '../../domain/plural';
 import { isBlockedChannelVideo } from '../../domain/panel';
 import type { AddLinkResult } from '../../services/addByLink';
 import type { ExportOutcome, PickOutcome, RestoreOutcome } from '../../services/databaseBackup';
+import type { CatalogRunState } from '../../services/youtubeCatalog';
 import type { BackupFile } from '../../domain/backup';
 import type {
   Channel,
@@ -50,6 +53,12 @@ export interface ParentPanelProps {
   onRefresh: () => void;
   onSetStatus: (video: Video, status: VideoStatus) => void;
   onRetract: (video: Video) => void;
+  onRetractMany: (videos: Video[]) => void;
+  catalogRun?: CatalogRunState;
+  onStartCatalog: (channel: Channel) => void;
+  onCancelCatalog: () => void;
+  onCloseCatalog: () => void;
+  onBulkDecide: (channel: Channel, outcome: 'allow' | 'reject') => Promise<Video[]>;
   onExportBackup: () => Promise<ExportOutcome>;
   onPickBackup: () => Promise<PickOutcome>;
   onRestoreBackup: (file: BackupFile) => Promise<RestoreOutcome>;
@@ -106,6 +115,12 @@ export function ParentPanel(props: ParentPanelProps) {
     onRefresh,
     onSetStatus,
     onRetract,
+    onRetractMany,
+    catalogRun,
+    onStartCatalog,
+    onCancelCatalog,
+    onCloseCatalog,
+    onBulkDecide,
     onExportBackup,
     onPickBackup,
     onRestoreBackup,
@@ -132,7 +147,15 @@ export function ParentPanel(props: ParentPanelProps) {
   // The decision bar lives for 10 seconds and only covers decisions taken in the
   // panel (ADR 0016).
   const [toast, setToast] = useState<
-    { video: Video; status: VideoStatus; previous: VideoStatus; id: number } | undefined
+    | { kind: 'single'; video: Video; status: VideoStatus; previous: VideoStatus; id: number }
+    | {
+        kind: 'bulk';
+        videos: Video[];
+        status: 'allowed' | 'blocked';
+        channelTitle: string;
+        id: number;
+      }
+    | undefined
   >();
 
   useEffect(() => {
@@ -147,7 +170,7 @@ export function ParentPanel(props: ParentPanelProps) {
     (video: Video, status: VideoStatus) => {
       const previous = video.status;
       onSetStatus(video, status);
-      setToast({ video, status, previous, id: Date.now() });
+      setToast({ kind: 'single', video, status, previous, id: Date.now() });
     },
     [onSetStatus],
   );
@@ -156,13 +179,32 @@ export function ParentPanel(props: ParentPanelProps) {
     if (!toast) {
       return;
     }
-    if (toast.previous === 'pending') {
+    if (toast.kind === 'bulk') {
+      onRetractMany(toast.videos);
+    } else if (toast.previous === 'pending') {
       onRetract(toast.video);
     } else {
       onSetStatus(toast.video, toast.previous);
     }
     setToast(undefined);
-  }, [toast, onRetract, onSetStatus]);
+  }, [toast, onRetract, onSetStatus, onRetractMany]);
+
+  const bulkDecide = useCallback(
+    async (channel: Channel, outcome: 'allow' | 'reject') => {
+      const affected = await onBulkDecide(channel, outcome);
+      if (affected.length === 0) {
+        return;
+      }
+      setToast({
+        kind: 'bulk',
+        videos: affected,
+        status: outcome === 'allow' ? 'allowed' : 'blocked',
+        channelTitle: channel.title,
+        id: Date.now(),
+      });
+    },
+    [onBulkDecide],
+  );
 
   const push = useCallback((screen: PanelScreen) => {
     setStack(current => [...current, screen]);
@@ -410,6 +452,11 @@ export function ParentPanel(props: ParentPanelProps) {
                 onTogglePolicy={onTogglePolicy}
                 onToggleMuted={onToggleMuted}
                 onBlock={onToggleBlocked}
+                onStartCatalog={onStartCatalog}
+                catalogRunning={
+                  catalogRun?.phase === 'running' && catalogRun.channelId === channel.id
+                }
+                onBulkDecide={bulkDecide}
               />
             ) : (
               <EmptyState>Ten kanał nie istnieje już w bibliotece.</EmptyState>
@@ -446,8 +493,26 @@ export function ParentPanel(props: ParentPanelProps) {
         );
       })}
       {toast ? (
-        <DecisionToast video={toast.video} status={toast.status} onUndo={undoDecision} />
+        <DecisionToast
+          status={toast.status}
+          label={
+            toast.kind === 'bulk'
+              ? `${toast.status === 'allowed' ? 'Zatwierdzono' : 'Odrzucono'} ${filmsLabel(
+                  toast.videos.length,
+                )}`
+              : toast.status === 'allowed'
+                ? 'Zatwierdzono'
+                : 'Odrzucono'
+          }
+          title={toast.kind === 'bulk' ? toast.channelTitle : toast.video.title}
+          onUndo={undoDecision}
+        />
       ) : null}
+      <CatalogProgressModal
+        run={catalogRun}
+        onCancel={onCancelCatalog}
+        onClose={onCloseCatalog}
+      />
     </View>
   );
 }

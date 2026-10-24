@@ -75,6 +75,7 @@ import { isChannelMuted, withChannelMuted } from './src/domain/channels';
 import { addByLink, type AddLinkResult } from './src/services/addByLink';
 import { recordLog } from './src/services/logStore';
 import { applyBackup, exportDatabase, pickDatabase } from './src/services/databaseBackup';
+import { runCatalogImport, type CatalogRunState } from './src/services/youtubeCatalog';
 import type { BackupFile } from './src/domain/backup';
 import { APP_VERSION } from './src/version';
 import { ChildHomeScreen } from './src/ui/ChildHomeScreen';
@@ -766,6 +767,96 @@ export default function App() {
     return true;
   };
 
+  // ---- Channel catalog import (ADR 0009) ----------------------------------
+
+  const [catalogRun, setCatalogRun] = useState<CatalogRunState | undefined>();
+  const catalogRunningRef = useRef(false);
+  const catalogCancelRef = useRef(false);
+
+  const startCatalog = useCallback(
+    async (channel: Channel) => {
+      const stored = channels.find(candidate => candidate.id === channel.id) ?? channel;
+      if (catalogRunningRef.current || stored.catalog?.done) {
+        return;
+      }
+      catalogRunningRef.current = true;
+      catalogCancelRef.current = false;
+      setCatalogRun({
+        channelId: stored.id,
+        channelTitle: stored.title,
+        imported: stored.catalog?.imported ?? 0,
+        phase: 'running',
+      });
+      recordLog('info', 'catalog', `start ${stored.title}`);
+
+      try {
+        const result = await runCatalogImport(repo, stored, {
+          onProgress: imported =>
+            setCatalogRun(previous => (previous ? { ...previous, imported } : previous)),
+          isCancelled: () => catalogCancelRef.current,
+        });
+        await reload();
+        setCatalogRun(previous =>
+          previous
+            ? {
+                ...previous,
+                imported: result.imported,
+                phase: result.done ? 'done' : result.cancelled ? 'cancelled' : 'error',
+                message: result.error,
+              }
+            : previous,
+        );
+      } catch (error) {
+        recordLog('error', 'catalog', String(error));
+        setCatalogRun(previous =>
+          previous ? { ...previous, phase: 'error', message: String(error) } : previous,
+        );
+      } finally {
+        catalogRunningRef.current = false;
+      }
+    },
+    [channels, repo, reload],
+  );
+
+  const cancelCatalog = useCallback(() => {
+    catalogCancelRef.current = true;
+    setCatalogRun(prev => (prev ? { ...prev, phase: 'cancelled' } : prev));
+  }, []);
+
+  const closeCatalog = useCallback(() => {
+    if (!catalogRunningRef.current) {
+      setCatalogRun(undefined);
+    }
+  }, []);
+
+  const bulkDecide = useCallback(
+    async (channel: Channel, outcome: DecisionOutcome): Promise<Video[]> => {
+      const targets = projectedVideos.filter(
+        video => video.channelId === channel.id && video.status === 'pending',
+      );
+      const at = Date.now();
+      await repo.recordDecisions(
+        targets.map((video, index) => manualDecision(video, outcome, at + index)),
+      );
+      recordLog('info', 'decision', `bulk ${outcome} ${channel.title}: ${targets.length}`);
+      await reload();
+      return targets;
+    },
+    [repo, projectedVideos, reload],
+  );
+
+  const retractMany = useCallback(
+    async (targets: Video[]) => {
+      const at = Date.now();
+      await repo.recordDecisions(
+        targets.map((video, index) => manualDecision(video, 'retract', at + index)),
+      );
+      recordLog('info', 'decision', `bulk retract: ${targets.length}`);
+      await reload();
+    },
+    [repo, reload],
+  );
+
   // ---- Database backup (ADR 0017) -----------------------------------------
 
   const exportBackup = useCallback(() => exportDatabase(repo, APP_VERSION), [repo]);
@@ -1103,6 +1194,12 @@ export default function App() {
           }}
           onSetStatus={setVideoStatus}
           onRetract={retractDecision}
+          onRetractMany={retractMany}
+          catalogRun={catalogRun}
+          onStartCatalog={startCatalog}
+          onCancelCatalog={cancelCatalog}
+          onCloseCatalog={closeCatalog}
+          onBulkDecide={bulkDecide}
           onExportBackup={exportBackup}
           onPickBackup={pickBackup}
           onRestoreBackup={restoreBackup}
