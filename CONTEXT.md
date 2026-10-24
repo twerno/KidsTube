@@ -16,6 +16,10 @@ _Avoid_: Strona, Twórca
 Kanał widoczny w liście kanałów rodzica, ale niepobierający RSS. Powstaje, gdy rodzic zatwierdzi film z kanału, którego jeszcze nie obserwuje; jawne dodanie kanału zdejmuje wyciszenie. Wyciszenie nie blokuje ani nie usuwa filmów.
 _Avoid_: Kanał zablokowany, Kanał usunięty, Kanał nieobserwowany
 
+**Kanał zablokowany**:
+Kanał ukryty dziecku i wyłączony z synchronizacji; jego filmy — także oczekujące — trafiają pod kanał w sekcji „Zablokowane”. Blokada nie zapisuje decyzji: odblokowanie przywraca filmy do stanu sprzed blokady.
+_Avoid_: Usunięty kanał, Kanał wyciszony (to inny stan)
+
 **Polityka kanału**:
 Reguła dla nowych filmów kanału: `auto_approve` (pojawiają się w bibliotece od razu) albo `manual` (nie trafiają nigdzie automatycznie — rodzic dodaje filmy ręcznie).
 _Avoid_: Automatyczna akceptacja w znaczeniu „na stałe dozwolone"
@@ -44,12 +48,24 @@ _Avoid_: Domyślny handler jako stan domyślny, Blokowanie YouTube
 Rozstrzygnięcie propozycji filmu (dopuść / odrzuć); ręczne (rodzic) lub automatyczne (powtórka wcześniejszej decyzji przy ponownej propozycji). Rodzic może w każdej chwili zmienić dowolną decyzję historyczną; dla wszystkich kolejnych rozstrzygnięć — w tym autoakceptacji — liczy się decyzja najnowsza. Zapisywana w historii decyzji jako nieusuwalny wpis. Zatwierdzenie/odrzucenie propozycji kanału nie jest decyzją o filmie.
 _Avoid_: Werdykt, Zatwierdzenie jako jedyny rodzaj
 
+**Widoczność filmu**:
+Czy film jest widoczny dziecku: wynika z decyzji najnowszej i stanu kanału. Stan kanału nigdy nie nadpisuje statusu filmu — zablokowany kanał ukrywa wszystkie swoje filmy bez zapisywania decyzji.
+_Avoid_: Status filmu jako widoczność (status to tylko rzut decyzji)
+
 **Pochodzenie filmu**:
 Film może znać swój kanał (id) z RSS albo metadanych (`channelId` z InnerTube). Zatwierdzenie filmu z kanału nieobserwowanego zakłada **kanał wyciszony** (ADR 0015), żeby film dało się grupować i później zarządzać kanałem; nie uruchamia to RSS. Film bez rozpoznanego `channelId` pozostaje bez kanału.
 _Avoid_: Automatyczne zakładanie kanału z linku do filmu, Subskrypcja przy zatwierdzeniu filmu
 
+**Kanał nieobserwowany**:
+Kanał znany z identyfikatora i nazwy (film z linku, propozycja dziecka), ale nieobecny na liście kanałów rodzica. Ma pozycję w filtrze kanałów; zatwierdzenie jego filmu zakłada go jako kanał wyciszony.
+_Avoid_: Kanał nieznany, Obcy kanał
+
+**Kanał nieznany**:
+Film, dla którego nie udało się ustalić kanału — brak identyfikatora, mimo że nazwa z oEmbed bywa widoczna. Nie da się go przypiąć do pozycji kanału ani założyć z niego kanału.
+_Avoid_: Kanał nieobserwowany (to inny stan), Kanał usunięty
+
 **Cofnięcie autoakceptacji kanału**:
-Zmiana polityki kanału z `auto_approve` na `manual` albo usunięcie kanału. Panel rodzica pyta wtedy, czy cofnąć też zatwierdzenia wszystkich dozwolonych filmów z tego kanału; odrzucenie pociąga za sobą zbiorcze decyzje w historii.
+Zmiana polityki kanału z `auto_approve` na `manual`. Panel rodzica pyta wtedy, czy cofnąć też zatwierdzenia wszystkich dozwolonych filmów z tego kanału; odrzucenie pociąga za sobą zbiorcze decyzje w historii.
 
 **Historia decyzji**:
 Pełny, nieusuwalny zapis decyzji wraz z czasem i źródłem; widok rodzica. Po zapadnięciu decyzji propozycja znika z listy oczekującej.
@@ -69,7 +85,7 @@ _Avoid_: Limit audio — to nie limit, tylko wyłącznik po zaśnięciu
 
 **Tryb audio**:
 Odtwarzanie filmu z obrazem wyłączonym; nie liczy się do limitu dziennego i nie wymaga okna oglądania. To wciąż ten sam materiał — zmienia się tylko prezentacja i licznik.
-_Avoid_: Osobna kategoria treści „audio”
+_Avoid_: Osobna kategoria treści „audio”, Audiobook, Audiobooki
 
 **Podgląd (rodzica)**:
 Odtworzenie filmu przez rodzica przed rozstrzygnięciem (lista oczekująca, wyniki wyszukiwarki). Własny kontekst odtwarzania — bez wpływu na limit dzienny, stan obejrzenia ani historię oglądania dziecka.
@@ -98,6 +114,20 @@ _Avoid_: Autoodtwarzanie, „od początku” jako domyślne w świecie dziecka
 **Wstecz (nawigacja)**:
 Cofanie kontekstowe po ścieżce użytkownika: z feedu → do feedu, z kanału → do kanału, z odtwarzacza → tam, skąd przyszło dziecko.
 _Avoid_: „Wstecz = zawsze do ekranu głównego”
+
+## Panel rodzica
+
+**Indeks panelu (rodzica)**:
+Ekran wejściowy panelu: podsumowanie stanu na górze i lista sekcji. Sekcja pokazuje swój stan (liczba, włączone/wyłączone) bez otwierania.
+_Avoid_: Menu, Dashboard, Strona główna panelu
+
+**Sekcja (panelu)**:
+Jedno zadanie rodzica dostępne z indeksu (zatwierdzanie, biblioteka, dodawanie, historia, czas, kod, linki). Wejście w sekcję to osobny ekran; cofnięcie wraca do indeksu.
+_Avoid_: Zakładka, Karta
+
+**Zablokowane (sekcja)**:
+Archiwum kanałów i filmów zablokowanych przez rodzica — jedyne miejsce, w którym działa „Odblokuj” i „Przywróć”. Nie jest kolejką, więc nie pokazuje liczby.
+_Avoid_: Czarna lista (jako nazwa widoku), Kosz
 
 ## Kolejność prezentacji
 

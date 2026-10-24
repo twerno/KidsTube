@@ -26,7 +26,7 @@ domenowych: `CONTEXT.md` (root repozytorium).
 | Logo YouTube | **Nie ukrywamy** — widoczne m.in. przy buforowaniu; spełnia wymóg atrybucji. |
 | Ścieżki audio | Tylko **oryginał + polski**, start na oryginale; wybór znika, gdy jest tylko jedna ścieżka. Docelowo lista języków konfigurowana przez rodzica. *(ADR 0008)* |
 | Świat dziecka | 4 zakładki (Feed · Kanały · Do zatwierdzenia · Historia — **Do zatwierdzenia pokazuje tylko własne propozycje**), nawigacja wstecz po ścieżce użytkownika, stan obejrzenia na kafelkach (nowy / minuty / w całości — nie w „Do zatwierdzenia"), wznowienie od zapisanej pozycji (podgląd rodzica od początku), historia oglądania per dzień. *(ADR 0004)* |
-| Świat rodzica | Grupy zakładek (Treści · Historia · Ustawienia), wspólne filtrowanie/grupowanie po kanałach (pasek ikon), lista oczekująca z rozróżnieniem źródła (RSS / propozycja dziecka) i propozycjami kanałów, **podgląd filmu w każdej liście treści** oraz historia decyzji (last-wins) + podgląd historii oglądania. *(ADR 0005)* |
+| Świat rodzica | **Indeks** panelu: podsumowanie (pozostały czas wideo dziś, dziś i średnia 7 dni w rozbiciu filmy/audio) + sekcje z podglądem stanu: Do zatwierdzenia · Biblioteka · Zablokowane · Dodaj film/kanał · Historia oglądania · Kontrola czasu · Zmień kod · Linki YouTube · Log. Nawigacja stosem (cofnięcie wraca po ścieżce, 2× zamyka panel), pull-to-refresh zamiast przycisku sync, filtry źródła i kanału z licznikami „ile zobaczę”, podgląd filmu wszędzie, blokada kanału zamiast usuwania. *(ADR 0005, 0016)* |
 | Czas | **Jedno okno tygodniowe** (bramka wideo) + **dzienny limit wideo** (twarde cięcie, ostrzeżenie 5 min przed) + **audio bez limitu i poza oknem** (tryb audio, nie kategoria treści) + **tryb snu** 1 h z resetem na ekranie audio + **dodatkowy czas wideo** (+15 min / +1 h, pula na dziś, PIN rodzica). Zastąpiło dawny „tryb nocny”. *(ADR 0002, 0011)* |
 | Synchronizacja | Przy otwarciu aplikacji (jeden przebieg po pokazaniu biblioteki z pamięci) i na żądanie: przeciągnięcie w dół w widoku dziecka (feed / kanały / kanał) albo „Synchronizuj” w panelu. Równoległe żądania są scalane w jeden przebieg; timer w tle odroczony do backlogu z bramką oceny. *(ADR 0006)* |
 | Import katalogu | Jawny przycisk **„Wczytaj cały katalog”** na kanale: pełna lista przez InnerTube (paginacja), bez klucza API; status wg polityki kanału; **wznawialny** — checkpoint kursora, dzienny budżet stron, miękki stop przy limicie/błędzie. *(ADR 0009)* |
@@ -172,6 +172,15 @@ ją dodać.
 
 - Prawdziwe audio w tle przy zgaszonym ekranie: foreground service + MediaSession
   (niezawodny tryb audio — WebView pauzuje po zgaszeniu ekranu).
+- **Zakładka „Decyzje” (ADR 0010) + potwierdzenia akcji masowych** — na nowej
+  IA z ADR 0016 (miejsce: sekcja obok „Historii oglądania”). Do tego czasu
+  przełączenie polityki na auto-akceptację po cichu dopuszcza wszystkie
+  oczekujące filmy kanału.
+- **Personalizacja dziecka** (imię, avatar/kolor) — pole imienia usunięte
+  z panelu (ADR 0016); zapisane imię nadal się wyświetla, nie da się go zmienić.
+- **Import katalogu kanału** (ADR 0009) — jawne „Wczytaj cały katalog”.
+- **Wyjątek „zachowaj jeden film z zablokowanego kanału”** — wymaga rozdzielenia
+  flag kanału (panel / RSS / widoczność u dziecka), ADR 0016 zostawia to poza zakresem.
 - Sync RSS w tle / timer — odroczony z bramką oceny (ADR 0006).
 - Wyszukiwarka YouTube w panelu rodzica — prototyp z bramką oceny (ADR 0005).
 - Wiele profili dzieci.
