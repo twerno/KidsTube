@@ -9,8 +9,12 @@ Zbiór filmów i kanałów widocznych dziecku; zawiera wyłącznie pozycje dozwo
 _Avoid_: „Wszystkie filmy", „Kanały YouTube"
 
 **Kanał**:
-Kanał YouTube dodany przez rodzica; niesie politykę i może być zablokowany.
+Kanał YouTube dodany przez rodzica; niesie politykę, może być zablokowany albo wyciszony.
 _Avoid_: Strona, Twórca
+
+**Kanał wyciszony**:
+Kanał widoczny w liście kanałów rodzica, ale niepobierający RSS. Powstaje, gdy rodzic zatwierdzi film z kanału, którego jeszcze nie obserwuje; jawne dodanie kanału zdejmuje wyciszenie. Wyciszenie nie blokuje ani nie usuwa filmów.
+_Avoid_: Kanał zablokowany, Kanał usunięty, Kanał nieobserwowany
 
 **Polityka kanału**:
 Reguła dla nowych filmów kanału: `auto_approve` (pojawiają się w bibliotece od razu) albo `manual` (nie trafiają nigdzie automatycznie — rodzic dodaje filmy ręcznie).
@@ -21,7 +25,7 @@ Zgłoszenie filmu przez dziecko do rozstrzygnięcia przez rodzica. Żyje w liśc
 _Avoid_: Życzenie, Prośba o film
 
 **Propozycja kanału**:
-Udostępniony link do kanału, którego KidTube jeszcze nie obserwuje. Oczekujący byt **tylko dla rodzica** — nie jest `Channel`, nie synchronizuje RSS, nie trafia do świata dziecka ani do historii decyzji. Zatwierdzenie tworzy kanał `manual`, odrzucenie usuwa propozycję (może wrócić później).
+Udostępniony link do kanału, którego KidTube jeszcze nie obserwuje. Oczekujący byt **tylko dla rodzica** — nie jest `Channel`, nie synchronizuje RSS, nie trafia do świata dziecka ani do historii decyzji. Zatwierdzenie tworzy kanał `manual` (a jeśli kanał już istnieje jako wyciszony — odcisza go i wznawia RSS), odrzucenie usuwa propozycję (może wrócić później).
 _Avoid_: Kanał oczekujący, Zablokowany kanał (to inny stan)
 
 **Lista oczekująca („do zatwierdzenia”)**:
@@ -41,8 +45,8 @@ Rozstrzygnięcie propozycji filmu (dopuść / odrzuć); ręczne (rodzic) lub aut
 _Avoid_: Werdykt, Zatwierdzenie jako jedyny rodzaj
 
 **Pochodzenie filmu**:
-Film może znać swój kanał (id) z RSS albo metadanych (`channelId` z InnerTube). Sam film **nie zakłada kanału** — dodanie kanału jest osobną decyzją strukturalną rodzica (ADR 0013), więc ręcznie dodany film bez rozpoznanego `channelId` pozostaje bez kanału.
-_Avoid_: Automatyczne zakładanie kanału z linku do filmu
+Film może znać swój kanał (id) z RSS albo metadanych (`channelId` z InnerTube). Zatwierdzenie filmu z kanału nieobserwowanego zakłada **kanał wyciszony** (ADR 0015), żeby film dało się grupować i później zarządzać kanałem; nie uruchamia to RSS. Film bez rozpoznanego `channelId` pozostaje bez kanału.
+_Avoid_: Automatyczne zakładanie kanału z linku do filmu, Subskrypcja przy zatwierdzeniu filmu
 
 **Cofnięcie autoakceptacji kanału**:
 Zmiana polityki kanału z `auto_approve` na `manual` albo usunięcie kanału. Panel rodzica pyta wtedy, czy cofnąć też zatwierdzenia wszystkich dozwolonych filmów z tego kanału; odrzucenie pociąga za sobą zbiorcze decyzje w historii.

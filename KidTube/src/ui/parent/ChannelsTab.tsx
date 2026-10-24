@@ -3,12 +3,14 @@ import { FlatList, StyleSheet, Switch, Text, View } from 'react-native';
 import { Button, Card, Field } from '../components';
 import { colors, spacing } from '../theme';
 import type { Channel } from '../../domain/types';
+import { isChannelMuted } from '../../domain/channels';
 
 export function ChannelsTab({
   channels,
   refreshing,
   onAddChannelLink,
   onToggleChannelPolicy,
+  onToggleChannelMuted,
   onBlockChannel,
   onRemoveChannel,
   onSync,
@@ -17,6 +19,7 @@ export function ChannelsTab({
   refreshing?: boolean;
   onAddChannelLink: (link: string, autoApprove: boolean) => Promise<string | undefined>;
   onToggleChannelPolicy: (channel: Channel) => void;
+  onToggleChannelMuted: (channel: Channel) => void;
   onBlockChannel: (channel: Channel) => void;
   onRemoveChannel: (channel: Channel) => void;
   onSync: () => void;
@@ -79,6 +82,7 @@ export function ChannelsTab({
               {item.title}
             </Text>
             {item.status === 'blocked' ? <Text style={styles.blockedBadge}>zablokowany</Text> : null}
+            {isChannelMuted(item) ? <Text style={styles.mutedBadge}>wyciszony</Text> : null}
           </View>
           <Text numberOfLines={1} style={styles.channelId}>
             {item.handle ? `@${item.handle}` : item.id}
@@ -89,6 +93,13 @@ export function ChannelsTab({
               value={item.policy === 'auto_approve'}
               onValueChange={() => onToggleChannelPolicy(item)}
               disabled={item.status === 'blocked'}
+            />
+          </View>
+          <View style={styles.switchRow}>
+            <Text style={styles.switchLabel}>Wyciszony — bez pobierania listy RSS</Text>
+            <Switch
+              value={isChannelMuted(item)}
+              onValueChange={() => onToggleChannelMuted(item)}
             />
           </View>
           <View style={styles.actions}>
@@ -125,5 +136,6 @@ const styles = StyleSheet.create({
   channelTitle: { color: colors.text, fontSize: 15, fontWeight: '600', flexShrink: 1 },
   channelId: { color: colors.textMuted, fontSize: 12 },
   blockedBadge: { color: colors.danger, fontSize: 11, fontWeight: '700' },
+  mutedBadge: { color: colors.warning, fontSize: 11, fontWeight: '700' },
   actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: spacing.sm, flexWrap: 'wrap' },
 });

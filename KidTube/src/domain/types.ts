@@ -70,6 +70,12 @@ export interface Channel {
   policy: ChannelPolicy;
   /** A blocked channel is hidden from the child entirely. */
   status: ChannelStatus;
+  /**
+   * Muted channels stay in the parent's channel list but never fetch their RSS
+   * feed (ADR 0015). Absent means not muted, so existing stored channels need
+   * no migration.
+   */
+  muted?: boolean;
   addedAt: number;
 }
 

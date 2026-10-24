@@ -15,6 +15,7 @@ export const SEED_REPLACED_IDS: string[] = ['oQVHSNb8HLU', 'ssr2cTC2bhs'];
 export const SEED_TEST_VIDEOS: Video[] = [
   {
     id: 'ssr2cTC2bhs',
+    channelId: 'UCZhWZdKjn0e3ctyVZxsMkKQ',
     channelTitle: 'shinmiri2',
     title: 'GWENT | SHUPE ALE ARTIFACTS | BC POLL IN DESCRIPTION',
     thumbnailUrl: 'https://i.ytimg.com/vi/ssr2cTC2bhs/hqdefault.jpg',

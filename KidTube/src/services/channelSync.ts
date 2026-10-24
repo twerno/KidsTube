@@ -4,6 +4,7 @@
  */
 
 import type { Channel, Video } from '../domain/types';
+import { isChannelMuted } from '../domain/channels';
 import { channelFeedUrl } from '../domain/youtubeUrl';
 import { parseYouTubeFeed, type RssVideo } from '../domain/rss';
 import { mergeSyncedVideos, rssToVideos } from '../domain/content';
@@ -40,6 +41,12 @@ export async function syncChannel(
   fetchFn?: FetchLike,
   now: number = Date.now(),
 ): Promise<SyncResult> {
+  // Muted channels stay visible but never fetch RSS (ADR 0015). The guard also
+  // covers direct calls from explicit actions, not just the bulk sync.
+  if (isChannelMuted(channel)) {
+    return { added: [], total: 0 };
+  }
+
   const entries = await fetchChannelFeed(channel.id, fetchFn);
   if (entries.length === 0) {
     return { added: [], total: 0 };
@@ -64,7 +71,7 @@ export async function syncAllChannels(
   const perChannel: Record<string, number> = {};
 
   for (const channel of channels) {
-    if (channel.status === 'blocked') {
+    if (channel.status === 'blocked' || isChannelMuted(channel)) {
       continue;
     }
     const result = await syncChannel(repo, channel, fetchFn);

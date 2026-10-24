@@ -67,8 +67,13 @@ import {
 } from './src/native/youtubeLinkHandler';
 import { hashPin, verifyPin } from './src/security/pin';
 import { syncAllChannels, syncChannel, fetchChannelFeed } from './src/services/channelSync';
+import {
+  ensureChannelForApprovedVideo,
+  ensureMutedChannelsForApprovedVideos,
+} from './src/services/channelMuting';
+import { isChannelMuted, withChannelMuted } from './src/domain/channels';
 import { resolveChannelFromUrl } from './src/services/channelResolve';
-import { fetchOEmbed, fetchPublishDate } from './src/services/youtubeMetadata';
+import { fetchOEmbed, fetchPlayerMetadata } from './src/services/youtubeMetadata';
 import { ChildHomeScreen } from './src/ui/ChildHomeScreen';
 import { GateScreen } from './src/ui/GateScreen';
 import { PinPrompt } from './src/ui/PinPrompt';
@@ -214,10 +219,45 @@ export default function App() {
     );
   }, [repo]);
 
+  // ADR 0006: RSS sync happens when the app opens and when the child pulls to
+  // refresh (the parent's explicit “Synchronizuj” uses the same action).
+  // Concurrent triggers — e.g. a pull right after a cold start — share one run,
+  // so the feed is never swept twice in parallel.
+  const syncPromiseRef = useRef<Promise<void> | null>(null);
+  const sync = useCallback(async (): Promise<void> => {
+    if (syncPromiseRef.current) {
+      return syncPromiseRef.current;
+    }
+    setRefreshing(true);
+    const run = (async () => {
+      try {
+        const result = await syncAllChannels(repo);
+        console.log(
+          '[KidTube:sync] channels=' +
+            Object.keys(result.perChannel).length +
+            ' added=' +
+            result.added.length,
+        );
+        await reload();
+      } catch (error) {
+        // Network failures are already swallowed per channel; anything left is
+        // unexpected, but it must not leave the child stuck in a spinner.
+        console.warn('[KidTube:sync] failed', error);
+      } finally {
+        syncPromiseRef.current = null;
+        setRefreshing(false);
+      }
+    })();
+    syncPromiseRef.current = run;
+    return run;
+  }, [repo, reload]);
+
   useEffect(() => {
+    let initialized = false;
     (async () => {
       try {
         await repo.init();
+        initialized = true;
         if (ENABLE_TEST_SEED) {
           for (const id of SEED_REPLACED_IDS) {
             if (await repo.getVideo(id)) {
@@ -231,15 +271,31 @@ export default function App() {
           }
         }
         await reload();
+        // Approved films from channels that are not watched yet keep a muted
+        // channel record for grouping (ADR 0015). Idempotent on every start.
+        if ((await ensureMutedChannelsForApprovedVideos(repo)).length > 0) {
+          await reload();
+        }
       } catch (error) {
         setInitError(error instanceof Error ? error.message : String(error));
       } finally {
         incomingReadyRef.current = true;
         setReady(true);
-        drainIncomingQueue().catch(() => undefined);
+        // Incoming links are drained first so a cold-start VIEW/share cannot
+        // race the first sync on the same video collection. The sync then runs
+        // exactly once per app start, after the cached library is on screen.
+        drainIncomingQueue()
+          .catch(() => undefined)
+          .then(() => {
+            if (initialized) {
+              return sync();
+            }
+            return undefined;
+          })
+          .catch(() => undefined);
       }
     })();
-  }, [repo, reload, drainIncomingQueue]);
+  }, [repo, reload, drainIncomingQueue, sync]);
 
   const blockedChannelIds = useMemo(
     () => new Set(channels.filter(c => c.status === 'blocked').map(c => c.id)),
@@ -710,37 +766,45 @@ export default function App() {
     console.log('[KidTube:addChannel]', link, 'parsed=', JSON.stringify(parsed));
 
     if (parsed.kind === 'video') {
-      const [meta, publishedAt] = await Promise.all([
+      const [meta, player] = await Promise.all([
         fetchOEmbed(parsed.videoId),
-        fetchPublishDate(parsed.videoId),
+        fetchPlayerMetadata(parsed.videoId),
       ]);
       const video: Video = {
         id: parsed.videoId,
+        channelId: player?.channelId,
+        channelTitle: player?.channelTitle ?? meta?.authorName,
         title: meta?.title ?? parsed.videoId,
         thumbnailUrl: meta?.thumbnailUrl,
-        publishedAt,
+        publishedAt: player?.publishedAt,
         status: autoApprove ? 'allowed' : 'pending',
         source: 'manual',
         addedAt: Date.now(),
       };
       await repo.upsertVideos([video]);
       if (autoApprove) {
-        // The parent approved it by hand — record that as a manual decision.
+        // The parent approved it by hand — record that as a manual decision and
+        // park an unknown channel as muted (ADR 0015).
         await repo.recordDecision(manualDecision(video, 'allow', video.addedAt));
+        await ensureChannelForApprovedVideo(repo, video, video.addedAt);
       }
       await reload();
       return undefined;
     }
 
     if (parsed.kind === 'channel' && parsed.channelId) {
+      const existing = await repo.getChannel(parsed.channelId);
       const entries = await fetchChannelFeed(parsed.channelId);
-      const title = entries[0]?.channelTitle ?? parsed.channelId;
+      const title = existing?.title ?? entries[0]?.channelTitle ?? parsed.channelId;
       const channel: Channel = {
         id: parsed.channelId,
         title,
+        handle: existing?.handle,
+        thumbnailUrl: existing?.thumbnailUrl,
         policy,
         status: 'allowed',
-        addedAt: Date.now(),
+        muted: false,
+        addedAt: existing?.addedAt ?? Date.now(),
       };
       await repo.upsertChannel(channel);
       await syncChannel(repo, channel);
@@ -759,13 +823,16 @@ export default function App() {
       if (!resolved) {
         return 'Nie udało się rozpoznać kanału z tego linku. Spróbuj wkleić pełny link do kanału z YouTube.';
       }
+      const existing = await repo.getChannel(resolved.channelId);
       const channel: Channel = {
         id: resolved.channelId,
         title: resolved.title,
-        handle: resolved.handle,
+        handle: resolved.handle ?? existing?.handle,
+        thumbnailUrl: existing?.thumbnailUrl,
         policy,
         status: 'allowed',
-        addedAt: Date.now(),
+        muted: false,
+        addedAt: existing?.addedAt ?? Date.now(),
       };
       await repo.upsertChannel(channel);
       await syncChannel(repo, channel);
@@ -803,6 +870,22 @@ export default function App() {
     await reload();
   };
 
+  const toggleChannelMuted = async (channel: Channel) => {
+    const next = withChannelMuted(channel, !isChannelMuted(channel));
+    await repo.upsertChannel(next);
+    // Unmuting resumes the feed; fetch once right away (ADR 0015), unless the
+    // channel is also blocked.
+    if (!isChannelMuted(next) && next.status !== 'blocked') {
+      setRefreshing(true);
+      try {
+        await syncChannel(repo, next);
+      } finally {
+        setRefreshing(false);
+      }
+    }
+    await reload();
+  };
+
   const removeChannel = async (channel: Channel) => {
     await repo.removeChannel(channel.id);
     await reload();
@@ -818,6 +901,11 @@ export default function App() {
       Alert.alert(
         'Dodano kanał',
         `Kanał „${result.channel.title}” jest w bibliotece. Filmy z kanału czekają na zatwierdzenie.`,
+      );
+    } else if (result.kind === 'unmuted') {
+      Alert.alert(
+        'Kanał odciszony',
+        `Kanał „${result.channel.title}” znów pobiera listę filmów.`,
       );
     } else if (result.kind === 'already') {
       Alert.alert('Kanał już dodany', result.channel.title);
@@ -900,18 +988,14 @@ export default function App() {
   // A parent action becomes a `manual` decision in the append-only history.
   const setVideoStatus = async (video: Video, status: VideoStatus) => {
     const outcome: DecisionOutcome = status === 'allowed' ? 'allow' : 'reject';
-    await repo.recordDecision(manualDecision(video, outcome, Date.now()));
-    await reload();
-  };
-
-  const sync = async () => {
-    setRefreshing(true);
-    try {
-      await syncAllChannels(repo);
-      await reload();
-    } finally {
-      setRefreshing(false);
+    const at = Date.now();
+    await repo.recordDecision(manualDecision(video, outcome, at));
+    if (status === 'allowed') {
+      // Approving a film from an unknown channel parks that channel as muted
+      // (ADR 0015) so it can group its films without fetching RSS.
+      await ensureChannelForApprovedVideo(repo, video, at);
     }
+    await reload();
   };
 
   const setChildName = async (childName: string) => {
@@ -1063,6 +1147,7 @@ export default function App() {
           refreshing={refreshing}
           onAddChannelLink={addChannelLink}
           onToggleChannelPolicy={toggleChannelPolicy}
+          onToggleChannelMuted={toggleChannelMuted}
           onBlockChannel={toggleChannelBlocked}
           onRemoveChannel={removeChannel}
           onSync={sync}

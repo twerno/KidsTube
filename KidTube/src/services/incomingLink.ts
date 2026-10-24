@@ -20,6 +20,7 @@ import {
 } from './channelProposals';
 import { resolveChannelFromUrl } from './channelResolve';
 import { fetchOEmbed, fetchPlayerMetadata, type FetchLike } from './youtubeMetadata';
+import { ensureChannelForApprovedVideo } from './channelMuting';
 
 export type IncomingLinkOrigin = 'share' | 'view';
 
@@ -88,6 +89,8 @@ async function handleVideo(
       existingChannel?.status === 'blocked' ? 'blocked' : projectStatus(existing, decisions);
     const video = { ...existing, status };
     if (status === 'allowed') {
+      // An allowed film without its channel record gets a muted one (ADR 0015).
+      await ensureChannelForApprovedVideo(repo, video, now);
       return { kind: 'allowed', video, reason: 'known' };
     }
     if (status === 'blocked') {
@@ -127,6 +130,7 @@ async function handleVideo(
   await repo.upsertVideos([video]);
 
   if (status === 'allowed') {
+    await ensureChannelForApprovedVideo(repo, video, now);
     return { kind: 'allowed', video, reason: latest ? 'decision' : 'policy' };
   }
   if (status === 'blocked') {

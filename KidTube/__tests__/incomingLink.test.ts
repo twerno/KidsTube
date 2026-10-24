@@ -273,6 +273,25 @@ describe('shared films (ADR 0013)', () => {
     expect(result.kind).toBe('allowed');
   });
 
+  it('creates a muted channel when a prior approval reveals an unknown channel', async () => {
+    const repo = new MemoryRepository({
+      decisions: [decision('APPROVED999', 'allow', 10)],
+    });
+    const result = await handleIncomingLink(
+      'https://youtu.be/APPROVED999',
+      repo,
+      apiFetch({ channelId: UNKNOWN_CHANNEL, channelTitle: 'Unknown channel' }),
+    );
+
+    expect(result.kind).toBe('allowed');
+    expect(await repo.getChannel(UNKNOWN_CHANNEL)).toMatchObject({
+      title: 'Unknown channel',
+      policy: 'manual',
+      status: 'allowed',
+      muted: true,
+    });
+  });
+
   it('does not duplicate a repeated share', async () => {
     const repo = new MemoryRepository();
     await handleIncomingLink(

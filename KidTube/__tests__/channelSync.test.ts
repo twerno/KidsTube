@@ -76,4 +76,32 @@ describe('channelSync', () => {
     expect((await repo.getVideo('UN-0gLuVOZU'))?.status).toBe('blocked');
     expect((await repo.getVideo('AUTOvideo1'))?.status).toBe('allowed');
   });
+
+  it('never fetches RSS for a muted channel (ADR 0015)', async () => {
+    const muted: Channel = { ...manual, muted: true };
+    const repo = new MemoryRepository({ channels: [muted] });
+    const fetchLike = jest.fn(async () => {
+      throw new Error('muted channel must not be fetched');
+    });
+
+    expect(await syncChannel(repo, muted, fetchLike)).toEqual({ added: [], total: 0 });
+    expect(await syncAllChannels(repo, fetchLike)).toEqual({
+      added: [],
+      perChannel: {},
+    });
+    expect(fetchLike).not.toHaveBeenCalled();
+  });
+
+  it('syncs again once the channel is unmuted', async () => {
+    const muted: Channel = { ...auto, muted: true };
+    const repo = new MemoryRepository({ channels: [muted] });
+    const fetchLike = feedFetch(channelXml(auto.id, auto.title, 'AUTOvideo1'));
+
+    await syncAllChannels(repo, fetchLike);
+    expect(await repo.getVideo('AUTOvideo1')).toBeUndefined();
+
+    await repo.upsertChannel({ ...muted, muted: false });
+    await syncAllChannels(repo, fetchLike);
+    expect((await repo.getVideo('AUTOvideo1'))?.status).toBe('allowed');
+  });
 });

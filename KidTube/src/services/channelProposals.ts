@@ -7,6 +7,7 @@
  */
 
 import type { Channel, ChannelProposal } from '../domain/types';
+import { isChannelMuted } from '../domain/channels';
 import { parseYouTubeLink } from '../domain/youtubeUrl';
 import type { Repository } from '../data/repository';
 import { resolveChannelFromUrl } from './channelResolve';
@@ -143,6 +144,8 @@ export async function resolveChannelProposal(
 export type ApproveChannelProposalResult =
   | { kind: 'added'; channel: Channel }
   | { kind: 'already'; channel: Channel }
+  /** The channel existed but was muted; an explicit add unmutes it (ADR 0015). */
+  | { kind: 'unmuted'; channel: Channel }
   | { kind: 'unresolved' };
 
 /**
@@ -167,7 +170,16 @@ export async function approveChannelProposal(
     await repo.removeChannelProposal(resolved.id);
   }
   if (known) {
-    return { kind: 'already', channel: known };
+    if (!isChannelMuted(known)) {
+      return { kind: 'already', channel: known };
+    }
+    // Explicitly adding a muted channel is an act of subscribing to it again.
+    const channel: Channel = { ...known, muted: false };
+    await repo.upsertChannel(channel);
+    if (channel.status !== 'blocked') {
+      await syncChannel(repo, channel, fetchFn, now);
+    }
+    return { kind: 'unmuted', channel };
   }
 
   const channel: Channel = {
@@ -177,6 +189,7 @@ export async function approveChannelProposal(
     thumbnailUrl: resolved.thumbnailUrl,
     policy: 'manual',
     status: 'allowed',
+    muted: false,
     addedAt: now,
   };
   await repo.upsertChannel(channel);

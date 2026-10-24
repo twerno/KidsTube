@@ -36,6 +36,7 @@ export interface ParentScreenProps {
   refreshing?: boolean;
   onAddChannelLink: (link: string, autoApprove: boolean) => Promise<string | undefined>;
   onToggleChannelPolicy: (channel: Channel) => void;
+  onToggleChannelMuted: (channel: Channel) => void;
   onBlockChannel: (channel: Channel) => void;
   onRemoveChannel: (channel: Channel) => void;
   onSetVideoStatus: (video: Video, status: VideoStatus) => void;
@@ -70,6 +71,7 @@ export function ParentScreen(props: ParentScreenProps) {
     refreshing,
     onAddChannelLink,
     onToggleChannelPolicy,
+    onToggleChannelMuted,
     onBlockChannel,
     onRemoveChannel,
     onSetVideoStatus,
@@ -156,6 +158,7 @@ export function ParentScreen(props: ParentScreenProps) {
             refreshing={refreshing}
             onAddChannelLink={onAddChannelLink}
             onToggleChannelPolicy={onToggleChannelPolicy}
+            onToggleChannelMuted={onToggleChannelMuted}
             onBlockChannel={onBlockChannel}
             onRemoveChannel={onRemoveChannel}
             onSync={onSync}

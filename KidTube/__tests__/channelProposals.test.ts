@@ -116,6 +116,25 @@ describe('channel proposals (ADR 0013)', () => {
     expect(await repo.listChannelProposals()).toHaveLength(0);
   });
 
+  it('unmutes an existing muted channel and resumes its RSS (ADR 0015)', async () => {
+    const muted: Channel = {
+      id: CHANNEL_ID,
+      title: 'Muted',
+      policy: 'manual',
+      status: 'allowed',
+      muted: true,
+      addedAt: 0,
+    };
+    const repo = new MemoryRepository({ channels: [muted], channelProposals: [resolvedProposal] });
+    const result = await approveChannelProposal(repo, resolvedProposal, fakeFetch(), 100);
+
+    expect(result.kind).toBe('unmuted');
+    expect((await repo.getChannel(CHANNEL_ID))?.muted).toBe(false);
+    expect(await repo.listChannels()).toHaveLength(1);
+    expect(await repo.listChannelProposals()).toHaveLength(0);
+    expect((await repo.getVideo('UN-0gLuVOZU'))?.status).toBe('pending');
+  });
+
   it('rejecting removes the proposal and leaves no decision', async () => {
     const repo = new MemoryRepository({ channelProposals: [resolvedProposal] });
     await rejectChannelProposal(repo, resolvedProposal);
