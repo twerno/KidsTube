@@ -1,11 +1,11 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { BackHandler, ScrollView, StyleSheet, View } from 'react-native';
+import { BackHandler, StyleSheet, View } from 'react-native';
 import { WatchHistoryList } from '../WatchHistoryList';
 import { AddSection } from './AddSection';
 import { BlockedSection } from './BlockedSection';
 import { DatabaseSection } from './DatabaseSection';
 import { DecisionToast } from './DecisionToast';
-import { ChannelDetails } from './ChannelCard';
+import { ChannelScreen } from './ChannelScreen';
 import { EmptyState } from './EmptyState';
 import { LibrarySection } from './LibrarySection';
 import { LinksSection } from './LinksSection';
@@ -15,10 +15,8 @@ import { PanelIndex } from './PanelIndex';
 import { PendingSection } from './PendingSection';
 import { PreviewScreen, type PreviewAction } from './PreviewScreen';
 import { ScheduleSection } from './ScheduleSection';
-import { VideoRow } from './VideoRow';
 import { SECTION_TITLE, type SectionKey } from './sections';
-import { isBlockedChannelVideo, videosForChannel } from '../../domain/panel';
-import { colors, spacing } from '../theme';
+import { isBlockedChannelVideo } from '../../domain/panel';
 import type { AddLinkResult } from '../../services/addByLink';
 import type { ExportOutcome, PickOutcome, RestoreOutcome } from '../../services/databaseBackup';
 import type { BackupFile } from '../../domain/backup';
@@ -401,30 +399,18 @@ export function ParentPanel(props: ParentPanelProps) {
 
       case 'channel': {
         const channel = channels.find(candidate => candidate.id === screen.channelId);
-        const films = channel ? videosForChannel(videos, channel.id) : [];
         return (
           <SectionFrame title={channel?.title ?? 'Kanał'} onBack={closeTop}>
             {channel ? (
-              <ScrollView contentContainerStyle={styles.channelContent}>
-                <ChannelDetails
-                  channel={channel}
-                  videos={films}
-                  onTogglePolicy={onTogglePolicy}
-                  onToggleMuted={onToggleMuted}
-                  onBlock={onToggleBlocked}
-                />
-                {films.map(video => (
-                  <VideoRow
-                    key={video.id}
-                    video={video}
-                    onSetStatus={channel.status === 'blocked' ? undefined : decide}
-                    onPreview={openPreview}
-                    statusLabel={channel.status === 'blocked' ? 'wstrzymany' : undefined}
-                    statusColor={channel.status === 'blocked' ? colors.warning : undefined}
-                    showActions={channel.status !== 'blocked'}
-                  />
-                ))}
-              </ScrollView>
+              <ChannelScreen
+                channel={channel}
+                videos={videos}
+                onSetStatus={decide}
+                onPreview={openPreview}
+                onTogglePolicy={onTogglePolicy}
+                onToggleMuted={onToggleMuted}
+                onBlock={onToggleBlocked}
+              />
             ) : (
               <EmptyState>Ten kanał nie istnieje już w bibliotece.</EmptyState>
             )}
@@ -471,5 +457,4 @@ const styles = StyleSheet.create({
   frame: { flex: 1 },
   hidden: { display: 'none' },
   screen: { flex: 1 },
-  channelContent: { padding: spacing.lg, paddingBottom: spacing.xl * 2, gap: spacing.sm },
 });

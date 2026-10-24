@@ -7,10 +7,21 @@
  * single video status. Blocking is a projection, never a decision.
  */
 
-import type { Channel, Video } from './types';
+import type { Channel, Video, VideoStatus } from './types';
 
 /** Source chips of the “Do zatwierdzenia” section (ADR 0016). */
 export type SourceFilter = 'all' | 'rss' | 'child' | 'link';
+
+/** Status chips of the channel screen (ADR 0018). */
+export type ChannelStatusFilter = 'accepted' | 'rejected' | 'pending';
+
+export const DEFAULT_CHANNEL_STATUS_FILTER: ChannelStatusFilter = 'accepted';
+
+export interface ChannelStatusCounts {
+  accepted: number;
+  rejected: number;
+  pending: number;
+}
 
 /** Stable key of the pseudo-entry grouping films with no channel id. */
 export const UNKNOWN_CHANNEL_KEY = '__unknown__';
@@ -79,6 +90,43 @@ export function blockedChannels(channels: Channel[]): Channel[] {
 /** Films of one blocked channel, shown under its channel card. */
 export function videosForChannel(videos: Video[], channelId: string): Video[] {
   return videos.filter(video => video.channelId === channelId);
+}
+
+const STATUS_FOR_FILTER: Record<ChannelStatusFilter, VideoStatus> = {
+  accepted: 'allowed',
+  rejected: 'blocked',
+  pending: 'pending',
+};
+
+/** Counts of all three statuses for one channel (ADR 0018). */
+export function channelStatusCounts(
+  videos: Video[],
+  channelId: string,
+): ChannelStatusCounts {
+  const counts: ChannelStatusCounts = { accepted: 0, rejected: 0, pending: 0 };
+  for (const video of videos) {
+    if (video.channelId !== channelId) {
+      continue;
+    }
+    if (video.status === 'allowed') {
+      counts.accepted += 1;
+    } else if (video.status === 'blocked') {
+      counts.rejected += 1;
+    } else {
+      counts.pending += 1;
+    }
+  }
+  return counts;
+}
+
+/** Films of one channel matching a status chip (ADR 0018). */
+export function filterChannelVideos(
+  videos: Video[],
+  channelId: string,
+  filter: ChannelStatusFilter,
+): Video[] {
+  const status = STATUS_FOR_FILTER[filter];
+  return videos.filter(video => video.channelId === channelId && video.status === status);
 }
 
 /** The filter key a video belongs to: its channel id or the unknown bucket. */

@@ -1,9 +1,12 @@
 import {
+  DEFAULT_CHANNEL_STATUS_FILTER,
   UNKNOWN_CHANNEL_KEY,
   blockedChannels,
   blockedVideos,
   channelBarEntries,
+  channelStatusCounts,
   countBySource,
+  filterChannelVideos,
   filterVideos,
   libraryVideos,
   matchesSource,
@@ -122,5 +125,32 @@ describe('panel selectors (ADR 0016)', () => {
     expect(normalizeChannelFilter(entries, 'UC_GONE')).toBeNull();
     expect(normalizeChannelFilter(entries, 'UC_NEW')).toBe('UC_NEW');
     expect(normalizeChannelFilter(entries, null)).toBeNull();
+  });
+});
+
+describe('channel status filters (ADR 0018)', () => {
+  it('defaults to accepted', () => {
+    expect(DEFAULT_CHANNEL_STATUS_FILTER).toBe('accepted');
+  });
+
+  it('counts all three statuses inside one channel', () => {
+    expect(channelStatusCounts(VIDEOS, 'UC_C')).toEqual({
+      accepted: 1,
+      rejected: 1,
+      pending: 2,
+    });
+  });
+
+  it('filters channel films by the selected status only', () => {
+    expect(filterChannelVideos(VIDEOS, 'UC_C', 'accepted').map(v => v.id)).toEqual([
+      'v-allowed',
+    ]);
+    expect(filterChannelVideos(VIDEOS, 'UC_C', 'rejected').map(v => v.id)).toEqual([
+      'v-rejected',
+    ]);
+    expect(filterChannelVideos(VIDEOS, 'UC_C', 'pending').map(v => v.id)).toEqual([
+      'v-rss',
+      'v-manual',
+    ]);
   });
 });

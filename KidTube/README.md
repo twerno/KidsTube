@@ -26,7 +26,7 @@ domenowych: `CONTEXT.md` (root repozytorium).
 | Logo YouTube | **Nie ukrywamy** — widoczne m.in. przy buforowaniu; spełnia wymóg atrybucji. |
 | Ścieżki audio | Tylko **oryginał + polski**, start na oryginale; wybór znika, gdy jest tylko jedna ścieżka. Docelowo lista języków konfigurowana przez rodzica. *(ADR 0008)* |
 | Świat dziecka | 4 zakładki (Feed · Kanały · Do zatwierdzenia · Historia — **Do zatwierdzenia pokazuje tylko własne propozycje**), nawigacja wstecz po ścieżce użytkownika, stan obejrzenia na kafelkach (nowy / minuty / w całości — nie w „Do zatwierdzenia"), wznowienie od zapisanej pozycji (podgląd rodzica od początku), historia oglądania per dzień. *(ADR 0004)* |
-| Świat rodzica | **Indeks** panelu: podsumowanie (pozostały czas wideo dziś, dziś i średnia 7 dni w rozbiciu filmy/audio) + sekcje z podglądem stanu: Do zatwierdzenia · Biblioteka · Zablokowane · Dodaj film/kanał · Historia oglądania · Kontrola czasu · Zmień kod · Linki YouTube · Log. Nawigacja stosem (cofnięcie wraca po ścieżce, 2× zamyka panel), pull-to-refresh zamiast przycisku sync, filtry źródła i kanału z licznikami „ile zobaczę”, podgląd filmu wszędzie, blokada kanału zamiast usuwania. *(ADR 0005, 0016)* |
+| Świat rodzica | **Indeks** panelu: podsumowanie (pozostały czas wideo dziś, dziś i średnia 7 dni w rozbiciu filmy/audio) + sekcje z podglądem stanu: Do zatwierdzenia · Biblioteka · Zablokowane · Dodaj film/kanał · Historia oglądania · Kontrola czasu · Zmień kod · Linki YouTube · Baza danych · Log. Nawigacja stosem (cofnięcie wraca po ścieżce, 2× zamyka panel), pull-to-refresh zamiast przycisku sync, filtry źródła i kanału z licznikami „ile zobaczę”, **ekran kanału z filtrami Zaakceptowane / Odrzucone / Oczekujące (bez „Wszystkie”)**, podgląd filmu wszędzie, blokada kanału zamiast usuwania. *(ADR 0005, 0016, 0018)* |
 | Czas | **Jedno okno tygodniowe** (bramka wideo) + **dzienny limit wideo** (twarde cięcie, ostrzeżenie 5 min przed) + **audio bez limitu i poza oknem** (tryb audio, nie kategoria treści) + **tryb snu** 1 h z resetem na ekranie audio + **dodatkowy czas wideo** (+15 min / +1 h, pula na dziś, PIN rodzica). Zastąpiło dawny „tryb nocny”. *(ADR 0002, 0011)* |
 | Synchronizacja | Przy otwarciu aplikacji (jeden przebieg po pokazaniu biblioteki z pamięci) i na żądanie: przeciągnięcie w dół w widoku dziecka (feed / kanały / kanał) albo „Synchronizuj” w panelu. Równoległe żądania są scalane w jeden przebieg; timer w tle odroczony do backlogu z bramką oceny. *(ADR 0006)* |
 | Import katalogu | Jawny przycisk **„Wczytaj cały katalog”** na kanale: pełna lista przez InnerTube (paginacja), bez klucza API; status wg polityki kanału; **wznawialny** — checkpoint kursora, dzienny budżet stron, miękki stop przy limicie/błędzie. *(ADR 0009)* |
@@ -64,7 +64,7 @@ src/
     watchHistoryView.ts       etykiety historii: dni i polskie daty
     childNavigation.ts        stos nawigacji dziecka (zakładki + kanał)
     plural.ts                 polskie odmiany („1 film / 2 filmy / 5 filmów”)
-    panel.ts                  selektory panelu: kolejka, biblioteka, archiwum, pasek kanałów
+    panel.ts                  selektory panelu: kolejka, biblioteka, archiwum, pasek kanałów, statusy kanału
     watchStats.ts             statystyki czasu: dziś i średnia 7 dni (filmy/audio)
     log.ts                    bufor sesyjny zdarzeń (ring, 100 wpisów)
     playerGestures.ts         strefy gestów odtwarzacza (środek / brzegi)
@@ -92,6 +92,7 @@ src/
   ui/                         ekrany (bez zewnętrznej nawigacji)
   ui/parent/ParentPanel.tsx   stos ekranów panelu rodzica (ADR 0016)
   ui/parent/PanelIndex.tsx    indeks: podsumowanie + sekcje
+  ui/parent/ChannelScreen.tsx ekran kanału: karta + filtry statusów + lista filmów
   ui/parent/*Section.tsx      sekcje panelu (oczekujące, biblioteka, zablokowane, dodaj, …)
   ui/parent/DatabaseSection.tsx  eksport/import bazy z potwierdzeniem PIN
   ui/child/                   siatka Feed, lista kanałów, propozycje dziecka
@@ -111,7 +112,7 @@ obejrzenia dołączą do warstwy `domain/` + `data/` (ADR 0004).
 ## Testy
 
 ```bash
-npm test          # 255 testów: URL, RSS, reguły list, decyzje (last-wins), harmonogram + tryb snu + przeskoki, licznik czasu odtwarzania, stan obejrzenia + historia oglądania, nawigacja dziecka, gesty odtwarzacza, daty, PIN, sync (także przy starcie, pull-to-refresh i kanałach wyciszonych), linki + propozycje kanałów, handler VIEW, kopia bazy (walidacja formatu, rollback, przerwany import), player, render App
+npm test          # 265 testów: URL, RSS, reguły list, decyzje (last-wins), harmonogram + tryb snu + przeskoki, licznik czasu odtwarzania, stan obejrzenia + historia oglądania, nawigacja dziecka, gesty odtwarzacza, daty, PIN, sync (także przy starcie, pull-to-refresh i kanałach wyciszonych), linki + propozycje kanałów, handler VIEW, kopia bazy (walidacja formatu, rollback, przerwany import), filtry statusów ekranu kanału, player, render App
 npx tsc --noEmit  # typy
 npx eslint .      # lint
 ```

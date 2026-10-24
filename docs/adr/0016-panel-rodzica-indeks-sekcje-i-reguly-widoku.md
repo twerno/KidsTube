@@ -1,5 +1,8 @@
 # ADR 0016 — Panel rodzica: indeks, sekcje i reguły widoku
 
+> Uzupełnienie: ekran kanału ma trzy filtry statusu — Zaakceptowane / Odrzucone /
+> Oczekujące, bez „Wszystkie” (ADR 0018).
+
 Panel rodzica wyrósł w płaski rząd sześciu zakładek, w którym codzienne
 zatwierdzanie stało obok rzadkich ustawień, filtry dublowały się w każdej
 liście, a zakładka „Decyzje” (ADR 0010) nigdy nie powstała. Ten ADR porządkuje
