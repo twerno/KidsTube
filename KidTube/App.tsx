@@ -74,6 +74,9 @@ import {
 import { isChannelMuted, withChannelMuted } from './src/domain/channels';
 import { addByLink, type AddLinkResult } from './src/services/addByLink';
 import { recordLog } from './src/services/logStore';
+import { applyBackup, exportDatabase, pickDatabase } from './src/services/databaseBackup';
+import type { BackupFile } from './src/domain/backup';
+import { APP_VERSION } from './src/version';
 import { ChildHomeScreen } from './src/ui/ChildHomeScreen';
 import { GateScreen } from './src/ui/GateScreen';
 import { PinPrompt } from './src/ui/PinPrompt';
@@ -221,7 +224,12 @@ export default function App() {
   // Concurrent triggers — e.g. a pull right after a cold start — share one run,
   // so the feed is never swept twice in parallel.
   const syncPromiseRef = useRef<Promise<void> | null>(null);
+  // Set while a backup restore is writing: sync must not race the replace.
+  const restoringRef = useRef(false);
   const sync = useCallback(async (): Promise<void> => {
+    if (restoringRef.current) {
+      return;
+    }
     if (syncPromiseRef.current) {
       return syncPromiseRef.current;
     }
@@ -758,6 +766,35 @@ export default function App() {
     return true;
   };
 
+  // ---- Database backup (ADR 0017) -----------------------------------------
+
+  const exportBackup = useCallback(() => exportDatabase(repo, APP_VERSION), [repo]);
+  const pickBackup = useCallback(() => pickDatabase(), []);
+
+  const restoreBackup = useCallback(
+    async (file: BackupFile) => {
+      restoringRef.current = true;
+      try {
+        const outcome = await applyBackup(repo, file);
+        if (!outcome.ok) {
+          return outcome;
+        }
+        await reload();
+        // The system component state is not part of the file (ADR 0014/0017).
+        const stored = await repo.getSettings();
+        await setYouTubeLinkHandlerEnabled(!!stored.youtubeLinkHandlerEnabled).catch(
+          () => undefined,
+        );
+        // Close the panel: the restored settings and PIN take over.
+        setRoute({ name: 'child' });
+        return outcome;
+      } finally {
+        restoringRef.current = false;
+      }
+    },
+    [repo, reload],
+  );
+
   // ---- Parent actions ------------------------------------------------------
 
   const addLink = useCallback(
@@ -1066,6 +1103,11 @@ export default function App() {
           }}
           onSetStatus={setVideoStatus}
           onRetract={retractDecision}
+          onExportBackup={exportBackup}
+          onPickBackup={pickBackup}
+          onRestoreBackup={restoreBackup}
+          onVerifyPin={verifyParentPin}
+          pinLockedUntil={pinGuard.lockedUntil}
           onTogglePolicy={toggleChannelPolicy}
           onToggleMuted={toggleChannelMuted}
           onToggleBlocked={toggleChannelBlocked}

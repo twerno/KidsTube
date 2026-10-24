@@ -1,6 +1,6 @@
 # ADR 0017 — Baza danych: eksport i import kopii w pliku JSON
 
-> Propozycja — nie wdrożone. Rozszerza ADR 0016 o sekcję „Baza danych”.
+> Status: **wdrożone** (0.9.0). Rozszerza ADR 0016 o sekcję „Baza danych”.
 
 KidTube jest w pełni lokalna: nie ma konta ani backendu (ADR 0007), a cała
 biblioteka, kanały, decyzje, historia oglądania, ustawienia i kod rodzica żyją
@@ -37,9 +37,10 @@ Sekcja obsługuje **całą lokalną bazę**, a nie pojedyncze listy. Import jest
   dłużej niż na czas odczytu snapshotu.
 - Eksport wymaga potwierdzenia aktualnym kodem rodzica (ADR 0012), ponieważ
   plik zawiera dane wrażliwe.
-- Plik zawiera **hash i sól kodu rodzica** (nigdy jawny PIN), imię dziecka,
-  pełną historię oglądania i decyzje. To dane wrażliwe — UI musi to jasno
-  powiedzieć przed zapisem.
+- Plik **nie zawiera żadnych danych kodu rodzica** — ani jawnego PIN-u, ani
+  hasha, soli czy iteracji. Kod zostaje na urządzeniu. Plik zawiera imię
+  dziecka, pełną historię oglądania i decyzje — to dane wrażliwe i UI musi to
+  jasno powiedzieć przed zapisem.
 
 ## Format pliku
 
@@ -70,12 +71,13 @@ Plik jest jednym obiektem JSON z jawną kopertą:
 - `exportedAt` to znacznik czasu w ISO 8601 (UTC), a `appVersion` służy tylko
   do informacji i diagnostyki.
 - `data` zawiera wszystkie trwałe kolekcje domenowe: ustawienia (w tym
-  `schedule`, `youtubeLinkHandlerEnabled` i dane PIN-u), kanały (w tym
-  `muted`), propozycje kanałów, filmy, decyzje (łącznie z `retract`), zużycie
-  czasu, postęp, historię oglądania i pulę dodatkowego czasu.
-- **Poza plikiem pozostają**: `pinGuard` (stan blokady PIN jest lokalny dla
-  urządzenia i zostanie wyzerowany po imporcie) oraz log sesji (ADR 0016
-  wprost wyklucza jego eksport).
+  `schedule` i `youtubeLinkHandlerEnabled`, bez danych kodu rodzica), kanały
+  (w tym `muted`), propozycje kanałów, filmy, decyzje (łącznie z `retract`),
+  zużycie czasu, postęp, historię oglądania i pulę dodatkowego czasu.
+- **Poza plikiem pozostają**: dane kodu rodzica (jawne i pochodne PBKDF2),
+  `pinGuard` (stan blokady PIN jest lokalny dla urządzenia i zostanie
+  wyzerowany po imporcie) oraz log sesji (ADR 0016 wprost wyklucza jego
+  eksport).
 - Kolejność tablic jest zachowywana; decyzje pozostają w kolejności
   append-only, bo ich kolejność ma znaczenie dla last-wins.
 
@@ -102,9 +104,9 @@ dokument nie przejdzie walidacji, baza pozostaje nietknięta.
   już nie ma; film może nie mieć rekordu kanału; propozycja może być
   nierozwiązana. Nie odrzucamy poprawnych danych tylko dlatego, że biblioteka
   była wcześniej czyszczona.
-- Jeśli plik zawiera dane PIN-u, musi to być komplet `pinHash`, `pinSalt`
-  i `pinIterations`; niepełny zestaw jest błędem. Brak danych PIN-u jest
-  dozwolony — po imporcie aplikacja przejdzie przez ustawianie kodu.
+- Dane kodu rodzica nie są częścią formatu. Jeśli plik je zawiera (np. kopia
+  z innej wersji), są ignorowane jak nieznane pola i nigdy nie trafiają do
+  bazy — PIN nie może być wczytany z pliku.
 - Nieznane pola w znanej wersji są ignorowane; nieznana nowsza wersja jest
   odrzucana. Dzięki temu przyszłe, kompatybilne dodatki nie psują importu.
 
@@ -113,9 +115,9 @@ dokument nie przejdzie walidacji, baza pozostaje nietknięta.
 - Po walidacji panel pokazuje podsumowanie pliku: datę eksportu, wersję,
   liczbę kanałów, filmów, decyzji i wpisów historii oraz ostrzeżenie, że
   **cała obecna baza zostanie zastąpiona**.
-- Komunikat mówi też, że import przywraca ustawienia i **kod rodzica z pliku**
-  (jeśli plik go zawiera) oraz liczniki czasu z pliku. Rodzic powinien znać
-  kod z kopii; bez niego po imporcie może utracić dostęp do panelu.
+- Komunikat mówi też, że import przywraca ustawienia i liczniki czasu z pliku,
+  a **kod rodzica nie jest częścią kopii**: po imporcie pozostaje obecny kod,
+  a na urządzeniu bez kodu aplikacja poprosi o ustawienie nowego.
 - Panel sugeruje **najpierw wyeksportować obecną bazę**, żeby mieć drogę
   powrotu.
 - Import wymaga ponownego potwierdzenia aktualnym kodem rodzica (wspólna
@@ -129,19 +131,20 @@ dokument nie przejdzie walidacji, baza pozostaje nietknięta.
   niedokończony import i kończy go albo wraca do poprzedniego stanu — baza nie
   może zostać częściowo nadpisana.
 - Po udanym imporcie aplikacja **zamyka panel i przeładowuje cały stan**.
-  Ponowne wejście do panelu wymaga kodu z importu (albo ustawienia nowego
-  kodu, jeśli plik go nie miał). Import nie uruchamia synchronizacji ani
+  Ponowne wejście do panelu wymaga obecnego kodu urządzenia (albo ustawienia
+  nowego kodu, jeśli urządzenie go nie ma). Import nie uruchamia synchronizacji ani
   backfillu z ADR 0015; to robi dopiero następny start lub pull-to-refresh.
 - `pinGuard` nie jest importowany: po sukcesie stan blokady jest zerowany,
   a po niepowodzeniu nie jest nadpisywany zawartością pliku.
 
 ## Bezpieczeństwo
 
-- Plik jest **jawnym JSON-em**, nie jest szyfrowany. Zawiera hash PIN-u, sól,
-  imię dziecka, historię oglądania i decyzje. Rodzic powinien traktować go jak
-  dane wrażliwe i nie wysyłać go przypadkowo.
-- Nie eksportujemy jawnego PIN-u ani żadnych sekretów innych niż pochodne
-  PBKDF2 potrzebne do odtworzenia logowania.
+- Plik jest **jawnym JSON-em**, nie jest szyfrowany. Zawiera imię dziecka,
+  historię oglądania i decyzje, ale **nie zawiera żadnych danych kodu
+  rodzica**. Rodzic powinien traktować go jak dane wrażliwe i nie wysyłać go
+  przypadkowo.
+- Nie eksportujemy żadnych danych kodu rodzica — ani jawnego PIN-u, ani
+  pochodnych PBKDF2.
 - Import **nie ufa zawartości pliku**: waliduje dane, nie wykonuje kodu, nie
   pobiera niczego z sieci i nie uruchamia linków. Nieznany plik może jednak
   zmienić bibliotekę i kod rodzica, dlatego wymagane jest świadome
@@ -165,7 +168,7 @@ dokument nie przejdzie walidacji, baza pozostaje nietknięta.
   pełnej kopii; przeniesienie na nowy telefon wymagałoby ręcznej
   rekonfiguracji.
 - **Eksport automatyczny / do chmury** — odrzucone: brak backendu i konta
-  (ADR 0007), a wysyłanie historii i hasha PIN-u bez jawnej decyzji rodzica
+  (ADR 0007), a wysyłanie historii i decyzji bez jawnej decyzji rodzica
   byłoby ryzykowne.
 - **Kopia tylko w pamięci prywatnej aplikacji** — odrzucone: ginie razem
   z odinstalowaniem, czyli dokładnie w najczęstszym scenariuszu odtwarzania.
@@ -175,9 +178,9 @@ dokument nie przejdzie walidacji, baza pozostaje nietknięta.
 - **Szyfrowanie pliku kopii** — odłożone poza wersję 1: wymaga zarządzania
   kluczem i odzyskiwania po zapomnianym PIN-ie. Na teraz jawny JSON
   z wyraźnym ostrzeżeniem.
-- **Import z zachowaniem obecnego PIN-u** — odrzucone: kopia ma odtwarzać
-  także kod rodzica; inaczej przeniesienie na nowy telefon wymagałoby
-  dodatkowej konfiguracji. Ryzyko jest komunikowane przed importem.
+- **Kopia z hashem i solą PIN-u** — odrzucone: 4-cyfrowy PIN da się złamać
+  offline na podstawie hasha w jawnym pliku. Kod zostaje na urządzeniu, a nowy
+  telefon wymaga ustawienia nowego kodu.
 - **Brak ponownego PIN-u przy eksporcie/imporcie** — odrzucone: eksport
   ujawnia wrażliwe dane, a import może podmienić kod rodzica; panel może być
   otwarty, więc sama obecność w panelu to za mało.
@@ -208,8 +211,9 @@ dokument nie przejdzie walidacji, baza pozostaje nietknięta.
   `pinGuard`/logu; import poprawnego pliku zastępuje bazę; błędny JSON,
   nieznana wersja, brak kolekcji, duplikaty i zły PIN nie zmieniają bazy;
   anulowanie importu nie zmienia bazy; rollback po błędzie zapisu; po imporcie
-  stan jest przeładowany, panel zamknięty, a kod pochodzi z pliku; import nie
-  uruchamia syncu/backfillu; ustawienie linków jest ponownie zastosowane.
+  stan jest przeładowany, panel zamknięty, a kod rodzica pozostaje
+  z urządzenia; import nie uruchamia syncu/backfillu; ustawienie linków jest
+  ponownie zastosowane.
 - Po wdrożeniu README i instrukcja dla rodzica muszą opisać format kopii,
-  miejsce zapisu, brak szyfrowania i to, że import zastępuje całą bazę oraz
-  może zmienić kod rodzica.
+  miejsce zapisu, brak szyfrowania i to, że import zastępuje całą bazę, ale
+  nie zmienia kodu rodzica.

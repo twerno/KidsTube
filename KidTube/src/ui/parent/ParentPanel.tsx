@@ -3,6 +3,7 @@ import { BackHandler, ScrollView, StyleSheet, View } from 'react-native';
 import { WatchHistoryList } from '../WatchHistoryList';
 import { AddSection } from './AddSection';
 import { BlockedSection } from './BlockedSection';
+import { DatabaseSection } from './DatabaseSection';
 import { DecisionToast } from './DecisionToast';
 import { ChannelDetails } from './ChannelCard';
 import { EmptyState } from './EmptyState';
@@ -19,6 +20,8 @@ import { SECTION_TITLE, type SectionKey } from './sections';
 import { isBlockedChannelVideo, videosForChannel } from '../../domain/panel';
 import { colors, spacing } from '../theme';
 import type { AddLinkResult } from '../../services/addByLink';
+import type { ExportOutcome, PickOutcome, RestoreOutcome } from '../../services/databaseBackup';
+import type { BackupFile } from '../../domain/backup';
 import type {
   Channel,
   ChannelProposal,
@@ -49,6 +52,11 @@ export interface ParentPanelProps {
   onRefresh: () => void;
   onSetStatus: (video: Video, status: VideoStatus) => void;
   onRetract: (video: Video) => void;
+  onExportBackup: () => Promise<ExportOutcome>;
+  onPickBackup: () => Promise<PickOutcome>;
+  onRestoreBackup: (file: BackupFile) => Promise<RestoreOutcome>;
+  onVerifyPin: (pin: string) => Promise<boolean>;
+  pinLockedUntil?: number;
   onTogglePolicy: (channel: Channel) => void;
   onToggleMuted: (channel: Channel) => void;
   onToggleBlocked: (channel: Channel) => void;
@@ -100,6 +108,11 @@ export function ParentPanel(props: ParentPanelProps) {
     onRefresh,
     onSetStatus,
     onRetract,
+    onExportBackup,
+    onPickBackup,
+    onRestoreBackup,
+    onVerifyPin,
+    pinLockedUntil,
     onTogglePolicy,
     onToggleMuted,
     onToggleBlocked,
@@ -329,6 +342,16 @@ export function ParentPanel(props: ParentPanelProps) {
             youtubeLinkHandlerEnabled={youtubeLinkHandlerEnabled}
             onYouTubeLinkHandlerChange={onYouTubeLinkHandlerChange}
             onOpenLinkHandlingSettings={onOpenLinkHandlingSettings}
+          />
+        );
+      case 'database':
+        return (
+          <DatabaseSection
+            onExport={onExportBackup}
+            onPick={onPickBackup}
+            onRestore={onRestoreBackup}
+            onVerifyPin={onVerifyPin}
+            lockedUntil={pinLockedUntil}
           />
         );
       case 'log':

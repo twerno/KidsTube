@@ -129,6 +129,14 @@ _Avoid_: Menu, Dashboard, Strona główna panelu
 Jedno zadanie rodzica dostępne z indeksu (zatwierdzanie, biblioteka, dodawanie, historia, czas, kod, linki). Wejście w sekcję to osobny ekran; cofnięcie wraca do indeksu.
 _Avoid_: Zakładka, Karta
 
+**Baza danych (sekcja)**:
+Eksport i import całej lokalnej bazy w jednym pliku JSON; import odtwarza kopię — zastępuje stan, nigdy nie scala.
+_Avoid_: Backup w znaczeniu automatycznym, Synchronizacja
+
+**Kopia bazy**:
+Plik JSON z pełnym snapshotem domeny: biblioteka, kanały, decyzje, historia oglądania i ustawienia — **bez kodu rodzica**, stanu blokady PIN i logu sesji; jawny, niezaszyfrowany.
+_Avoid_: Dump AsyncStorage, Kopia w chmurze
+
 **Zablokowane (sekcja)**:
 Archiwum kanałów i filmów zablokowanych przez rodzica — jedyne miejsce, w którym działa „Odblokuj” i „Przywróć”. Nie jest kolejką, więc nie pokazuje liczby.
 _Avoid_: Czarna lista (jako nazwa widoku), Kosz

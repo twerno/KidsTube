@@ -8,6 +8,7 @@ export type SectionKey =
   | 'schedule'
   | 'pin'
   | 'links'
+  | 'database'
   | 'log';
 
 export const SECTION_TITLE: Record<SectionKey, string> = {
@@ -19,5 +20,6 @@ export const SECTION_TITLE: Record<SectionKey, string> = {
   schedule: 'Kontrola czasu oglądania',
   pin: 'Zmień kod rodzica',
   links: 'Powiąż z linkami YouTube',
+  database: 'Baza danych',
   log: 'Log',
 };

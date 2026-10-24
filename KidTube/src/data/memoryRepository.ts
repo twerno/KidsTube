@@ -3,6 +3,7 @@
 import type {
   Channel,
   ChannelProposal,
+  DatabaseSnapshot,
   Decision,
   ExtraTimePool,
   PinGuardState,
@@ -49,6 +50,34 @@ export class MemoryRepository implements Repository {
   }
 
   async init(): Promise<void> {}
+
+  async snapshotAll(): Promise<DatabaseSnapshot> {
+    return {
+      settings: { ...this.settings },
+      channels: [...this.channels.values()].map(channel => ({ ...channel })),
+      channelProposals: [...this.channelProposals.values()].map(proposal => ({ ...proposal })),
+      videos: [...this.videos.values()].map(video => ({ ...video })),
+      decisions: this.decisions.map(decision => ({ ...decision })),
+      usage: Object.fromEntries(this.usage),
+      watchProgress: [...this.watchProgress.values()].map(progress => ({ ...progress })),
+      watchHistory: this.watchHistory.map(entry => ({ ...entry })),
+      extraTime: this.extraTime ? { ...this.extraTime } : null,
+    };
+  }
+
+  async replaceAll(snapshot: DatabaseSnapshot): Promise<void> {
+    this.settings = { ...DEFAULT_SETTINGS, ...snapshot.settings };
+    this.channels = new Map(snapshot.channels.map(channel => [channel.id, channel]));
+    this.channelProposals = new Map(
+      snapshot.channelProposals.map(proposal => [proposal.id, proposal]),
+    );
+    this.videos = new Map(snapshot.videos.map(video => [video.id, video]));
+    this.decisions = [...snapshot.decisions];
+    this.usage = new Map(Object.entries(snapshot.usage));
+    this.watchProgress = new Map(snapshot.watchProgress.map(progress => [progress.videoId, progress]));
+    this.watchHistory = [...snapshot.watchHistory];
+    this.extraTime = snapshot.extraTime ? { ...snapshot.extraTime } : undefined;
+  }
 
   async getSettings(): Promise<Settings> {
     return { ...this.settings };

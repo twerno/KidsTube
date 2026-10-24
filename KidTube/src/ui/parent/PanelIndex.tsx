@@ -102,6 +102,11 @@ export function PanelIndex({
         subtitle: youtubeLinkHandlerEnabled ? 'Włączone' : 'Wyłączone',
       },
       {
+        key: 'database',
+        label: SECTION_TITLE.database,
+        subtitle: 'Kopia zapasowa (JSON)',
+      },
+      {
         key: 'log',
         label: SECTION_TITLE.log,
         subtitle: 'Zdarzenia z tej sesji',

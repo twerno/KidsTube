@@ -4,6 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import type {
   Channel,
   ChannelProposal,
+  DatabaseSnapshot,
   Decision,
   ExtraTimePool,
   PinGuardState,
@@ -28,6 +29,12 @@ const KEYS = {
   watchHistory: '@kidtube/watch-history/v1',
   extraTime: '@kidtube/extra-time/v1',
   pinGuard: '@kidtube/pin-guard/v1',
+};
+
+/** Markers of an in-flight whole-database replace (ADR 0017). */
+const REPLACE_KEYS = {
+  pending: '@kidtube/replace-pending/v1',
+  rollback: '@kidtube/replace-rollback/v1',
 };
 
 async function readJson<T>(key: string, fallback: T): Promise<T> {
@@ -87,8 +94,9 @@ export class AsyncStorageRepository implements Repository {
     Object.entries(usage ?? {}).forEach(([key, seconds]) => this.usage.set(key, seconds));
     (watchProgress ?? []).forEach(p => this.watchProgress.set(p.videoId, p));
     this.watchHistory = [...(watchHistory ?? [])];
-    this.extraTime = extraTime;
+    this.extraTime = extraTime ?? undefined;
     this.pinGuard = pinGuard ?? { failedAttempts: 0 };
+    await this.finishInterruptedReplace();
     this.loaded = true;
   }
 
@@ -125,6 +133,104 @@ export class AsyncStorageRepository implements Repository {
 
   private async persistWatchHistory(): Promise<void> {
     await AsyncStorage.setItem(KEYS.watchHistory, JSON.stringify(this.watchHistory));
+  }
+
+  async snapshotAll(): Promise<DatabaseSnapshot> {
+    return {
+      settings: { ...this.settings },
+      channels: [...this.channels.values()].map(channel => ({ ...channel })),
+      channelProposals: [...this.channelProposals.values()].map(proposal => ({ ...proposal })),
+      videos: [...this.videos.values()].map(video => ({ ...video })),
+      decisions: this.decisions.map(decision => ({ ...decision })),
+      usage: Object.fromEntries(this.usage),
+      watchProgress: [...this.watchProgress.values()].map(progress => ({ ...progress })),
+      watchHistory: this.watchHistory.map(entry => ({ ...entry })),
+      extraTime: this.extraTime ? { ...this.extraTime } : null,
+    };
+  }
+
+  private entries(snapshot: DatabaseSnapshot): Record<string, string> {
+    return Object.fromEntries(this.serialize(snapshot));
+  }
+
+  private serialize(snapshot: DatabaseSnapshot): [string, string][] {
+    return [
+      [KEYS.settings, JSON.stringify(snapshot.settings)],
+      [KEYS.channels, JSON.stringify(snapshot.channels)],
+      [KEYS.channelProposals, JSON.stringify(snapshot.channelProposals)],
+      [KEYS.videos, JSON.stringify(snapshot.videos)],
+      [KEYS.decisions, JSON.stringify(snapshot.decisions)],
+      [KEYS.usage, JSON.stringify(snapshot.usage)],
+      [KEYS.watchProgress, JSON.stringify(snapshot.watchProgress)],
+      [KEYS.watchHistory, JSON.stringify(snapshot.watchHistory)],
+      [KEYS.extraTime, JSON.stringify(snapshot.extraTime)],
+    ];
+  }
+
+  private apply(snapshot: DatabaseSnapshot): void {
+    this.settings = { ...DEFAULT_SETTINGS, ...snapshot.settings };
+    this.channels = new Map(snapshot.channels.map(channel => [channel.id, channel]));
+    this.channelProposals = new Map(
+      snapshot.channelProposals.map(proposal => [proposal.id, proposal]),
+    );
+    this.videos = new Map(snapshot.videos.map(video => [video.id, video]));
+    this.decisions = [...snapshot.decisions];
+    this.usage = new Map(Object.entries(snapshot.usage));
+    this.watchProgress = new Map(
+      snapshot.watchProgress.map(progress => [progress.videoId, progress]),
+    );
+    this.watchHistory = [...snapshot.watchHistory];
+    this.extraTime = snapshot.extraTime ? { ...snapshot.extraTime } : undefined;
+  }
+
+  async replaceAll(snapshot: DatabaseSnapshot): Promise<void> {
+    const previous = await this.snapshotAll();
+    try {
+      // The markers make a crash mid-replace recoverable: on the next start the
+      // pending snapshot is either finished or replaced by the rollback copy.
+      await AsyncStorage.setItem(REPLACE_KEYS.pending, JSON.stringify(snapshot));
+      await AsyncStorage.setItem(REPLACE_KEYS.rollback, JSON.stringify(previous));
+      await AsyncStorage.setMany(this.entries(snapshot));
+      await AsyncStorage.removeMany([REPLACE_KEYS.pending, REPLACE_KEYS.rollback]);
+      this.apply(snapshot);
+    } catch (error) {
+      try {
+        await AsyncStorage.setMany(this.entries(previous));
+        this.apply(previous);
+      } catch {
+        // Storage is failing; keep the markers for the next start.
+        throw error;
+      }
+      await AsyncStorage.removeMany([REPLACE_KEYS.pending, REPLACE_KEYS.rollback]).catch(
+        () => undefined,
+      );
+      throw error;
+    }
+  }
+
+  private async finishInterruptedReplace(): Promise<void> {
+    const pending = await readJson<DatabaseSnapshot | null>(REPLACE_KEYS.pending, null);
+    if (!pending) {
+      return;
+    }
+    try {
+      await AsyncStorage.setMany(this.entries(pending));
+      this.apply(pending);
+    } catch {
+      const rollback = await readJson<DatabaseSnapshot | null>(REPLACE_KEYS.rollback, null);
+      if (rollback) {
+        try {
+          await AsyncStorage.setMany(this.entries(rollback));
+        } catch {
+          // Keep the markers: the next start can try again.
+          return;
+        }
+        this.apply(rollback);
+      }
+    }
+    await AsyncStorage.removeMany([REPLACE_KEYS.pending, REPLACE_KEYS.rollback]).catch(
+      () => undefined,
+    );
   }
 
   async getSettings(): Promise<Settings> {

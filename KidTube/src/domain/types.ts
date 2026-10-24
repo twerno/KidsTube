@@ -197,6 +197,23 @@ export interface Settings {
   youtubeLinkHandlerEnabled?: boolean;
 }
 
+/**
+ * Full local database snapshot (ADR 0017): every durable collection, without
+ * `pinGuard` (device-local) and without the session log.
+ */
+export interface DatabaseSnapshot {
+  settings: Settings;
+  channels: Channel[];
+  channelProposals: ChannelProposal[];
+  videos: Video[];
+  decisions: Decision[];
+  /** Local day key (`YYYY-MM-DD`) → seconds of video playback. */
+  usage: Record<string, number>;
+  watchProgress: WatchProgress[];
+  watchHistory: WatchHistoryEntry[];
+  extraTime: ExtraTimePool | null;
+}
+
 export const DEFAULT_SCHEDULE: Schedule = {
   enabled: false,
   dailyLimitMinutes: 0,

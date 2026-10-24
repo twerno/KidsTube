@@ -7,6 +7,7 @@
 import type {
   Channel,
   ChannelProposal,
+  DatabaseSnapshot,
   Decision,
   ExtraTimePool,
   PinGuardState,
@@ -19,6 +20,15 @@ import type {
 
 export interface Repository {
   init(): Promise<void>;
+
+  /** Whole-database snapshot for a backup file (ADR 0017). */
+  snapshotAll(): Promise<DatabaseSnapshot>;
+  /**
+   * Replace the whole database in one transaction (ADR 0017). A rollback copy
+   * is kept until every collection is written; an interrupted replace is
+   * finished or rolled back on the next `init`.
+   */
+  replaceAll(snapshot: DatabaseSnapshot): Promise<void>;
 
   getSettings(): Promise<Settings>;
   updateSettings(patch: Partial<Settings>): Promise<Settings>;

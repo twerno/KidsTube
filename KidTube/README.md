@@ -32,6 +32,7 @@ domenowych: `CONTEXT.md` (root repozytorium).
 | Import katalogu | Jawny przycisk **„Wczytaj cały katalog”** na kanale: pełna lista przez InnerTube (paginacja), bez klucza API; status wg polityki kanału; **wznawialny** — checkpoint kursora, dzienny budżet stron, miękki stop przy limicie/błędzie. *(ADR 0009)* |
 | Dystrybucja | Rodzinny sideload z GitHub Releases (debug keystore). Google Play — przyszła, odwracalna decyzja z bramką oceny. *(ADR 0007)* |
 | PIN | PBKDF2-SHA256, losowa sól (`@noble/hashes`); blokada profilu rodzica na 3 min po 3 błędnych PIN-ach, stan lokalny i wspólny dla panelu i dodatkowego czasu. *(ADR 0012)* |
+| Kopia bazy | **Panel → Baza danych**: eksport całej bazy do jednego pliku JSON (`kidtube-backup-…`) przez systemowy wybór miejsca; import **zastępuje** bazę (bez scalania), waliduje cały plik przed zapisem, ma rollback i wykrywanie przerwanego importu. `pinGuard`, log i **kod rodzica** poza kopią. Plik jawny, bez PIN-u. *(ADR 0017)* |
 | Wersje | `minSdk 26` (Android 8), `targetSdk 36`, `compileSdk 37`. |
 
 ### Dlaczego RSS, a nie „wszystkie filmy”
@@ -69,6 +70,7 @@ src/
     playerGestures.ts         strefy gestów odtwarzacza (środek / brzegi)
     playerGuard.ts            allowlist nawigacji WebView (tylko embed białego filmu)
     channels.ts               flaga wyciszenia, kanał z zatwierdzonego filmu
+    backup.ts                 format kopii bazy: koperta, wersja schematu, walidacja
   data/
     repository.ts             interfejs trwałości
     memoryRepository.ts       implementacja in-memory (testy)
@@ -80,22 +82,25 @@ src/
     channelMuting.ts          kanały wyciszone: tworzenie przy decyzji + backfill
     incomingLink.ts           wspólny potok linku z share/VIEW
     addByLink.ts              dodawanie filmu/kanału z linku (wszystko albo nic)
+    databaseBackup.ts         eksport/import bazy: snapshot, walidacja, zastąpienie
     logStore.ts               magazyn logu sesji dla sekcji „Log”
   security/pin.ts             hashowanie i weryfikacja PIN
   native/shareIntent.ts       most do natywnego modułu ShareIntent / Linking
+  native/backupFile.ts        most SAF: zapis/odczyt pliku kopii JSON
   native/youtubeLinkHandler.ts most do włączania/wyłączania aliasu VIEW
   version.ts                  wersja aplikacji (z package.json)
   ui/                         ekrany (bez zewnętrznej nawigacji)
   ui/parent/ParentPanel.tsx   stos ekranów panelu rodzica (ADR 0016)
   ui/parent/PanelIndex.tsx    indeks: podsumowanie + sekcje
   ui/parent/*Section.tsx      sekcje panelu (oczekujące, biblioteka, zablokowane, dodaj, …)
+  ui/parent/DatabaseSection.tsx  eksport/import bazy z potwierdzeniem PIN
   ui/child/                   siatka Feed, lista kanałów, propozycje dziecka
   ui/WatchHistoryList.tsx     historia po dniach: wariant dziecka i rodzica
   ui/ChannelAvatar.tsx        wspólny awatar kanału (zdjęcie lub inicjał)
   ui/player/PlayerControls.tsx  natywny pasek: play/pauza, seek, CC, audio
 android/app/src/main/
   AndroidManifest.xml         SEND + osobny alias VIEW (domyślnie wyłączony)
-  java/com/kidtube/           ShareIntentModule / YouTubeLinkHandlerModule / Package
+  java/com/kidtube/           ShareIntentModule / YouTubeLinkHandlerModule / BackupFileModule / Package
 ```
 
 Kształt plików ewoluuje wg ADR-ów. **Log decyzji** (`domain/decisions.ts` +
@@ -106,7 +111,7 @@ obejrzenia dołączą do warstwy `domain/` + `data/` (ADR 0004).
 ## Testy
 
 ```bash
-npm test          # 224 testy: URL, RSS, reguły list, decyzje (last-wins), harmonogram + tryb snu + przeskoki, licznik czasu odtwarzania, stan obejrzenia + historia oglądania, nawigacja dziecka, gesty odtwarzacza, daty, PIN, sync (także przy starcie, pull-to-refresh i kanałach wyciszonych), linki + propozycje kanałów, handler VIEW, player, render App
+npm test          # 255 testów: URL, RSS, reguły list, decyzje (last-wins), harmonogram + tryb snu + przeskoki, licznik czasu odtwarzania, stan obejrzenia + historia oglądania, nawigacja dziecka, gesty odtwarzacza, daty, PIN, sync (także przy starcie, pull-to-refresh i kanałach wyciszonych), linki + propozycje kanałów, handler VIEW, kopia bazy (walidacja formatu, rollback, przerwany import), player, render App
 npx tsc --noEmit  # typy
 npx eslint .      # lint
 ```
@@ -175,6 +180,21 @@ ją dodać.
 - **Propozycje dziecka** (zakładka „Do zatwierdzenia”) wpadają do tej samej
   listy oczekującej (źródło `propose`), ale link do kanału nie tworzy
   propozycji kanału — kanałami zarządza wyłącznie rodzic.
+
+## Kopia bazy (eksport/import)
+
+Panel rodzica → **Baza danych**:
+
+1. **Eksportuj bazę do JSON** — potwierdź kodem rodzica, wybierz miejsce zapisu
+   (systemowy wybór plików), plik `kidtube-backup-RRRR-MM-DD-HHmm.json`.
+2. **Importuj bazę z JSON** — wskaż plik, sprawdź podsumowanie (data, wersja,
+   liczby), potwierdź kodem. Import **zastępuje całą bazę**; nie scala danych.
+   Po sukcesie panel się zamyka, a kod rodzica pochodzi z pliku.
+
+Plik nie jest szyfrowany: zawiera imię dziecka, historię oglądania i decyzje,
+ale **nie zawiera kodu rodzica** — PIN zostaje na urządzeniu. Po imporcie
+obowiązuje dotychczasowy kod; na nowym telefonie ustawisz nowy. Stan blokady
+PIN i log sesji również nie są częścią kopii.
 
 ## Backlog
 

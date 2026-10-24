@@ -13,6 +13,7 @@ class KidTubePackage : ReactPackage {
       YouTubeLinkHandlerModule(reactContext),
       PinCryptoModule(reactContext),
       OrientationModule(reactContext),
+      BackupFileModule(reactContext),
     )
 
   override fun createViewManagers(
