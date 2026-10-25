@@ -84,6 +84,11 @@ import { PinPrompt } from './src/ui/PinPrompt';
 import { ParentPanel } from './src/ui/parent/ParentPanel';
 import { PlayerScreen } from './src/ui/PlayerScreen';
 import { colors } from './src/ui/theme';
+import {
+  SafeAreaProvider,
+  initialWindowMetrics,
+  useSafeAreaInsets,
+} from 'react-native-safe-area-context';
 
 type Route =
   | { name: 'child' }
@@ -94,7 +99,34 @@ function createRepository(): Repository {
   return new AsyncStorageRepository();
 }
 
+// Fallback used when the native provider has not measured the window yet (and
+// in tests), so the UI still renders instead of waiting on a first layout pass.
+const FALLBACK_METRICS = {
+  frame: { x: 0, y: 0, width: 0, height: 0 },
+  insets: { top: 0, left: 0, right: 0, bottom: 0 },
+};
+
 export default function App() {
+  return (
+    <SafeAreaProvider initialMetrics={initialWindowMetrics ?? FALLBACK_METRICS}>
+      <AppContent />
+    </SafeAreaProvider>
+  );
+}
+
+function AppContent() {
+  // Android 15+ draws the app edge-to-edge, so the status bar and the
+  // navigation bar overlap the layout. Every screen root gets these insets as
+  // padding; otherwise the “Panel rodzica” / “Zamknij” buttons end up under the
+  // status bar and are hard to hit.
+  const insets = useSafeAreaInsets();
+  const safeAreaPadding = {
+    paddingTop: insets.top,
+    paddingBottom: insets.bottom,
+    paddingLeft: insets.left,
+    paddingRight: insets.right,
+  };
+
   const repoRef = useRef<Repository | null>(null);
   if (!repoRef.current) {
     repoRef.current = createRepository();
@@ -1111,7 +1143,7 @@ export default function App() {
 
   if (!settings.pinHash || pinSetup) {
     return (
-      <View style={styles.root}>
+      <View style={[styles.root, safeAreaPadding]}>
         <StatusBar barStyle="light-content" />
         <GateScreen
           mode="setup"
@@ -1126,7 +1158,7 @@ export default function App() {
 
   if (parentGate) {
     return (
-      <View style={styles.root}>
+      <View style={[styles.root, safeAreaPadding]}>
         <StatusBar barStyle="light-content" />
         <GateScreen
           mode="unlock"
@@ -1141,7 +1173,7 @@ export default function App() {
 
   if (route.name === 'player') {
     return (
-      <View style={styles.root}>
+      <View style={[styles.root, styles.playerRoot, safeAreaPadding]}>
         <StatusBar barStyle="light-content" hidden />
         <PlayerScreen
           video={route.video}
@@ -1176,7 +1208,7 @@ export default function App() {
 
   if (route.name === 'parent') {
     return (
-      <View style={styles.root}>
+      <View style={[styles.root, safeAreaPadding]}>
         <StatusBar barStyle="light-content" />
         <ParentPanel
           videos={projectedVideos}
@@ -1223,7 +1255,7 @@ export default function App() {
   }
 
   return (
-    <View style={styles.root}>
+    <View style={[styles.root, safeAreaPadding]}>
       <StatusBar barStyle="light-content" />
       <ChildHomeScreen
         childName={settings.childName}
@@ -1253,6 +1285,8 @@ export default function App() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
+  // The player is full-bleed: safe-area padding must read as letterboxing.
+  playerRoot: { backgroundColor: colors.black },
   center: { flex: 1, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' },
   errorText: { color: colors.danger, padding: 24, textAlign: 'center' },
 });
