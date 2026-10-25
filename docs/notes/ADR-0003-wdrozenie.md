@@ -54,7 +54,7 @@ apki, zamrożona strona), po powrocie doliczał cały ten czas, mimo że film
 mógł nie grać. `advanceWatch` ma teraz **`MAX_WATCH_STEP_MS = 2000`** — jedna
 obserwacja dolicza najwyżej ~2 s (poll stanu to ~0,5 s); przerwy w tle nie
 zawyżają licznika. Test w `watchTime.test.ts`.
-- `console.log('[KidTube:usage] +Ns')` oraz log wczytania (`used=…s limit=…min`) — diagnostyka.
+- `console.log('[KidsTube:usage] +Ns')` oraz log wczytania (`used=…s limit=…min`) — diagnostyka.
 - Karta pokazuje jednoznacznie: `Limit: X min · Pozostało: Y min`.
 
 ## Twarde cięcie limitu (ADR 0002/0005)

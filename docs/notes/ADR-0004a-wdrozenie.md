@@ -51,7 +51,7 @@ Zapis tego, co zrobione. Bez commita do czasu akceptacji.
   `content.test.ts` (2) i `watchHistory.test.ts` (pola rozbicia dnia).
 - `npm test` = **135** (było 124), `npx tsc --noEmit` i `npx eslint .` czysto.
 - Wersja: **0.4.16 → 0.4.21**, `versionCode 11 → 12`.
-- APK release: `KidTube/android/app/build/outputs/apk/release/app-release.apk`,
+- APK release: `KidsTube/android/app/build/outputs/apk/release/app-release.apk`,
   zainstalowany w emulatorze do testów.
 
 ## Poprawka po testach (0.4.22)

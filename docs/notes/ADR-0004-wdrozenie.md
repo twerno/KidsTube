@@ -29,7 +29,7 @@ Nowe czyste moduły:
 Typy: `WatchMode`, `WatchProgress`, `WatchHistoryEntry` w `domain/types.ts`.
 
 Trwałość (`Repository` + memory + AsyncStorage, klucze
-`@kidtube/watch-progress/v1`, `@kidtube/watch-history/v1`):
+`@kidstube/watch-progress/v1`, `@kidstube/watch-history/v1`):
 - `getWatchProgress` / `listWatchProgress` / `saveWatchProgress` (upsert po id),
 - `listWatchHistory` / `getWatchHistoryEntry(videoId, dateKey)` /
   `saveWatchHistory` (upsert po parze).

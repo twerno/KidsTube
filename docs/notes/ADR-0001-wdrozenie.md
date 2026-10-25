@@ -16,7 +16,7 @@ w nowej sesji.
   - 0007 dystrybucja (sideload → Play później)
   - 0008 ścieżki audio (oryginał + polski, start na oryginale)
   - 0009 dodawanie kolekcji (pełny katalog przez InnerTube, wznawialny)
-- **`KidTube/README.md`** — tabela decyzji z odnośnikami do ADR-ów.
+- **`KidsTube/README.md`** — tabela decyzji z odnośnikami do ADR-ów.
 - **`AGENTS.md`** (root) — środowisko piaskownicy (emulator, proxy, toolchain).
 
 ## 2. ADR 0001 — co wdrożono (kod)

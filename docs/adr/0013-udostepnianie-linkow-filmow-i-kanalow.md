@@ -3,7 +3,7 @@
 > Wdrożone — szczegóły: `docs/notes/ADR-0013-0014-wdrozenie.md`.
 
 Udostępnienie linku (`ACTION_SEND`) jest najbardziej pewną drogą dodawania
-treści do KidTube (ADR 0005, ADR 0007). Obecny potok rozpoznaje film i tworzy
+treści do KidsTube (ADR 0005, ADR 0007). Obecny potok rozpoznaje film i tworzy
 wpis `pending`, ale nie wiąże go z kanałem, więc nie potrafi zastosować polityki
 `auto_approve`. Link do kanału kończy się komunikatem zamiast trafić do rodzica.
 To dwie luki w tym samym mechanizmie.

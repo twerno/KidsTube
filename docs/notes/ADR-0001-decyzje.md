@@ -21,7 +21,7 @@ Zapis tego, co zrobione i co zostaje. Bez commita do czasu akceptacji.
 - **`data/repository.ts`**: `listDecisions()` / `recordDecision()`.
   `recordDecision` dopisuje do logu **i** odświeża cache `Video.status`.
 - **`data/memoryRepository.ts`** i **`data/asyncStorageRepository.ts`**: nowy
-  zbiór `@kidtube/decisions/v1` (append-only, przeżywa usunięcie filmu i kanału).
+  zbiór `@kidstube/decisions/v1` (append-only, przeżywa usunięcie filmu i kanału).
 - **`App.tsx`**: ładuje decyzje; `projectedVideos = projectVideos(...)` jest
   źródłem dla dziecka i panelu; akcje rodzica nagrywają decyzję `manual`;
   przełączenie kanału na `auto_approve` nagrywa po decyzji na każdy pending;

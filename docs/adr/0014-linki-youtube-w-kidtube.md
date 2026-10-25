@@ -1,17 +1,17 @@
-# ADR 0014 — Linki YouTube otwierane w KidTube: opcjonalny handler rodzica
+# ADR 0014 — Linki YouTube otwierane w KidsTube: opcjonalny handler rodzica
 
 > Wdrożone — szczegóły: `docs/notes/ADR-0013-0014-wdrozenie.md`. Uzupełnienie ADR 0013.
 
 Gdy w telefonie nie ma aplikacji YouTube albo rodzic ją zablokował, dotknięcie
 linku `youtube.com/...` nadal trafia do przeglądarki. Rodzic nie ma prostego
-sposobu, by takie linki prowadziły do KidTube — a właśnie wtedy chciałby, żeby
+sposobu, by takie linki prowadziły do KidsTube — a właśnie wtedy chciałby, żeby
 cała droga do YouTube przechodziła przez kuratorowaną aplikację. Jednocześnie
 przechwytywanie linków nie może być domyślnym, niezauważalnym zachowaniem:
 zmienia systemowe otwieranie linków na całym urządzeniu.
 
 Decyzja: w **Ustawieniach rodzica** powstaje opcjonalny przełącznik
-**„Otwieraj linki YouTube w KidTube”**, domyślnie **wyłączony**. Włączenie
-powoduje, że KidTube staje się kandydatem systemu do obsługi linków YouTube
+**„Otwieraj linki YouTube w KidsTube”**, domyślnie **wyłączony**. Włączenie
+powoduje, że KidsTube staje się kandydatem systemu do obsługi linków YouTube
 (`VIEW`); wyłączenie wycofuje tę kandydaturę. Udostępnianie przez `ACTION_SEND`
 (ADR 0013) działa zawsze, niezależnie od tego ustawienia.
 
@@ -21,7 +21,7 @@ powoduje, że KidTube staje się kandydatem systemu do obsługi linków YouTube
   aktywności) z filtrami dla obsługiwanych hostów i kształtów linków, a nie
   główna aktywność aplikacji. Komponent jest **domyślnie wyłączony** i jest
   włączany/wyłączany razem z ustawieniem.
-- Dzięki temu wyłączenie opcji naprawdę usuwa KidTube z kandydatów systemu;
+- Dzięki temu wyłączenie opcji naprawdę usuwa KidsTube z kandydatów systemu;
   nie zostawia aplikacji, która przechwytuje link, a potem go ignoruje.
 - Filtry obejmują wyłącznie kształty rozpoznawane przez parser: hosty
   `youtube.com`, `www.youtube.com`, `m.youtube.com`, `music.youtube.com`,
@@ -30,15 +30,15 @@ powoduje, że KidTube staje się kandydatem systemu do obsługi linków YouTube
   `user`), a także `youtu.be/<id>` i `vnd.youtube:<id>`. Nie przechwytujemy
   całego `youtube.com` ani nieznanych ścieżek.
 - **Nie używamy `autoVerify` ani pliku Digital Asset Links.** Weryfikacja
-  wymaga kontroli nad domeną `youtube.com`, której KidTube nie ma. Udawanie
+  wymaga kontroli nad domeną `youtube.com`, której KidsTube nie ma. Udawanie
   weryfikacji byłoby nieskuteczne i mylące.
-- Po włączeniu opcji **rodzic sam wybiera KidTube jako domyślny handler**
+- Po włączeniu opcji **rodzic sam wybiera KidsTube jako domyślny handler**
   w systemie. Aplikacja pokazuje wyjaśnienie i przycisk otwierający właściwe
   ustawienie systemowe (na nowszych Androidach „Otwieraj domyślnie”, na
   starszych — szczegóły aplikacji).
 - Gdy YouTube jest zainstalowany, jego zweryfikowane App Links mogą nadal
   wygrywać. Rodzic może wtedy wyłączyć/zablokować YouTube albo wyczyścić jego
-  ustawienia domyślne. **KidTube nie blokuje innych aplikacji** — robi to
+  ustawienia domyślne. **KidsTube nie blokuje innych aplikacji** — robi to
   systemowy mechanizm kontroli rodzicielskiej, a nie ta aplikacja.
 - Przechwytywanie dotyczy wyłącznie linków przychodzących z zewnątrz
   (`VIEW`). Nie obejmuje nawigacji wewnątrz aplikacji YouTube ani linków
@@ -68,7 +68,7 @@ powoduje, że KidTube staje się kandydatem systemu do obsługi linków YouTube
 - Przełącznik jest w panelu rodzica (PIN, ADR 0012), domyślnie wyłączony.
   Włączenie pokazuje krótkie wyjaśnienie skutków systemowych i skrót do
   ustawień domyślnych.
-- Przy wyłączaniu, gdy KidTube jest domyślnym handlerem, aplikacja ostrzega,
+- Przy wyłączaniu, gdy KidsTube jest domyślnym handlerem, aplikacja ostrzega,
   że linki przestaną się w niej otwierać, i podpowiada wybór innej aplikacji
   w systemie. Nie możemy zmienić domyślnego handlera programowo.
 - Ustawienie jest lokalne, przeżywa restart i dotyczy całego urządzenia.
@@ -84,12 +84,12 @@ powoduje, że KidTube staje się kandydatem systemu do obsługi linków YouTube
 ## Rozważone opcje
 
 - **Filtry `VIEW` aktywne zawsze, a przełącznik tylko w JavaScript** —
-  odrzucone: przy wyłączonej opcji KidTube mógłby przechwytywać linki
+  odrzucone: przy wyłączonej opcji KidsTube mógłby przechwytywać linki
   i pokazywać pusty ekran albo komunikat, zamiast oddać je innym aplikacjom.
 - **`autoVerify` / sztuczne Digital Asset Links** — odrzucone: nie mamy
   kontroli nad domeną YouTube; weryfikacja nie przejdzie, a zachowanie
   systemu może się pogorszyć.
-- **Programowe ustawienie KidTube jako domyślnego handlera** — odrzucone:
+- **Programowe ustawienie KidsTube jako domyślnego handlera** — odrzucone:
   Android nie daje aplikacji takiego uprawnienia; wybór należy do użytkownika.
 - **Domyślnie włączone przechwytywanie** — odrzucone: zmienia systemowe
   otwieranie linków bez świadomej decyzji rodzica; opcja ma być opcjonalna.
@@ -98,7 +98,7 @@ powoduje, że KidTube staje się kandydatem systemu do obsługi linków YouTube
   klikać linki bezpośrednio.
 - **Otwieranie nieznanych linków w wewnętrznej przeglądarce** — odrzucone:
   omija kuratorowaną bibliotekę i allowlistę odtwarzacza (ADR 0001/ADR 0003).
-- **Blokowanie YouTube przez KidTube** — odrzucone: aplikacja nie ma takich
+- **Blokowanie YouTube przez KidsTube** — odrzucone: aplikacja nie ma takich
   uprawnień i nie powinna udawać systemowej kontroli rodzicielskiej; robi to
   rodzic ustawieniami urządzenia.
 - **Osobny ekran „skrzynki linków”** — odrzucone: lista oczekujących z ADR 0013
@@ -117,7 +117,7 @@ powoduje, że KidTube staje się kandydatem systemu do obsługi linków YouTube
 - Przy starcie aplikacja synchronizuje stan komponentu z ustawieniem
   w sposób idempotentny; brak rekordu oznacza wyłączenie.
 - System może zachować wcześniejszy wybór domyślnego handlera. Po ponownym
-  włączeniu opcji rodzic może musieć jeszcze raz wybrać KidTube w ustawieniach
+  włączeniu opcji rodzic może musieć jeszcze raz wybrać KidsTube w ustawieniach
   systemowych — UI ma to komunikować, a nie ukrywać.
 - Zmiana stanu komponentu może na niektórych urządzeniach wymagać odświeżenia
   launchera lub restartu aplikacji; to ograniczenie platformy, nie błąd

@@ -1,4 +1,4 @@
-# KidTube — Kont tekst domenowy
+# KidsTube — Kont tekst domenowy
 
 Aplikacja do kuratorowanego oglądania YouTube: rodzic zatwierdza treści, dziecko widzi tylko dozwoloną bibliotekę. Bez konta Google i bez backendu.
 
@@ -29,7 +29,7 @@ Zgłoszenie filmu przez dziecko do rozstrzygnięcia przez rodzica. Żyje w liśc
 _Avoid_: Życzenie, Prośba o film
 
 **Propozycja kanału**:
-Udostępniony link do kanału, którego KidTube jeszcze nie obserwuje. Oczekujący byt **tylko dla rodzica** — nie jest `Channel`, nie synchronizuje RSS, nie trafia do świata dziecka ani do historii decyzji. Zatwierdzenie tworzy kanał `manual` (a jeśli kanał już istnieje jako wyciszony — odcisza go i wznawia RSS), odrzucenie usuwa propozycję (może wrócić później).
+Udostępniony link do kanału, którego KidsTube jeszcze nie obserwuje. Oczekujący byt **tylko dla rodzica** — nie jest `Channel`, nie synchronizuje RSS, nie trafia do świata dziecka ani do historii decyzji. Zatwierdzenie tworzy kanał `manual` (a jeśli kanał już istnieje jako wyciszony — odcisza go i wznawia RSS), odrzucenie usuwa propozycję (może wrócić później).
 _Avoid_: Kanał oczekujący, Zablokowany kanał (to inny stan)
 
 **Lista oczekująca („do zatwierdzenia”)**:
@@ -41,7 +41,7 @@ Link do filmu lub kanału przysłany przez `ACTION_SEND`. Trafia do wspólnego p
 _Avoid_: Odtworzenie linku, „Zagraj teraz”
 
 **Przechwycenie linku (VIEW)**:
-Opcjonalne, domyślnie wyłączone przyjęcie przez KidTube systemowego otwarcia linku YouTube (ADR 0014). Przetwarza link tym samym potokiem co udostępnienie; wyłączenie opcji usuwa KidTube z kandydatów systemu.
+Opcjonalne, domyślnie wyłączone przyjęcie przez KidsTube systemowego otwarcia linku YouTube (ADR 0014). Przetwarza link tym samym potokiem co udostępnienie; wyłączenie opcji usuwa KidsTube z kandydatów systemu.
 _Avoid_: Domyślny handler jako stan domyślny, Blokowanie YouTube
 
 **Decyzja**:

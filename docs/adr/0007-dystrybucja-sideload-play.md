@@ -1,6 +1,6 @@
 # ADR 0007 — Dystrybucja: rodzinny sideload jako fundament, Play jako przyszła opcja
 
-KidTube dystrybuujemy **rodzinnym sideloadem**: APK na GitHub Releases
+KidsTube dystrybuujemy **rodzinnym sideloadem**: APK na GitHub Releases
 (wygodne do instalacji w rodzinie), podpisane domyślnym keystore debug.
 To pełnoprawny cel, nie wersja testowa. Google Play to **świadoma, odwracalna
 decyzja na później** — podejmowana tylko, gdy popyt na instalację bez
@@ -12,7 +12,7 @@ kanaly. Przejście na Play wymaga osobnej oceny (odwracalność, ToS, App Links)
 
 Zaakceptowana konsekwencja sideloadu: intenty „Udostępnij" z YouTube
 (ACTION_SEND / linking) **przegrywają z oficjalną aplikacją YouTube**
-(Google ma zweryfikowane App Links). Rodzic wskazuje KidTube jako domyślny
+(Google ma zweryfikowane App Links). Rodzic wskazuje KidsTube jako domyślny
 handler linków ręcznie (Ustawienia → Domyślne aplikacje → Otwieranie linków);
 przy publikacji na Play zweryfikowane App Links rozwiązują to systemowo.
 
@@ -25,6 +25,6 @@ przy publikacji na Play zweryfikowane App Links rozwiązują to systemowo.
 
 ## Konsekwencje
 
-- Instrukcja ustawiania KidTube jako domyślnego handlera linków jest
+- Instrukcja ustawiania KidsTube jako domyślnego handlera linków jest
   elementem wymaganej dokumentacji sideloadu.
 - Decyzja do weryfikacji przy realnym rozprzestrzenieniu aplikacji.

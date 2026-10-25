@@ -6,7 +6,7 @@ Zapis tego, co zrobione. Bez commita do czasu akceptacji.
 
 - Typ `ExtraTimePool` (`dateKey`, `grantedSeconds`, `remainingSeconds`) w
   `domain/types.ts`; lokalny rekord w `Repository` (`get/saveExtraTime`,
-  klucz `@kidtube/extra-time/v1`), wspólny dla pamięci i AsyncStorage.
+  klucz `@kidstube/extra-time/v1`), wspólny dla pamięci i AsyncStorage.
 - Czyste reguły w `domain/schedule.ts`:
   - `emptyExtraTime` / `normalizeExtraTime` — pula wygasa z dniem,
   - `grantExtraTime` — kolejne nadania sumują się,
@@ -32,7 +32,7 @@ Zapis tego, co zrobione. Bez commita do czasu akceptacji.
   `normalizePinGuard`, `remainingLockMs`, `formatLockCountdown`.
   3 kolejne błędy → blokada 3 min; sukces zeruje; po wygaśnięciu licznik wraca
   do zera; próby w trakcie blokady nie są weryfikowane.
-- `PinGuardState` osobno w repozytorium (`@kidtube/pin-guard/v1`), nie
+- `PinGuardState` osobno w repozytorium (`@kidstube/pin-guard/v1`), nie
   w `Settings`; przeżywa restart (test AsyncStorage).
 - Wspólna weryfikacja `verifyParentPin` w `App` dla panelu rodzica i promptu
   dodatkowego czasu; stan jest czytany z repo przed każdą próbą.
