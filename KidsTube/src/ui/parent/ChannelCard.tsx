@@ -191,13 +191,6 @@ export function ChannelDetails({
         </View>
       ) : null}
 
-      <View style={styles.actions}>
-        <Button
-          title={channel.status === 'blocked' ? 'Odblokuj' : 'Zablokuj'}
-          variant={channel.status === 'blocked' ? 'primary' : 'secondary'}
-          onPress={() => onBlock(channel)}
-        />
-      </View>
       {showManage && onBlockAllVideos && channel.status !== 'blocked' ? (
         <Button
           title={`Zablokuj wszystkie filmy (${notBlocked})`}
