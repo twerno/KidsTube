@@ -112,7 +112,7 @@ Zapis ostatnio otwieranych materiałów wraz z czasem spędzonym (suma oraz rozb
 _Avoid_: Historia przeglądania — to nie WebView, to odtwarzanie
 
 **Kontynuuj oglądanie**:
-Zakładka dziecka agregująca filmy rozpoczęte, ale nieukończone (zapisany postęp > 0, `completed: false`), w kolejności ostatniej aktywności. Filmy ukończone i nigdy nieotwarte są pomijane.
+Zakładka dziecka agregująca filmy rozpoczęte, ale nieukończone (zapisany postęp > 0, `completed: false`), w kolejności daty publikacji (fallback: data importu). Filmy ukończone i nigdy nieotwarte są pomijane.
 _Avoid_: Wznowienie (to sposób otwarcia, nie widok), Historia oglądania
 
 **Wyszukiwarka**:
@@ -165,4 +165,4 @@ _Avoid_: Offset, Strona
 
 ## Kolejność prezentacji
 
-Feed, kanał i biblioteka — od najnowszej daty publikacji, a dla filmów bez daty publikacji — od daty importu; grupowanie po tygodniu/miesiącu używa wyłącznie daty publikacji (brak daty → „Bez daty”); „Kontynuuj oglądanie” — od najświeższej aktywności; historia oglądania — od najświeżej odtwarzanych. Decyzja rodzica nie zmienia kolejności.
+Feed, kanał i biblioteka — od najnowszej daty publikacji, a dla filmów bez daty publikacji — od daty importu; grupowanie po tygodniu/miesiącu używa wyłącznie daty publikacji (brak daty → „Bez daty”); „Kontynuuj oglądanie” — jak pozostałe listy filmów: od najnowszej daty publikacji (fallback: data importu); historia oglądania — od najświeżej odtwarzanych. Decyzja rodzica nie zmienia kolejności.

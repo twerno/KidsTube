@@ -23,15 +23,16 @@ Feed i widok kanału grupują filmy w pasma dat:
 - **Bez daty** na końcu (sortowane w środku tej grupy po dacie importu).
 
 Grupowanie jest wyłącznie prezentacją: nie zmienia danych ani decyzji.
-„Kontynuuj oglądanie” zachowuje własną kolejność (ostatnio oglądane) i nie
-dzieli listy na pasma.
+„Kontynuuj oglądanie” jest zwykłą listą filmów: sortuje się po dacie publikacji
+(fallback: data importu) i dzieli na te same pasma dat. Data ostatniego
+oglądania nie wpływa na kolejność.
 
 ## „Kontynuuj oglądanie”
 
 Nowa zakładka dziecka agreguje filmy, które mają zapisany postęp
-(`positionSeconds > 0`, `completed: false`) i nadal są w bibliotece. Kolejność:
-najświeższa aktywność (`lastWatchedAt`) najpierw. Filmy ukończone i nigdy
-nieotwarte są pomijane. Wejście w kafelek otwiera odtwarzacz od zapisanej
+(`positionSeconds > 0`, `completed: false`) i nadal są w bibliotece. Kolejność
+jest wspólna dla wszystkich list: data publikacji (fallback: data importu),
+nowsze najpierw. Filmy ukończone i nigdy nieotwarte są pomijane. Wejście w kafelek otwiera odtwarzacz od zapisanej
 pozycji (dotychczasowa reguła wznowienia).
 
 ## Wyszukiwarka

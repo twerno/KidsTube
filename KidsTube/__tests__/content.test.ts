@@ -166,11 +166,11 @@ describe('child view helpers', () => {
     expect(decisions).toHaveLength(1);
   });
 
-  it('collects films started but not finished, newest activity first (ADR 0020)', () => {
+  it('collects films started but not finished, ordered by publication date (ADR 0020)', () => {
     const videos: Video[] = [
-      { ...base, id: 'a', status: 'allowed' },
-      { ...base, id: 'b', status: 'allowed' },
-      { ...base, id: 'c', status: 'allowed' },
+      { ...base, id: 'a', status: 'allowed', publishedAt: 300 },
+      { ...base, id: 'b', status: 'allowed', publishedAt: 250 },
+      { ...base, id: 'c', status: 'allowed', publishedAt: 100 },
     ];
     const progress = [
       { videoId: 'a', positionSeconds: 30, completed: false, lastWatchedAt: 10 },
@@ -179,7 +179,8 @@ describe('child view helpers', () => {
       { videoId: 'gone', positionSeconds: 10, completed: false, lastWatchedAt: 40 },
       { videoId: 'never', positionSeconds: 0, completed: false, lastWatchedAt: 50 },
     ];
-    expect(continueWatchingVideos(videos, progress).map(v => v.id)).toEqual(['c', 'a']);
+    // Watching 'c' later does not lift it above the newer publication 'a'.
+    expect(continueWatchingVideos(videos, progress).map(v => v.id)).toEqual(['a', 'c']);
   });
 });
 

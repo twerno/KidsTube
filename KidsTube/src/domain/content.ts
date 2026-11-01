@@ -189,7 +189,8 @@ export function videosForChannel(videos: Video[], channelId: string): Video[] {
 
 /**
  * “Kontynuuj oglądanie” (ADR 0020): films the child started but did not finish,
- * newest activity first. Completed films and never-played ones are excluded.
+ * ordered like every other film list — by publication date (fallback: import
+ * date). Completed films and never-played ones are excluded.
  */
 export function continueWatchingVideos(
   videos: Video[],
@@ -198,10 +199,9 @@ export function continueWatchingVideos(
   const byId = new Map(videos.map(video => [video.id, video]));
   return progress
     .filter(entry => !entry.completed && entry.positionSeconds > 0)
-    .slice()
-    .sort((a, b) => b.lastWatchedAt - a.lastWatchedAt)
     .map(entry => byId.get(entry.videoId))
-    .filter((video): video is Video => !!video);
+    .filter((video): video is Video => !!video)
+    .sort((a, b) => videoSortTime(b) - videoSortTime(a));
 }
 
 /**
