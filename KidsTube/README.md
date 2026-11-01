@@ -142,6 +142,15 @@ cd android
 Release jest podpisany domyślnym keystore debug (wygodne do sideloadu w
 rodzinie/GitHubie). Na Google Play trzeba wygenerować własny keystore.
 
+### Ikona aplikacji
+
+Jedno źródło grafiki: `docs/icon.png` (root repo). `scripts/launcher-icons.py`
+generuje z niego `res/mipmap-xxxhdpi/ic_launcher_foreground.png` (płótno 108dp,
+grafika w strefie bezpiecznej) oraz adaptive icon
+`res/mipmap-anydpi-v26/ic_launcher.xml` (`minSdk 26`). Nie ma warstwy legacy ani
+wariantu `_round` — launcher sam maskuje adaptive icon, więc żadnej ikony nie
+rysuje się ręcznie.
+
 ### Otwieranie linków po sideloadzie
 
 Udostępnianie (`Udostępnij` → KidTube) działa od razu po instalacji. Aby linki
