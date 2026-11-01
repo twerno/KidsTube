@@ -40,7 +40,7 @@ const ENTITIES: Record<string, string> = {
 };
 
 function log(...args: unknown[]): void {
-  console.log('[KidsTube:resolve]', ...args);
+  console.log('[KidTube:resolve]', ...args);
 }
 
 function decodeEntities(value: string): string {

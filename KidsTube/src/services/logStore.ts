@@ -21,7 +21,7 @@ export function recordLog(
   for (const listener of listeners) {
     listener(entries);
   }
-  const line = `[KidsTube:${tag}] ${message}`;
+  const line = `[KidTube:${tag}] ${message}`;
   if (level === 'error') {
     console.warn(line);
   } else {

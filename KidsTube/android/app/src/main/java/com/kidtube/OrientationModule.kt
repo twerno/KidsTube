@@ -1,4 +1,4 @@
-package com.kidstube
+package com.kidtube
 
 import android.content.pm.ActivityInfo
 import com.facebook.react.bridge.Promise

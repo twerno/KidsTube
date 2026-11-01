@@ -33,7 +33,7 @@
 
       <!-- ADR 0014: optional YouTube VIEW handler. Declared disabled; the
            parent setting flips this alias on/off at runtime. Kept separate from
-           MainActivity so disabling really removes KidsTube from the system's
+           MainActivity so disabling really removes KidTube from the system's
            link-handling candidates. No autoVerify / Digital Asset Links: we do
            not control youtube.com. -->
       <activity-alias

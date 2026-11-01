@@ -2,7 +2,7 @@
  * Bridge to the Android share/VIEW intents.
  *
  * - Shared text arrives through the small native `ShareIntent` module (see
- *   android/app/src/main/java/com/kidstube).
+ *   android/app/src/main/java/com/kidtube).
  * - Plain links arrive through React Native's Linking (ACTION_VIEW).
  */
 

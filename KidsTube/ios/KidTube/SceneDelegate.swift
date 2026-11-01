@@ -30,7 +30,7 @@ class SceneDelegate: RCTDefaultReactNativeFactoryDelegate, UIWindowSceneDelegate
     #endif
     
     reactNativeFactory?.startReactNative(
-      withModuleName: "KidsTube",
+      withModuleName: "KidTube",
       in: window,
       connectionOptions: connectionOptions
     )

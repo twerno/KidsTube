@@ -13,8 +13,8 @@ z urządzenia.
 
 Rekord PIN (`hash`, `salt`, `iterations`) jest przechowywany **poza
 `Settings` i poza kopią bazy**, w prywatnych `SharedPreferences`
-(`kidstube_secure`), jako **ciphertext AES/GCM**. Klucz AES-256 jest generowany
-w **Android Keystore** (alias `kidstube_pin_v1`, bez eksportu). Szyfrowanie,
+(`kidtube_secure`), jako **ciphertext AES/GCM**. Klucz AES-256 jest generowany
+w **Android Keystore** (alias `kidtube_pin_v1`, bez eksportu). Szyfrowanie,
 odszyfrowanie i czyszczenie realizuje natywny moduł `PinStorage`; JS widzi
 tylko `save`/`load`/`clear` i nigdy nie dotyka klucza.
 

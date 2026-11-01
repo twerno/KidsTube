@@ -25,22 +25,22 @@ import {
 } from '../native/pinStorage';
 
 const KEYS = {
-  settings: '@kidstube/settings/v1',
-  channels: '@kidstube/channels/v1',
-  channelProposals: '@kidstube/channel-proposals/v1',
-  videos: '@kidstube/videos/v1',
-  decisions: '@kidstube/decisions/v1',
-  usage: '@kidstube/usage/v1',
-  watchProgress: '@kidstube/watch-progress/v1',
-  watchHistory: '@kidstube/watch-history/v1',
-  extraTime: '@kidstube/extra-time/v1',
-  pinGuard: '@kidstube/pin-guard/v1',
+  settings: '@kidtube/settings/v1',
+  channels: '@kidtube/channels/v1',
+  channelProposals: '@kidtube/channel-proposals/v1',
+  videos: '@kidtube/videos/v1',
+  decisions: '@kidtube/decisions/v1',
+  usage: '@kidtube/usage/v1',
+  watchProgress: '@kidtube/watch-progress/v1',
+  watchHistory: '@kidtube/watch-history/v1',
+  extraTime: '@kidtube/extra-time/v1',
+  pinGuard: '@kidtube/pin-guard/v1',
 };
 
 /** Markers of an in-flight whole-database replace (ADR 0017). */
 const REPLACE_KEYS = {
-  pending: '@kidstube/replace-pending/v1',
-  rollback: '@kidstube/replace-rollback/v1',
+  pending: '@kidtube/replace-pending/v1',
+  rollback: '@kidtube/replace-rollback/v1',
 };
 
 async function readJson<T>(key: string, fallback: T): Promise<T> {

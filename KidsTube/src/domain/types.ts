@@ -1,5 +1,5 @@
 /**
- * Domain types for KidsTube.
+ * Domain types for KidTube.
  *
  * The whole app revolves around two curated lists:
  *  - channels the parent trusts (with an auto-approve or manual policy)
@@ -237,7 +237,7 @@ export interface Settings {
   configured?: boolean;
   schedule?: Schedule;
   /**
-   * Whether KidsTube offers itself as a system handler for YouTube `VIEW`
+   * Whether KidTube offers itself as a system handler for YouTube `VIEW`
    * links (ADR 0014). Off by default: sharing always works independently.
    */
   youtubeLinkHandlerEnabled?: boolean;

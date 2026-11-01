@@ -15,9 +15,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "13B07F861A680F5B00A75B9A"
-               BuildableName = "KidsTube.app"
-               BlueprintName = "KidsTube"
-               ReferencedContainer = "container:KidsTube.xcodeproj">
+               BuildableName = "KidTube.app"
+               BlueprintName = "KidTube"
+               ReferencedContainer = "container:KidTube.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -33,9 +33,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "00E356ED1AD99517003FC87E"
-               BuildableName = "KidsTubeTests.xctest"
-               BlueprintName = "KidsTubeTests"
-               ReferencedContainer = "container:KidsTube.xcodeproj">
+               BuildableName = "KidTubeTests.xctest"
+               BlueprintName = "KidTubeTests"
+               ReferencedContainer = "container:KidTube.xcodeproj">
             </BuildableReference>
          </TestableReference>
       </Testables>
@@ -55,9 +55,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "13B07F861A680F5B00A75B9A"
-            BuildableName = "KidsTube.app"
-            BlueprintName = "KidsTube"
-            ReferencedContainer = "container:KidsTube.xcodeproj">
+            BuildableName = "KidTube.app"
+            BlueprintName = "KidTube"
+            ReferencedContainer = "container:KidTube.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
@@ -72,9 +72,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "13B07F861A680F5B00A75B9A"
-            BuildableName = "KidsTube.app"
-            BlueprintName = "KidsTube"
-            ReferencedContainer = "container:KidsTube.xcodeproj">
+            BuildableName = "KidTube.app"
+            BlueprintName = "KidTube"
+            ReferencedContainer = "container:KidTube.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>

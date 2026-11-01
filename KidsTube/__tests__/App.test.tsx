@@ -47,10 +47,10 @@ test('renders correctly', async () => {
 });
 
 test('syncs channels once when the app opens (ADR 0006)', async () => {
-  await AsyncStorage.setItem('@kidstube/channels/v1', JSON.stringify([CHANNEL]));
+  await AsyncStorage.setItem('@kidtube/channels/v1', JSON.stringify([CHANNEL]));
   // A configured PIN skips the first-run setup screen, so the child view mounts.
   await AsyncStorage.setItem(
-    '@kidstube/settings/v1',
+    '@kidtube/settings/v1',
     JSON.stringify({ pinHash: 'hash', pinSalt: 'salt', pinIterations: 1 }),
   );
   const fetchMock = jest.fn(async (_input: string, _init?: unknown) => ({

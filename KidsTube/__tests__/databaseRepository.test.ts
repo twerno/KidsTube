@@ -3,8 +3,8 @@ import { AsyncStorageRepository } from '../src/data/asyncStorageRepository';
 import { MemoryRepository } from '../src/data/memoryRepository';
 import type { Channel, DatabaseSnapshot, Video } from '../src/domain/types';
 
-const PENDING_KEY = '@kidstube/replace-pending/v1';
-const ROLLBACK_KEY = '@kidstube/replace-rollback/v1';
+const PENDING_KEY = '@kidtube/replace-pending/v1';
+const ROLLBACK_KEY = '@kidtube/replace-rollback/v1';
 
 const OLD_CHANNEL: Channel = {
   id: 'UC_OLD',

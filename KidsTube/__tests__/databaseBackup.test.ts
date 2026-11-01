@@ -14,7 +14,7 @@ interface NativeBackup {
   openJson: () => Promise<{ content?: string; name?: string } | null>;
 }
 
-const nativeHolder = NativeModules as { KidsTubeBackup?: NativeBackup };
+const nativeHolder = NativeModules as { KidTubeBackup?: NativeBackup };
 
 const SNAPSHOT: DatabaseSnapshot = {
   settings: {
@@ -61,14 +61,14 @@ const seeded = async (): Promise<MemoryRepository> => {
 };
 
 afterEach(() => {
-  delete nativeHolder.KidsTubeBackup;
+  delete nativeHolder.KidTubeBackup;
   jest.restoreAllMocks();
 });
 
 describe('backup file name (ADR 0017)', () => {
   it('uses local date and time', () => {
     expect(backupFileName(new Date(2026, 9, 24, 7, 5))).toBe(
-      'kidstube-backup-2026-10-24-0705.json',
+      'kidtube-backup-2026-10-24-0705.json',
     );
   });
 });
@@ -76,7 +76,7 @@ describe('backup file name (ADR 0017)', () => {
 describe('database export (ADR 0017)', () => {
   it('writes a valid snapshot with every collection and no PIN guard', async () => {
     let saved = '';
-    nativeHolder.KidsTubeBackup = {
+    nativeHolder.KidTubeBackup = {
       saveJson: async (_name, content) => {
         saved = content;
         return 'file:///backup.json';
@@ -97,7 +97,7 @@ describe('database export (ADR 0017)', () => {
   });
 
   it('reports a cancelled chooser without writing anything', async () => {
-    nativeHolder.KidsTubeBackup = { saveJson: async () => null, openJson: async () => null };
+    nativeHolder.KidTubeBackup = { saveJson: async () => null, openJson: async () => null };
     expect(await exportDatabase(await seeded(), '0.9.0')).toEqual({ status: 'cancelled' });
   });
 
@@ -111,7 +111,7 @@ describe('database export (ADR 0017)', () => {
 
 describe('database import (ADR 0017)', () => {
   it('accepts a valid file and returns the parsed snapshot', async () => {
-    nativeHolder.KidsTubeBackup = {
+    nativeHolder.KidTubeBackup = {
       saveJson: async () => null,
       openJson: async () => ({ content: validFile(), name: 'kopia.json' }),
     };
@@ -125,7 +125,7 @@ describe('database import (ADR 0017)', () => {
   });
 
   it('rejects an invalid file before touching the database', async () => {
-    nativeHolder.KidsTubeBackup = {
+    nativeHolder.KidTubeBackup = {
       saveJson: async () => null,
       openJson: async () => ({ content: '{"format":"x"}', name: 'zly.json' }),
     };

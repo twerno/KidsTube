@@ -18,12 +18,12 @@ export function LinksSection({
       <Card style={styles.card}>
         <Text style={styles.sectionTitle}>Linki YouTube</Text>
         <View style={styles.switchRow}>
-          <Text style={styles.switchLabel}>Otwieraj linki YouTube w KidsTube</Text>
+          <Text style={styles.switchLabel}>Otwieraj linki YouTube w KidTube</Text>
           <Switch value={youtubeLinkHandlerEnabled} onValueChange={onYouTubeLinkHandlerChange} />
         </View>
         <Text style={styles.hint}>
-          Po włączeniu KidsTube zgłosi się jako aplikacja do otwierania linków YouTube; wybór
-          domyślnej aplikacji nadal robisz w ustawieniach systemowych. Aby przypisać KidsTube,
+          Po włączeniu KidTube zgłosi się jako aplikacja do otwierania linków YouTube; wybór
+          domyślnej aplikacji nadal robisz w ustawieniach systemowych. Aby przypisać KidTube,
           wyłącz systemową aplikację YouTube.
         </Text>
         <Button

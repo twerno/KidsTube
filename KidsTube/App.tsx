@@ -191,7 +191,7 @@ function AppContent() {
         try {
           await processIncomingLinkRef.current?.(item.raw, item.origin);
         } catch (error) {
-          console.log('[KidsTube:link] processing failed', String(error));
+          console.log('[KidTube:link] processing failed', String(error));
         }
       }
     } finally {
@@ -261,12 +261,12 @@ function AppContent() {
     setPinGuard(normalizedGuard);
     setPinRecord(storedPin);
     console.log(
-      '[KidsTube:usage] loaded used=' +
-        used +
-        's limit=' +
-        (s.schedule?.dailyLimitMinutes ?? 0) +
-        'min schedule=' +
-        JSON.stringify(s.schedule),
+      '[KidTube:usage] loaded used=' +
+      used +
+      's limit=' +
+      (s.schedule?.dailyLimitMinutes ?? 0) +
+      'min schedule=' +
+      JSON.stringify(s.schedule),
     );
   }, [repo]);
 
@@ -298,7 +298,7 @@ function AppContent() {
         // Network failures are already swallowed per channel; anything left is
         // unexpected, but it must not leave the child stuck in a spinner.
         recordLog('error', 'sync', String(error));
-        console.warn('[KidsTube:sync] failed', error);
+        console.warn('[KidTube:sync] failed', error);
       } finally {
         syncPromiseRef.current = null;
         setRefreshing(false);
@@ -508,7 +508,7 @@ function AppContent() {
         extraTimeRef.current = nextPool;
         setUsedSecondsToday(usedSecondsRef.current);
         setExtraTime(nextPool);
-        console.log('[KidsTube:usage] +' + seconds + 's');
+        console.log('[KidTube:usage] +' + seconds + 's');
         repo.addUsageSeconds(today, seconds).catch(() => undefined);
         if (nextPool.remainingSeconds !== currentPool.remainingSeconds) {
           repo.saveExtraTime(nextPool).catch(() => undefined);
@@ -573,7 +573,7 @@ function AppContent() {
       if (!shouldProcessIncomingLink(origin, !!storedSettings.youtubeLinkHandlerEnabled)) {
         Alert.alert(
           'Otwieranie linków wyłączone',
-          'KidsTube nie obsługuje teraz linków YouTube. Możesz włączyć tę opcję w panelu rodzica.',
+          'KidTube nie obsługuje teraz linków YouTube. Możesz włączyć tę opcję w panelu rodzica.',
         );
         return;
       }
@@ -609,7 +609,7 @@ function AppContent() {
         case 'unknown':
           Alert.alert(
             'Nie rozpoznano linku',
-            'KidsTube obsługuje linki do filmów i kanałów YouTube.',
+            'KidTube obsługuje linki do filmów i kanałów YouTube.',
           );
           break;
         default:
@@ -849,11 +849,11 @@ function AppContent() {
         setCatalogRun(previous =>
           previous
             ? {
-                ...previous,
-                imported: result.imported,
-                phase: result.done ? 'done' : result.cancelled ? 'cancelled' : 'error',
-                message: result.error,
-              }
+              ...previous,
+              imported: result.imported,
+              phase: result.done ? 'done' : result.cancelled ? 'cancelled' : 'error',
+              message: result.error,
+            }
             : previous,
         );
       } catch (error) {
@@ -997,8 +997,7 @@ function AppContent() {
     );
     Alert.alert(
       'Zablokować kanał?',
-      `Kanał „${channel.title}” zostanie zablokowany, ${films.length} ${
-        films.length === 1 ? 'film zostanie odrzucony' : 'filmów zostanie odrzuconych'
+      `Kanał „${channel.title}” zostanie zablokowany, ${films.length} ${films.length === 1 ? 'film zostanie odrzucony' : 'filmów zostanie odrzuconych'
       }, a aktualizacja RSS wyłączona.`,
       [
         { text: 'Anuluj', style: 'cancel' },
@@ -1094,7 +1093,7 @@ function AppContent() {
 
   // ---- Optional VIEW handler (ADR 0014) ------------------------------------
   const changeYouTubeLinkHandler = async (enabled: boolean) => {
-    // Turning the option off while KidsTube is the default means links will stop
+    // Turning the option off while KidTube is the default means links will stop
     // opening here; we cannot change the system default from the app.
     const wasDefault = enabled ? false : await isYouTubeLinkHandlerDefault();
     const next = await repo.updateSettings({ youtubeLinkHandlerEnabled: enabled });
@@ -1102,13 +1101,13 @@ function AppContent() {
     try {
       await setYouTubeLinkHandlerEnabled(enabled);
     } catch (error) {
-      console.log('[KidsTube:link] native component update failed', String(error));
+      console.log('[KidTube:link] native component update failed', String(error));
     }
 
     if (enabled) {
       Alert.alert(
         'Otwieranie linków YouTube',
-        'KidsTube zgłosi się jako aplikacja do otwierania linków YouTube. Aby wybrać go jako domyślny, użyj ustawień systemowych. Udostępnianie linków działa niezależnie od tej opcji.',
+        'KidTube zgłosi się jako aplikacja do otwierania linków YouTube. Aby wybrać go jako domyślny, użyj ustawień systemowych. Udostępnianie linków działa niezależnie od tej opcji.',
         [
           {
             text: 'Ustawienia systemowe',
@@ -1122,7 +1121,7 @@ function AppContent() {
     } else if (wasDefault) {
       Alert.alert(
         'Wyłączono otwieranie linków',
-        'Linki YouTube nie będą już otwierane w KidsTube. Wybierz inną aplikację w ustawieniach systemowych.',
+        'Linki YouTube nie będą już otwierane w KidTube. Wybierz inną aplikację w ustawieniach systemowych.',
         [
           {
             text: 'Ustawienia systemowe',
@@ -1215,7 +1214,7 @@ function AppContent() {
         <StatusBar barStyle="light-content" />
         <GateScreen
           mode="setup"
-          title={pinSetup ? 'Nowy kod rodzica' : 'Witaj w KidsTube'}
+          title={pinSetup ? 'Nowy kod rodzica' : 'Witaj w KidTube'}
           subtitle="Ustaw kod, którym będziesz zatwierdzać filmy i wchodzić w panel rodzica."
           onSubmit={onSetupPin}
           onCancel={pinSetup ? () => setPinSetup(false) : undefined}

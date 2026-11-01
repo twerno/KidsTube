@@ -2,7 +2,7 @@
 
 > Status: **wdrożone** (0.9.0). Rozszerza ADR 0016 o sekcję „Baza danych”.
 
-KidsTube jest w pełni lokalna: nie ma konta ani backendu (ADR 0007), a cała
+KidTube jest w pełni lokalna: nie ma konta ani backendu (ADR 0007), a cała
 biblioteka, kanały, decyzje, historia oglądania, ustawienia i kod rodzica żyją
 w AsyncStorage. Reinstalacja, zmiana telefonu albo poważny błąd oznaczają dziś
 utratę wszystkiego — nie ma sposobu, by rodzic zrobił kopię i później ją
@@ -30,7 +30,7 @@ Sekcja obsługuje **całą lokalną bazę**, a nie pojedyncze listy. Import jest
   nazw kluczy i może ewoluować razem z modelem domeny.
 - Plik zapisujemy przez systemowy wybór miejsca (Android Storage Access
   Framework, `ACTION_CREATE_DOCUMENT`, MIME `application/json`). Proponowana
-  nazwa: `kidstube-backup-YYYY-MM-DD-HHmm.json`.
+  nazwa: `kidtube-backup-YYYY-MM-DD-HHmm.json`.
 - Nie potrzebujemy uprawnień do pamięci ani sieci. Anulowanie wyboru miejsca
   oznacza brak pliku i brak zmian w bazie.
 - Eksport nie zmienia danych, nie uruchamia synchronizacji i nie blokuje
@@ -48,7 +48,7 @@ Plik jest jednym obiektem JSON z jawną kopertą:
 
 ```json
 {
-  "format": "kidstube-db",
+  "format": "kidtube-db",
   "schemaVersion": 1,
   "exportedAt": "2026-10-24T12:34:56.000Z",
   "appVersion": "0.8.0",
@@ -66,7 +66,7 @@ Plik jest jednym obiektem JSON z jawną kopertą:
 }
 ```
 
-- `format` musi mieć wartość `kidstube-db`; inne pliki są odrzucane.
+- `format` musi mieć wartość `kidtube-db`; inne pliki są odrzucane.
 - `schemaVersion` to wersja formatu, niezależna od `appVersion`.
 - `exportedAt` to znacznik czasu w ISO 8601 (UTC), a `appVersion` służy tylko
   do informacji i diagnostyki.

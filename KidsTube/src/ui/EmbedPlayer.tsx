@@ -68,7 +68,7 @@ export interface EmbedPlayerProps {
   onState?: (state: PlayerState) => void;
 }
 
-const APP_ORIGIN = 'https://com.kidstube';
+const APP_ORIGIN = 'https://com.kidtube';
 const CHROME_UA =
   'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36';
 
@@ -332,7 +332,7 @@ const PLAYER_JSA = `
         if (p && p.getAvailableAudioTracks) {
           var all = p.getAvailableAudioTracks() || [];
           var cur = p.getAudioTrack ? p.getAudioTrack() : null;
-          // KidsTube policy: only the original audio track and the Polish dub.
+          // KidTube policy: only the original audio track and the Polish dub.
           var keep = [];
           var origInKeep = -1;
           var decoded = 0;
@@ -507,11 +507,11 @@ export const EmbedPlayer = forwardRef<PlayerHandle, EmbedPlayerProps>(function E
           }
         }}
         onError={event => {
-          console.log('[KidsTube:player] error', event.nativeEvent.description);
+          console.log('[KidTube:player] error', event.nativeEvent.description);
           onErrorRef.current?.(event.nativeEvent.description);
         }}
         onHttpError={event => {
-          console.log('[KidsTube:player] http', event.nativeEvent.statusCode);
+          console.log('[KidTube:player] http', event.nativeEvent.statusCode);
           onErrorRef.current?.(`HTTP ${event.nativeEvent.statusCode}`);
         }}
       />

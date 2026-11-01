@@ -24,7 +24,7 @@ Zapis tego, co zrobione. Bez commita do czasu akceptacji.
   (auto-rozstrzyganie powtórki zostaje w `App`).
 - Nowe typy i trwałość: `ChannelProposal` (`domain/types.ts`),
   `Repository.list/get/upsert/removeChannelProposal`, klucz
-  `@kidstube/channel-proposals/v1` w AsyncStorage.
+  `@kidtube/channel-proposals/v1` w AsyncStorage.
 - `services/channelProposals.ts`: resolve przez InnerTube, zapis z deduplikacją,
   zatwierdzenie (zawsze `manual` + `allowed` + RSS), odrzucenie (bez decyzji),
   ponowienie rozwiązania.
@@ -44,14 +44,14 @@ Zapis tego, co zrobione. Bez commita do czasu akceptacji.
   filmu/kanału, `youtu.be/…` i `vnd.youtube:`; bez `autoVerify` i Digital Asset
   Links.
 - `YouTubeLinkHandlerModule.kt` (most `YouTubeLinkHandler`): włącza/wyłącza
-  komponent przez `setComponentEnabledSetting`, sprawdza, czy KidsTube jest
+  komponent przez `setComponentEnabledSetting`, sprawdza, czy KidTube jest
   domyślnym handlerem, i otwiera systemowe „Otwieraj domyślnie” (fallback:
   szczegóły aplikacji). JS-owy wrapper `native/youtubeLinkHandler.ts` jest
   bezpiecznym no-opem bez modułu natywnego.
 - `Settings.youtubeLinkHandlerEnabled` — domyślnie `false`, przeżywa restart.
   Przy starcie `App` synchronizuje stan aliasu z ustawieniem (idempotentnie).
   Przełącznik i skrót do ustawień systemowych są w Ustawieniach rodzica;
-  włączenie pokazuje wyjaśnienie, wyłączenie ostrzega, gdy KidsTube był
+  włączenie pokazuje wyjaśnienie, wyłączenie ostrzega, gdy KidTube był
   domyślnym handlerem.
 - `native/shareIntent.ts`: osobne callbacki `onShare` / `onView`. `App` kolejkuje
   linki do momentu wczytania ustawień i repozytorium, przetwarza je raz,

@@ -1,4 +1,4 @@
-package com.kidstube
+package com.kidtube
 
 /**
  * Holds text from the most recent ACTION_SEND intent until JS consumes it.

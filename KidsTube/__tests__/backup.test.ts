@@ -170,7 +170,7 @@ describe('backup format (ADR 0017)', () => {
     }));
     expect(parsed.ok).toBe(false);
     if (!parsed.ok) {
-      expect(parsed.error).toContain('To nie jest plik kopii KidsTube');
+      expect(parsed.error).toContain('To nie jest plik kopii KidTube');
     }
   });
 

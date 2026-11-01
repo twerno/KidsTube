@@ -28,7 +28,7 @@ import type {
   WatchProgress,
 } from './types';
 
-export const BACKUP_FORMAT = 'kidstube-db';
+export const BACKUP_FORMAT = 'kidtube-db';
 export const BACKUP_SCHEMA_VERSION = 1;
 
 export interface BackupFile {
@@ -489,13 +489,13 @@ export function parseBackup(raw: string): BackupParseResult {
 
 function parseEnvelope(raw: Record<string, unknown>): BackupParseResult {
   if (raw.format !== BACKUP_FORMAT) {
-    return { ok: false, error: 'To nie jest plik kopii KidsTube.' };
+    return { ok: false, error: 'To nie jest plik kopii KidTube.' };
   }
   const schemaVersion = asNumber(raw.schemaVersion, 'schemaVersion', { integer: true, min: 1 });
   if (schemaVersion > BACKUP_SCHEMA_VERSION) {
     return {
       ok: false,
-      error: 'Plik pochodzi z nowszej wersji KidsTube. Zaktualizuj aplikację.',
+      error: 'Plik pochodzi z nowszej wersji KidTube. Zaktualizuj aplikację.',
     };
   }
   if (schemaVersion !== BACKUP_SCHEMA_VERSION) {

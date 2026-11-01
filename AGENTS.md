@@ -1,7 +1,7 @@
-# AGENTS.md — KidsTube: środowisko i piaskownica
+# AGENTS.md — KidTube: środowisko i piaskownica
 
 To, czego **nie ma** w README (sieć, emulator, gotchas toolchainu).
-Architektura, decyzje, testy, build Android — patrz `KidsTube/README.md`.
+Architektura, decyzje, testy, build Android — patrz `KidTube/README.md`.
 
 ## Sandbox — sieć
 
@@ -21,7 +21,7 @@ Architektura, decyzje, testy, build Android — patrz `KidsTube/README.md`.
   ```bash
   source env-android.sh
   adb -H host.docker.internal -P 5037 -s emulator-5554 devices -l
-  adb -H host.docker.internal -P 5037 -s emulator-5554 install KidsTube/android/app/build/outputs/apk/release/app-release.apk
+  adb -H host.docker.internal -P 5037 -s emulator-5554 install KidTube/android/app/build/outputs/apk/release/app-release.apk
   adb -H host.docker.internal -P 5037 -s emulator-5554 logcat
   ```
 
@@ -45,9 +45,9 @@ Architektura, decyzje, testy, build Android — patrz `KidsTube/README.md`.
 ## Repo
 
 - Root repozytorium = `/home/agent/workspace` (git tu siedzi),
-  `KidsTube/` to aplikacja RN. Jeden commit na `master`, drzewo czyste,
+  `KidTube/` to aplikacja RN. Jeden commit na `master`, drzewo czyste,
   brak remote.
-- Git user ustawiony lokalnie: `KidsTube Dev <dev@kidstube.local>`.
+- Git user ustawiony lokalnie: `KidTube Dev <dev@kidtube.local>`.
 - UI i komunikaty aplikacji — po polsku (to produkt, nie scaffold).
 
 ## Workflow po wykonaniu pracy
@@ -58,7 +58,7 @@ Architektura, decyzje, testy, build Android — patrz `KidsTube/README.md`.
 
 ## Stan na start
 
-- APK zbudowane: `KidsTube/android/app/build/outputs/apk/{debug,release}/`
+- APK zbudowane: `KidTube/android/app/build/outputs/apk/{debug,release}/`
   (release 21 MB — sideload do emulatora).
 - `npm test` = 99 testów, `npx tsc --noEmit` i `npx eslint .` — czysto.
 

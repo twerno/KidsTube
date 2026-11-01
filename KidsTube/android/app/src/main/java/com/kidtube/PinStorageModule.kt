@@ -1,4 +1,4 @@
-package com.kidstube
+package com.kidtube
 
 import android.content.Context
 import android.security.keystore.KeyGenParameterSpec
@@ -26,9 +26,9 @@ class PinStorageModule(reactContext: ReactApplicationContext) :
   ReactContextBaseJavaModule(reactContext) {
 
   companion object {
-    private const val PREFS = "kidstube_secure"
+    private const val PREFS = "kidtube_secure"
     private const val ENTRY = "pin_record"
-    private const val KEY_ALIAS = "kidstube_pin_v1"
+    private const val KEY_ALIAS = "kidtube_pin_v1"
     private const val TRANSFORMATION = "AES/GCM/NoPadding"
     private const val GCM_TAG_BITS = 128
   }

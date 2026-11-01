@@ -8,7 +8,7 @@ interface BackupFileNative {
 }
 
 function native(): BackupFileNative | undefined {
-  return (NativeModules as { KidsTubeBackup?: BackupFileNative }).KidsTubeBackup;
+  return (NativeModules as { KidTubeBackup?: BackupFileNative }).KidTubeBackup;
 }
 
 export type SaveBackupStatus = 'saved' | 'cancelled' | 'unavailable';

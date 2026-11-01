@@ -27,12 +27,12 @@ export type RestoreOutcome = { ok: true } | { ok: false; message: string };
 
 const pad = (value: number) => String(value).padStart(2, '0');
 
-/** `kidstube-backup-YYYY-MM-DD-HHmm.json` in local time. */
+/** `kidtube-backup-YYYY-MM-DD-HHmm.json` in local time. */
 export function backupFileName(date: Date = new Date()): string {
   const stamp = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(
     date.getDate(),
   )}-${pad(date.getHours())}${pad(date.getMinutes())}`;
-  return `kidstube-backup-${stamp}.json`;
+  return `kidtube-backup-${stamp}.json`;
 }
 
 export function backupCounts(snapshot: DatabaseSnapshot) {

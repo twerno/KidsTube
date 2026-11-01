@@ -142,7 +142,7 @@ otwierania linków.
   komunikat. Tylko odczyt.
 - **Bez persystencji, bez eksportu, bez danych wrażliwych** — PIN nie jest
   logowany w żadnej formie.
-- Zdarzenia, które dotąd szły wyłącznie do `console.log` (`[KidsTube:*]`), trafiają
+- Zdarzenia, które dotąd szły wyłącznie do `console.log` (`[KidTube:*]`), trafiają
   też do bufora. Sekcja jest jedynym kanałem diagnozy dla rodzica, bo aplikacja
   jest sideloadowana (ADR 0007) i nie ma dostępu do `logcat`.
 

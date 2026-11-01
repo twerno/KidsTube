@@ -1,4 +1,4 @@
-package com.kidstube
+package com.kidtube
 
 import android.view.WindowManager
 import androidx.core.view.WindowCompat

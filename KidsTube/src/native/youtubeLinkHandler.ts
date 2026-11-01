@@ -2,7 +2,7 @@
  * Bridge to the optional Android `VIEW` handler (ADR 0014).
  *
  * The manifest declares a disabled activity alias. Enabling the parent setting
- * flips the component state at runtime; disabling removes KidsTube from the
+ * flips the component state at runtime; disabling removes KidTube from the
  * system's candidates again. On platforms/tests without the native module every
  * call is a safe no-op.
  */

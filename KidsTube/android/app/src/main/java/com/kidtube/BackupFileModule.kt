@@ -1,4 +1,4 @@
-package com.kidstube
+package com.kidtube
 
 import android.app.Activity
 import android.content.Intent
@@ -65,7 +65,7 @@ class BackupFileModule(reactContext: ReactApplicationContext) :
           }
         }
       } catch (error: Exception) {
-        promise.reject("kidstube_backup", error)
+        promise.reject("kidtube_backup", error)
       } finally {
         pendingContent = ""
       }
@@ -76,18 +76,18 @@ class BackupFileModule(reactContext: ReactApplicationContext) :
     reactApplicationContext.addActivityEventListener(listener)
   }
 
-  override fun getName(): String = "KidsTubeBackup"
+  override fun getName(): String = "KidTubeBackup"
 
   /** Ask for a destination and write the JSON document there. */
   @ReactMethod
   fun saveJson(fileName: String, content: String, promise: Promise) {
     if (pending != null) {
-      promise.reject("kidstube_backup", "Inna operacja na plikach już trwa")
+      promise.reject("kidtube_backup", "Inna operacja na plikach już trwa")
       return
     }
     val activity = reactApplicationContext.currentActivity
     if (activity == null) {
-      promise.reject("kidstube_backup", "Brak aktywnego ekranu")
+      promise.reject("kidtube_backup", "Brak aktywnego ekranu")
       return
     }
     pending = promise
@@ -102,7 +102,7 @@ class BackupFileModule(reactContext: ReactApplicationContext) :
     } catch (error: Exception) {
       pending = null
       pendingContent = ""
-      promise.reject("kidstube_backup", error)
+      promise.reject("kidtube_backup", error)
     }
   }
 
@@ -110,12 +110,12 @@ class BackupFileModule(reactContext: ReactApplicationContext) :
   @ReactMethod
   fun openJson(promise: Promise) {
     if (pending != null) {
-      promise.reject("kidstube_backup", "Operacja już trwa")
+      promise.reject("kidtube_backup", "Operacja już trwa")
       return
     }
     val activity = reactApplicationContext.currentActivity
     if (activity == null) {
-      promise.reject("kidstube_backup", "Brak aktywności")
+      promise.reject("kidtube_backup", "Brak aktywności")
       return
     }
     pending = promise
@@ -131,7 +131,7 @@ class BackupFileModule(reactContext: ReactApplicationContext) :
       activity.startActivityForResult(intent, REQUEST_OPEN)
     } catch (error: Exception) {
       pending = null
-      promise.reject("kidstube_backup", error)
+      promise.reject("kidtube_backup", error)
     }
   }
 

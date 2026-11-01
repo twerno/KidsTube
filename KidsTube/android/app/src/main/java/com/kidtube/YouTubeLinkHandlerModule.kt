@@ -1,4 +1,4 @@
-package com.kidstube
+package com.kidtube
 
 import android.content.ActivityNotFoundException
 import android.content.ComponentName
@@ -14,7 +14,7 @@ import com.facebook.react.bridge.ReactMethod
 /**
  * Enables/disables the optional YouTube VIEW activity alias (ADR 0014).
  *
- * The alias is declared with android:enabled="false"; enabling it makes KidsTube
+ * The alias is declared with android:enabled="false"; enabling it makes KidTube
  * a system candidate for supported YouTube links, disabling removes it again.
  * We never try to become the default handler programmatically — that choice
  * belongs to the user in system settings.
@@ -43,11 +43,11 @@ class YouTubeLinkHandlerModule(reactContext: ReactApplicationContext) :
       )
       promise.resolve(true)
     } catch (error: Exception) {
-      promise.reject("kidstube_link_handler", error)
+      promise.reject("kidtube_link_handler", error)
     }
   }
 
-  /** Whether KidsTube currently wins the system chooser for a YouTube film link. */
+  /** Whether KidTube currently wins the system chooser for a YouTube film link. */
   @ReactMethod
   fun isDefaultHandler(promise: Promise) {
     try {
@@ -61,7 +61,7 @@ class YouTubeLinkHandlerModule(reactContext: ReactApplicationContext) :
       )
       promise.resolve(resolved?.activityInfo?.packageName == reactApplicationContext.packageName)
     } catch (error: Exception) {
-      promise.reject("kidstube_link_handler", error)
+      promise.reject("kidtube_link_handler", error)
     }
   }
 
@@ -83,7 +83,7 @@ class YouTubeLinkHandlerModule(reactContext: ReactApplicationContext) :
       }
       promise.resolve(true)
     } catch (error: Exception) {
-      promise.reject("kidstube_link_handler", error)
+      promise.reject("kidtube_link_handler", error)
     }
   }
 }

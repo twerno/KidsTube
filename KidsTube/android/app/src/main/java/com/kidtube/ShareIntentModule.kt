@@ -1,4 +1,4 @@
-package com.kidstube
+package com.kidtube
 
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext

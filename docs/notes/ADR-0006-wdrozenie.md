@@ -20,8 +20,8 @@ Zapis tego, co zrobione. Bez commita do czasu akceptacji.
 - **`ChildHomeScreen`** (bez zmian w API): istniejące `onRefresh` w siatce
   feedu, liście kanałów i widoku kanału nadal prowadzi do `App.sync`; test
   pilnuje, że akcja dziecka faktycznie uruchamia pobranie.
-- **Diagnostyka**: jednolinijkowy log `[KidsTube:sync] channels=… added=…`
-  po każdym przebiegu (obok istniejącego `[KidsTube:usage]`), żeby dało się
+- **Diagnostyka**: jednolinijkowy log `[KidTube:sync] channels=… added=…`
+  po każdym przebiegu (obok istniejącego `[KidTube:usage]`), żeby dało się
   potwierdzić sync w logcat bez zgadywania.
 
 ## Czego świadomie nie zmieniono
@@ -44,7 +44,7 @@ Zapis tego, co zrobione. Bez commita do czasu akceptacji.
 - `npm test` = **192** (było 191), `npx tsc --noEmit` i `npx eslint .` czysto.
 - Wersja: **0.6.0 → 0.6.1**, `versionCode 20 → 21`.
 - APK release zbudowany i zainstalowany w emulatorze; w logcat widać
-  `[KidsTube:sync] channels=… added=…` zaraz po starcie aplikacji.
+  `[KidTube:sync] channels=… added=…` zaraz po starcie aplikacji.
 - README: wiersz „Synchronizacja” opisuje start, pull-to-refresh i scalanie
   równoległych wywołań; zaktualizowana liczba testów.
 - ADR 0006: dopisane konsekwencje wdrożenia (jeden przebieg na start, brak

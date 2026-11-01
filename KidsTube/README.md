@@ -1,4 +1,4 @@
-# KidsTube
+# KidTube
 
 Aplikacja na Androida dla dziecka, które ma oglądać YouTube z **kuratorowanej
 biblioteki** zatwierdzonej przez rodzica. Bez logowania do Google, bez backendu,
@@ -21,7 +21,7 @@ domenowych: `CONTEXT.md` (root repozytorium).
 | Historia i akcje zbiorcze | Zakładka **Decyzje** (grupa Historia): pełny log append-only od najnowszych (wynik, źródło ręczne/auto, czas), dotknięcie → dialog zmiany (last-wins), przeżywa usunięte filmy/kanały. Akcje masowe (cofnięcie autoakceptacji, usunięcie kanału) z obowiązkowym potwierdzeniem i liczbą filmów — zbiorcze odrzucenia jako osobne decyzje. *(ADR 0010)* |
 | Wyszukiwanie/dodawanie | Link / „Udostępnij” — fundament (działa zawsze). Wyszukiwarka YouTube w panelu rodzica — prototyp z bramką oceny stabilności. Bez klucza API. *(ADR 0005)* |
 | Udostępnianie linków | Jeden wspólny potok dla **filmu i kanału** (`ACTION_SEND`): film wg ostatniej decyzji / polityki kanału (`allowed` / `pending` / `blocked`), kanał jako **propozycja kanału** widoczna tylko u rodzica. Bez duplikatów, bez autoodtwarzania, bez otwierania przeglądarki. *(ADR 0013)* |
-| Linki otwierane w KidsTube | Opcjonalny przełącznik w Ustawieniach rodzica: osobny, domyślnie **wyłączony** alias aktywności z filtrami `VIEW`; włączenie/wyłączenie wg ustawienia. Wybór domyślnego handlera nadal w systemie (bez `autoVerify`). *(ADR 0014)* |
+| Linki otwierane w KidTube | Opcjonalny przełącznik w Ustawieniach rodzica: osobny, domyślnie **wyłączony** alias aktywności z filtrami `VIEW`; włączenie/wyłączenie wg ustawienia. Wybór domyślnego handlera nadal w systemie (bez `autoVerify`). *(ADR 0014)* |
 | Odtwarzanie | WebView (embed — brak reklam pre-roll) + **własne natywne kontrolki**: play/pauza, pasek postępu/seek, napisy (domyślnie OFF), wybór ścieżki audio. Dotyk WebView wyłączony — sterowanie idzie przez most `injectJavaScript` ↔ `movie_player`. **Gesty**: tap w środek = pauza/wznowienie, double-tap na brzegach = −10 s / +10 s. Nawigacja zamknięta allowlistą (tylko embed zatwierdzonego filmu). Koniec filmu: „Zagraj ponownie / Wróć do listy” (w trybie audio — **pętla wielokrotna**, restart przez jedno polecenie playera); błędy sieci: jawny retry + wznowienie best-effort; **licznik limitu = czas faktycznego odtwarzania**. Film gra **pełnoekranowo**: pasek stanu i przyciski nawigacji Androida są ukryte (wracają w trybie audio i po wyjściu; gest od krawędzi odsłania je chwilowo). *(ADR 0003, 0004b)* |
 | Logo YouTube | **Nie ukrywamy** — widoczne m.in. przy buforowaniu; spełnia wymóg atrybucji. |
 | Ścieżki audio | Tylko **oryginał + polski**, start na oryginale; wybór znika, gdy jest tylko jedna ścieżka. Docelowo lista języków konfigurowana przez rodzica. *(ADR 0008)* |
@@ -34,7 +34,7 @@ domenowych: `CONTEXT.md` (root repozytorium).
 | Import katalogu | Jawny przycisk **„Wczytaj cały katalog”** na kanale: pełna lista przez InnerTube (paginacja), bez klucza API; status wg polityki kanału; **wznawialny** — checkpoint kursora, dzienny budżet stron, miękki stop przy limicie/błędzie. *(ADR 0009)* |
 | Dystrybucja | Rodzinny sideload z GitHub Releases (debug keystore). Google Play — przyszła, odwracalna decyzja z bramką oceny. *(ADR 0007)* |
 | PIN | PBKDF2-SHA256, losowa sól; rekord PIN szyfrowany AES/GCM kluczem z **Android Keystore** (poza `Settings` i kopią bazy), z migracją starych danych; blokada profilu rodzica na 3 min po 3 błędnych PIN-ach, stan lokalny i wspólny dla panelu i dodatkowego czasu. *(ADR 0012, 0022)* |
-| Kopia bazy | **Panel → Baza danych**: eksport całej bazy do jednego pliku JSON (`kidstube-backup-…`) przez systemowy wybór miejsca; import **zastępuje** bazę (bez scalania), waliduje cały plik przed zapisem, ma rollback i wykrywanie przerwanego importu. `pinGuard`, log i **kod rodzica** poza kopią. Plik jawny, bez PIN-u. *(ADR 0017)* |
+| Kopia bazy | **Panel → Baza danych**: eksport całej bazy do jednego pliku JSON (`kidtube-backup-…`) przez systemowy wybór miejsca; import **zastępuje** bazę (bez scalania), waliduje cały plik przed zapisem, ma rollback i wykrywanie przerwanego importu. `pinGuard`, log i **kod rodzica** poza kopią. Plik jawny, bez PIN-u. *(ADR 0017)* |
 | Wersje | `minSdk 26` (Android 8), `targetSdk 36`, `compileSdk 37`. |
 
 ### Dlaczego RSS, a nie „wszystkie filmy”
@@ -107,9 +107,9 @@ src/
   ui/ChannelAvatar.tsx        wspólny awatar kanału (zdjęcie lub inicjał)
   ui/player/PlayerControls.tsx  natywny pasek: play/pauza, seek, CC, audio
 android/app/src/main/
-  java/com/kidstube/PinStorageModule.kt  AES/GCM + Android Keystore dla rekordu PIN
+  java/com/kidtube/PinStorageModule.kt  AES/GCM + Android Keystore dla rekordu PIN
   AndroidManifest.xml         SEND + osobny alias VIEW (domyślnie wyłączony)
-  java/com/kidstube/           ShareIntentModule / YouTubeLinkHandlerModule / BackupFileModule / SystemUiModule / Package
+  java/com/kidtube/           ShareIntentModule / YouTubeLinkHandlerModule / BackupFileModule / SystemUiModule / Package
 ```
 
 Kształt plików ewoluuje wg ADR-ów. **Log decyzji** (`domain/decisions.ts` +
@@ -144,18 +144,18 @@ rodzinie/GitHubie). Na Google Play trzeba wygenerować własny keystore.
 
 ### Otwieranie linków po sideloadzie
 
-Udostępnianie (`Udostępnij` → KidsTube) działa od razu po instalacji. Aby linki
-klikane w innych aplikacjach otwierały się w KidsTube, rodzic musi:
+Udostępnianie (`Udostępnij` → KidTube) działa od razu po instalacji. Aby linki
+klikane w innych aplikacjach otwierały się w KidTube, rodzic musi:
 
 1. w panelu rodzica → Ustawienia włączyć **„Otwieraj linki YouTube
-   w KidsTube”** (domyślnie wyłączone),
-2. w systemie wybrać KidsTube jako domyślną aplikację dla linków YouTube
+   w KidTube”** (domyślnie wyłączone),
+2. w systemie wybrać KidTube jako domyślną aplikację dla linków YouTube
    (Android 12+: Ustawienia → Aplikacje → Domyślne aplikacje → Otwieranie
    linków; przycisk w aplikacji otwiera właściwy ekran).
 
 Jeśli zainstalowana jest oficjalna aplikacja YouTube, jej zweryfikowane App
 Links mogą nadal wygrywać — wtedy trzeba wyłączyć YouTube albo wyczyścić jego
-ustawienia domyślne. KidsTube nie blokuje innych aplikacji i nie wymusza bycia
+ustawienia domyślne. KidTube nie blokuje innych aplikacji i nie wymusza bycia
 domyślnym handlerem.
 
 ### Uprawnienia / wymagane domeny build-time
@@ -177,12 +177,12 @@ ją dodać.
     „Kanały” w zakładce Oczekujące); zatwierdzenie tworzy kanał `manual`
     i uruchamia RSS, odrzucenie nie zostawia decyzji,
   - link nieobsługiwany → komunikat, bez otwierania przeglądarki.
-- **Otwieranie linków `youtube.com/...` w KidsTube** (ADR 0014):
-  Ustawienia rodzica → „Otwieraj linki YouTube w KidsTube”, **domyślnie
+- **Otwieranie linków `youtube.com/...` w KidTube** (ADR 0014):
+  Ustawienia rodzica → „Otwieraj linki YouTube w KidTube”, **domyślnie
   wyłączone**. Włączenie uaktywnia osobny alias aktywności z filtrami `VIEW`
-  (film i kanał, obsługiwane hosty/ścieżki); wyłączenie usuwa KidsTube
-  z kandydatów systemu. Rodzic wybiera KidsTube jako domyślny handler
-  w systemie — KidsTube tego nie wymusza (brak `autoVerify`/Digital Asset
+  (film i kanał, obsługiwane hosty/ścieżki); wyłączenie usuwa KidTube
+  z kandydatów systemu. Rodzic wybiera KidTube jako domyślny handler
+  w systemie — KidTube tego nie wymusza (brak `autoVerify`/Digital Asset
   Links dla `youtube.com`). Gdy YouTube jest zainstalowany, jego zweryfikowane
   App Links mogą wygrywać. Udostępnianie (`ACTION_SEND`) działa zawsze,
   niezależnie od przełącznika.
@@ -219,7 +219,7 @@ Na karcie kanału (Biblioteka → Kanały → kanał) jest **„Pobierz wszystki
 Panel rodzica → **Baza danych**:
 
 1. **Eksportuj bazę do JSON** — potwierdź kodem rodzica, wybierz miejsce zapisu
-   (systemowy wybór plików), plik `kidstube-backup-RRRR-MM-DD-HHmm.json`.
+   (systemowy wybór plików), plik `kidtube-backup-RRRR-MM-DD-HHmm.json`.
 2. **Importuj bazę z JSON** — wskaż plik, sprawdź podsumowanie (data, wersja,
    liczby), potwierdź kodem. Import **zastępuje całą bazę**; nie scala danych.
    Po sukcesie panel się zamyka, a kod rodzica pochodzi z pliku.
