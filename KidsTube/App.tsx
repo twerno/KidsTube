@@ -70,6 +70,7 @@ import {
 } from './src/native/youtubeLinkHandler';
 import { hashPin, verifyPin } from './src/security/pin';
 import { syncAllChannels, syncChannel } from './src/services/channelSync';
+import { backfillPublicationDates } from './src/services/dateBackfill';
 import {
   ensureChannelForApprovedVideo,
   ensureMutedChannelsForApprovedVideos,
@@ -294,6 +295,20 @@ function AppContent() {
           `kanały=${Object.keys(result.perChannel).length} nowe=${result.added.length}`,
         );
         await reload();
+        // Films imported without a publication date (older builds, failed
+        // metadata calls) get one in small paced batches — the list is already
+        // on screen, so this never holds the spinner (ADR 0023).
+        if (!restoringRef.current) {
+          backfillPublicationDates(repo)
+            .then(async backfill => {
+              if (backfill.updated.length > 0) {
+                await reload();
+              }
+            })
+            .catch(error => {
+              recordLog('warn', 'sync', `daty: ${String(error)}`);
+            });
+        }
       } catch (error) {
         // Network failures are already swallowed per channel; anything left is
         // unexpected, but it must not leave the child stuck in a spinner.

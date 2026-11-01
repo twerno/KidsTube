@@ -166,21 +166,33 @@ describe('child view helpers', () => {
     expect(decisions).toHaveLength(1);
   });
 
-  it('collects films started but not finished, ordered by publication date (ADR 0020)', () => {
+  it('collects films started but not finished, ordered by the last playback (ADR 0023)', () => {
     const videos: Video[] = [
       { ...base, id: 'a', status: 'allowed', publishedAt: 300 },
       { ...base, id: 'b', status: 'allowed', publishedAt: 250 },
       { ...base, id: 'c', status: 'allowed', publishedAt: 100 },
+      { ...base, id: 'tapped', status: 'allowed', publishedAt: 400 },
     ];
     const progress = [
       { videoId: 'a', positionSeconds: 30, completed: false, lastWatchedAt: 10 },
       { videoId: 'b', positionSeconds: 120, completed: true, lastWatchedAt: 30 },
       { videoId: 'c', positionSeconds: 60, completed: false, lastWatchedAt: 20 },
-      { videoId: 'gone', positionSeconds: 10, completed: false, lastWatchedAt: 40 },
+      { videoId: 'gone', positionSeconds: 20, completed: false, lastWatchedAt: 40 },
       { videoId: 'never', positionSeconds: 0, completed: false, lastWatchedAt: 50 },
+      { videoId: 'tapped', positionSeconds: 3, completed: false, lastWatchedAt: 60 },
     ];
-    // Watching 'c' later does not lift it above the newer publication 'a'.
-    expect(continueWatchingVideos(videos, progress).map(v => v.id)).toEqual(['a', 'c']);
+    // 'c' was watched after 'a', so it now leads — the continue tab follows the
+    // playback, not the upload date. 'tapped' (3 s) is an accidental open.
+    expect(continueWatchingVideos(videos, progress).map(v => v.id)).toEqual(['c', 'a']);
+  });
+
+  it('counts a film as started at ten seconds of playback', () => {
+    const videos: Video[] = [{ ...base, id: 'a', status: 'allowed' }];
+    const at = (positionSeconds: number) => [
+      { videoId: 'a', positionSeconds, completed: false, lastWatchedAt: 1 },
+    ];
+    expect(continueWatchingVideos(videos, at(9))).toEqual([]);
+    expect(continueWatchingVideos(videos, at(10)).map(v => v.id)).toEqual(['a']);
   });
 });
 

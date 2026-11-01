@@ -1,6 +1,9 @@
 # ADR 0020 — Listy: kolejność, „Kontynuuj oglądanie”, wyszukiwarka, pasek przewijania
 
-> Status: **wdrożone** (0.11.0). Zastępuje regułę kolejności z ADR 0001/0004.
+> Status: **wdrożone** (0.11.0); **częściowo zastąpione**: pasma dat przez
+> ADR 0024 (miesiące zamiast „poprzedni miesiąc / starsze”), a „Kontynuuj
+> oglądanie” przez ADR 0023 (pasma dzienne, próg 10 s, uzupełnianie brakujących
+> dat publikacji). Zastępuje regułę kolejności z ADR 0001/0004.
 
 ## Kolejność i grupowanie
 
@@ -18,22 +21,26 @@ Feed i widok kanału grupują filmy w pasma dat:
 
 - **W tym tygodniu** (od poniedziałku),
 - **W tym miesiącu**,
-- **We &lt;poprzedni miesiąc&gt;** (np. „We wrześniu”; z rokiem, gdy inny),
-- **Starsze**,
+- kolejne miesiące roku, każdy osobno („We wrześniu”, „W październiku”, …),
+- miesiące lat poprzednich, każdy osobno, z rokiem („W grudniu 2025”, …),
 - **Bez daty** na końcu (sortowane w środku tej grupy po dacie importu).
 
+*(Pasma miesięczne: ADR 0024 — wcześniej był jeden „poprzedni miesiąc” i
+zbiorcze „Starsze”).*
+
 Grupowanie jest wyłącznie prezentacją: nie zmienia danych ani decyzji.
-„Kontynuuj oglądanie” jest zwykłą listą filmów: sortuje się po dacie publikacji
-(fallback: data importu) i dzieli na te same pasma dat. Data ostatniego
-oglądania nie wpływa na kolejność.
+(Zmienione przez ADR 0023): „Kontynuuj oglądanie” grupuje się po dniu
+ostatniego odtwarzania, nie po dacie publikacji.
 
 ## „Kontynuuj oglądanie”
 
 Nowa zakładka dziecka agreguje filmy, które mają zapisany postęp
-(`positionSeconds > 0`, `completed: false`) i nadal są w bibliotece. Kolejność
-jest wspólna dla wszystkich list: data publikacji (fallback: data importu),
-nowsze najpierw. Filmy ukończone i nigdy nieotwarte są pomijane. Wejście w kafelek otwiera odtwarzacz od zapisanej
-pozycji (dotychczasowa reguła wznowienia).
+(`positionSeconds > 0`, `completed: false`) i nadal są w bibliotece. Filmy
+ukończone i nigdy nieotwarte są pomijane. Wejście w kafelek otwiera odtwarzacz
+od zapisanej pozycji (dotychczasowa reguła wznowienia).
+
+*(Zmienione przez ADR 0023)*: film liczy się jako rozpoczęty od 10 s
+odtwarzania, a kolejność i pasma idą po dniu ostatniego odtwarzania.
 
 ## Wyszukiwarka
 

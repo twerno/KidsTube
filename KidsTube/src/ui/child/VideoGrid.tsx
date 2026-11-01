@@ -2,10 +2,11 @@
  * The child's feed as a grid of large thumbnails (ADR 0004a / 0020). The same
  * grid is reused for a channel detail view and “Kontynuuj oglądanie”.
  *
- * Films are ordered by publication date and grouped into familiar date bands
- * (this week / this month / previous month / older), so a long library gives a
- * sense of how old the material is. A persistent scrollbar marks the position
- * in the list.
+ * Feed and channel group films into publication-date bands (this week / this
+ * month / previous month / older), so a long library gives a sense of how old
+ * the material is. “Kontynuuj oglądanie” groups by the day of the last playback
+ * instead (ADR 0023) — there the interesting date is when the child watched,
+ * not when the film was uploaded. A persistent scrollbar marks the position.
  */
 
 import React, { useMemo } from 'react';
@@ -23,12 +24,21 @@ import {
 import { WatchBadge } from '../components';
 import { colors, radius, spacing } from '../theme';
 import { formatPublishedDate } from '../../domain/dates';
-import { groupVideosByDate } from '../../domain/videoGroups';
+import { groupVideosByDate, groupVideosByLastWatched } from '../../domain/videoGroups';
 import type { Video, WatchProgress } from '../../domain/types';
 
 interface GridRow {
   key: string;
   videos: Video[];
+}
+
+/** How the list is split into bands above the rows. */
+export type VideoGridGrouping = 'publicationDate' | 'lastWatched' | 'none';
+
+interface GridSection {
+  key: string;
+  title: string;
+  data: GridRow[];
 }
 
 function rowsOf(videos: Video[]): GridRow[] {
@@ -47,7 +57,7 @@ export function VideoGrid({
   refreshing,
   onRefresh,
   emptyText,
-  groupByDate = true,
+  groupBy = 'publicationDate',
 }: {
   videos: Video[];
   watchProgress?: WatchProgress[];
@@ -55,8 +65,8 @@ export function VideoGrid({
   refreshing?: boolean;
   onRefresh?: () => void;
   emptyText: string;
-  /** “Kontynuuj oglądanie” keeps its own order, so it skips date bands. */
-  groupByDate?: boolean;
+  /** Which dates the bands follow (ADR 0020 / 0023). */
+  groupBy?: VideoGridGrouping;
 }) {
   const { width } = useWindowDimensions();
   const progressByVideoId = useMemo(
@@ -65,16 +75,20 @@ export function VideoGrid({
   );
   const tileWidth = Math.max(120, Math.floor((width - spacing.lg * 2 - spacing.md) / 2));
 
-  const sections = useMemo(() => {
-    if (!groupByDate) {
+  const sections = useMemo((): GridSection[] => {
+    if (groupBy === 'none') {
       return [{ key: 'all', title: '', data: rowsOf(videos) }];
     }
-    return groupVideosByDate(videos).map(group => ({
+    const groups =
+      groupBy === 'lastWatched'
+        ? groupVideosByLastWatched(videos, watchProgress ?? [])
+        : groupVideosByDate(videos);
+    return groups.map(group => ({
       key: group.key,
       title: group.title,
       data: rowsOf(group.videos),
     }));
-  }, [videos, groupByDate]);
+  }, [videos, watchProgress, groupBy]);
 
   return (
     <SectionList
@@ -92,7 +106,7 @@ export function VideoGrid({
         onRefresh ? <RefreshControl refreshing={!!refreshing} onRefresh={onRefresh} /> : undefined
       }
       ListEmptyComponent={<Text style={styles.empty}>{emptyText}</Text>}
-      renderSectionHeader={({ section }: { section: { key: string; title: string; data: GridRow[] } }) =>
+      renderSectionHeader={({ section }: { section: GridSection }) =>
         section.title ? <Text style={styles.sectionTitle}>{section.title}</Text> : null
       }
       renderItem={({ item }: SectionListRenderItemInfo<GridRow>) => (

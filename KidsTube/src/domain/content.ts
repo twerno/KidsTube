@@ -188,9 +188,19 @@ export function videosForChannel(videos: Video[], channelId: string): Video[] {
 }
 
 /**
- * “Kontynuuj oglądanie” (ADR 0020): films the child started but did not finish,
- * ordered like every other film list — by publication date (fallback: import
- * date). Completed films and never-played ones are excluded.
+ * How much real playback a film needs before it counts as “started” and lands
+ * in “Kontynuuj oglądanie” (ADR 0023). A tap that opens the player and closes
+ * it a second later leaves a position of a second or two; such an accidental
+ * visit is not “watching”. Ten seconds is long enough to mean intent, short
+ * enough that a child who quits after the intro still finds the film again.
+ */
+export const CONTINUE_MIN_POSITION_SECONDS = 10;
+
+/**
+ * “Kontynuuj oglądanie” (ADR 0023): films the child started but did not finish.
+ * A film counts as started at `CONTINUE_MIN_POSITION_SECONDS`; completed and
+ * never-played films are excluded. Ordered by the last playback, newest first
+ * — the continue tab is about “what I was doing”, not about upload dates.
  */
 export function continueWatchingVideos(
   videos: Video[],
@@ -198,10 +208,12 @@ export function continueWatchingVideos(
 ): Video[] {
   const byId = new Map(videos.map(video => [video.id, video]));
   return progress
-    .filter(entry => !entry.completed && entry.positionSeconds > 0)
+    .filter(
+      entry => !entry.completed && entry.positionSeconds >= CONTINUE_MIN_POSITION_SECONDS,
+    )
+    .sort((a, b) => b.lastWatchedAt - a.lastWatchedAt)
     .map(entry => byId.get(entry.videoId))
-    .filter((video): video is Video => !!video)
-    .sort((a, b) => videoSortTime(b) - videoSortTime(a));
+    .filter((video): video is Video => !!video);
 }
 
 /**

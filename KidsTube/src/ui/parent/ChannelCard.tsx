@@ -72,7 +72,6 @@ export function ChannelDetails({
   videos,
   onSelectPolicy,
   onToggleMuted,
-  onBlock,
   onBlockAllVideos,
   showManage = true,
   onStartCatalog,

@@ -104,7 +104,7 @@ Odtworzenie filmu przez rodzica przed rozstrzygnięciem (lista oczekująca, wyni
 _Avoid_: Podgląd jako „odtworzenie wliczane do limitu”
 
 **Feed**:
-Główna zakładka dziecka — wspólny strumień dozwolonych filmów na dużych miniaturach, sortowany od najnowszej daty publikacji (nie decyzji ani importu), grupowany w pasma: ten tydzień · ten miesiąc · poprzedni miesiąc · starsze.
+Główna zakładka dziecka — wspólny strumień dozwolonych filmów na dużych miniaturach, sortowany od najnowszej daty publikacji (nie decyzji ani importu), grupowany w pasma: ten tydzień · ten miesiąc · kolejne miesiące roku bez roku w nagłówku („w październiku”, „we wrześniu”, …) · miesiące lat poprzednich z rokiem („w grudniu 2025”, …).
 _Avoid_: Lista, Wszystkie filmy
 
 **Kanały (zakładka)**:
@@ -116,7 +116,7 @@ Zapis ostatnio otwieranych materiałów wraz z czasem spędzonym (suma oraz rozb
 _Avoid_: Historia przeglądania — to nie WebView, to odtwarzanie
 
 **Kontynuuj oglądanie**:
-Zakładka dziecka agregująca filmy rozpoczęte, ale nieukończone (zapisany postęp > 0, `completed: false`), w kolejności daty publikacji (fallback: data importu). Filmy ukończone i nigdy nieotwarte są pomijane.
+Zakładka dziecka agregująca filmy rozpoczęte, ale nieukończone (zapisany postęp ≥ 10 s, `completed: false`), grupowane po lokalnym dniu ostatniego odtwarzania (Dziś · Wczoraj · data), dni od najnowszego. Filmy ukończone, nigdy nieotwarte i tapnięte na chwilę są pomijane.
 _Avoid_: Wznowienie (to sposób otwarcia, nie widok), Historia oglądania
 
 **Wyszukiwarka**:
@@ -169,4 +169,4 @@ _Avoid_: Offset, Strona
 
 ## Kolejność prezentacji
 
-Feed, kanał i biblioteka — od najnowszej daty publikacji, a dla filmów bez daty publikacji — od daty importu; grupowanie po tygodniu/miesiącu używa wyłącznie daty publikacji (brak daty → „Bez daty”); „Kontynuuj oglądanie” — jak pozostałe listy filmów: od najnowszej daty publikacji (fallback: data importu); historia oglądania — od najświeżej odtwarzanych. Decyzja rodzica nie zmienia kolejności.
+Feed, kanał i biblioteka — od najnowszej daty publikacji, a dla filmów bez daty publikacji — od daty importu; grupowanie po tygodniu i po miesiącach kalendarzowych (miesiące bieżącego roku bez roku, starsze z rokiem) używa wyłącznie daty publikacji (brak daty → „Bez daty”, uzupełniana w tle z InnerTube); „Kontynuuj oglądanie” — po dniu ostatniego odtwarzania (Dziś · Wczoraj · data); historia oglądania — od najświeżej odtwarzanych. Decyzja rodzica nie zmienia kolejności.

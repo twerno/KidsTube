@@ -285,6 +285,7 @@ export function ChildHomeScreen({
           onPlay={onPlay}
           refreshing={refreshing}
           onRefresh={onRefresh}
+          groupBy="lastWatched"
           emptyText={
             needle
               ? 'Żaden rozpoczęty film nie pasuje do wyszukiwania.'
