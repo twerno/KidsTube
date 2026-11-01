@@ -92,7 +92,7 @@ Budżet minut wideo na dzień kalendarzowy (reset lokalną północą); dotyczy 
 _Avoid_: Limit per okno, Limit tygodniowy
 
 **Tryb snu** („timer”):
-Licznik na ekranie trybu audio; po odliczeniu (domyślnie 30 min) odtwarzanie się zatrzymuje. Każda aktywność na ekranie audio (dotknięcie gdziekolwiek, play/pauza, seek, pętla) restartuje odliczanie do pełnych 30 minut — osobny przycisk resetu nie istnieje; po wystrzeleniu tylko jawne „Wznów” uruchamia odtwarzanie ponownie. Ekran audio ma przygaszone podświetlenie (15%), przywracane po wyjściu.
+Licznik na ekranie trybu audio; po odliczeniu (domyślnie 30 min) odtwarzanie się zatrzymuje. Każda aktywność na ekranie audio (dotknięcie gdziekolwiek, play/pauza, seek, pętla) restartuje odliczanie do pełnych 30 minut — osobny przycisk resetu nie istnieje; po wystrzeleniu tylko jawne „Wznów” uruchamia odtwarzanie ponownie. Ekran audio ma przygaszone podświetlenie (15%), przywracane po wyjściu. W trakcie odtwarzania ekran jest trzymany (nie blokuje się), a po zatrzymaniu — pauza, koniec, wystrzelenie licznika — przestaje być trzymany, więc telefon blokuje się zwykłym systemowym limitem wygaszania.
 _Avoid_: Limit audio — to nie limit, tylko wyłącznik po zaśnięciu
 
 **Tryb audio**:

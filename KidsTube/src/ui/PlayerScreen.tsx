@@ -17,6 +17,7 @@ import { lockLandscape, lockPortrait, unlockOrientation } from '../native/orient
 import {
   dimScreen,
   hideNavigation,
+  keepScreenAwake,
   restoreScreenBrightness,
   showNavigation,
 } from '../native/systemUi';
@@ -430,6 +431,17 @@ export function PlayerScreen({
   }, [audioOnly]);
 
   useEffect(() => () => unlockOrientation(), []);
+
+  // The display must not lock while something plays (ADR 0025) — a bedtime
+  // chapter would die with the screen. Buffering counts as running, so a short
+  // stall does not hand the phone back to the lock screen mid-sentence.
+  // Releasing is just as important: once playback stops (pause, end, sleep
+  // timer, error) nothing here keeps the phone awake, so it locks on its own
+  // screen timeout and does not stay on all night.
+  useEffect(() => {
+    keepScreenAwake(state.playing || state.buffering);
+    return () => keepScreenAwake(false);
+  }, [state.playing, state.buffering]);
 
   // Immersive video: hide the Android navigation buttons while a film runs and
   // bring them back for audio mode (portrait, normal screen) or on leaving.

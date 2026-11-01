@@ -1,6 +1,9 @@
 # ADR 0021 — Ekran audio: reset licznika po aktywności i przygaszone podświetlenie
 
 > Status: **wdrożone** (0.11.0). Uzupełnia ADR 0002.
+> Uzupełnione przez ADR 0025: w trakcie odtwarzania ekran nie może się
+> zablokować (a po zatrzymaniu nie jest już trzymany, więc telefon gaśnie
+> systemowym limitem wygaszania).
 
 Ekran audio to ekran zasypiania: dziecko słucha z wyłączonym obrazem, a po
 30 minutach odtwarzanie ma się zatrzymać. Rodzic chciał, żeby każda aktywność

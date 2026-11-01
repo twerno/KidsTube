@@ -7,6 +7,7 @@ describe('immersive playback — navigation bar bridge', () => {
       showNavigation: jest.fn(async () => true),
       setScreenBrightness: jest.fn(async () => true),
       restoreScreenBrightness: jest.fn(async () => true),
+      setKeepScreenOn: jest.fn(async () => true),
     };
     const bridge = createSystemUiBridge(native);
 
@@ -14,11 +15,15 @@ describe('immersive playback — navigation bar bridge', () => {
     await bridge.showNavigation();
     await bridge.setScreenBrightness(0.15);
     await bridge.restoreScreenBrightness();
+    await bridge.setKeepScreenOn(true);
+    await bridge.setKeepScreenOn(false);
 
     expect(native.hideNavigation).toHaveBeenCalledTimes(1);
     expect(native.showNavigation).toHaveBeenCalledTimes(1);
     expect(native.setScreenBrightness).toHaveBeenCalledWith(0.15);
     expect(native.restoreScreenBrightness).toHaveBeenCalledTimes(1);
+    // Playback holds the display, stopping releases it (ADR 0025).
+    expect(native.setKeepScreenOn.mock.calls).toEqual([[true], [false]]);
   });
 
   it('is a safe no-op without the native module (tests/other platforms)', async () => {
@@ -27,6 +32,7 @@ describe('immersive playback — navigation bar bridge', () => {
     await expect(bridge.showNavigation()).resolves.toBeUndefined();
     await expect(bridge.setScreenBrightness(0.15)).resolves.toBeUndefined();
     await expect(bridge.restoreScreenBrightness()).resolves.toBeUndefined();
+    await expect(bridge.setKeepScreenOn(true)).resolves.toBeUndefined();
   });
 
   it('swallows native failures so playback and leaving the player never break', async () => {
@@ -43,12 +49,14 @@ describe('immersive playback — navigation bar bridge', () => {
       restoreScreenBrightness: async () => {
         throw new Error('boom');
       },
+      setKeepScreenOn: async () => {
+        throw new Error('boom');
+      },
     });
     await expect(bridge.hideNavigation()).resolves.toBeUndefined();
     await expect(bridge.showNavigation()).resolves.toBeUndefined();
     await expect(bridge.setScreenBrightness(0.15)).resolves.toBeUndefined();
     await expect(bridge.restoreScreenBrightness()).resolves.toBeUndefined();
-    await expect(bridge.setScreenBrightness(0.15)).resolves.toBeUndefined();
-    await expect(bridge.restoreScreenBrightness()).resolves.toBeUndefined();
+    await expect(bridge.setKeepScreenOn(false)).resolves.toBeUndefined();
   });
 });

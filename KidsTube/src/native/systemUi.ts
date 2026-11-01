@@ -17,6 +17,7 @@ export interface SystemUiNative {
   showNavigation(): Promise<boolean | void> | boolean | void;
   setScreenBrightness?(value: number): Promise<boolean | void> | boolean | void;
   restoreScreenBrightness?(): Promise<boolean | void> | boolean | void;
+  setKeepScreenOn?(enabled: boolean): Promise<boolean | void> | boolean | void;
 }
 
 export interface SystemUiBridge {
@@ -24,6 +25,7 @@ export interface SystemUiBridge {
   showNavigation(): Promise<void>;
   setScreenBrightness(value: number): Promise<void>;
   restoreScreenBrightness(): Promise<void>;
+  setKeepScreenOn(enabled: boolean): Promise<void>;
 }
 
 export function createSystemUiBridge(
@@ -70,6 +72,16 @@ export function createSystemUiBridge(
         // Ignore: the system may have changed the window in the meantime.
       }
     },
+    async setKeepScreenOn(enabled: boolean) {
+      if (!native?.setKeepScreenOn) {
+        return;
+      }
+      try {
+        await native.setKeepScreenOn(enabled);
+      } catch {
+        // Best effort: playback must never depend on the screen policy.
+      }
+    },
   };
 }
 
@@ -93,4 +105,12 @@ export function dimScreen(): void {
 /** Restore the system-controlled backlight. */
 export function restoreScreenBrightness(): void {
   bridge.restoreScreenBrightness().catch(() => undefined);
+}
+
+/**
+ * Keep the display awake while something plays (ADR 0025). Stops holding it as
+ * soon as playback stops, so the phone can lock itself on the normal timeout.
+ */
+export function keepScreenAwake(enabled: boolean): void {
+  bridge.setKeepScreenOn(enabled).catch(() => undefined);
 }

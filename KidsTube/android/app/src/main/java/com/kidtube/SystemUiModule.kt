@@ -90,6 +90,39 @@ class SystemUiModule(reactContext: ReactApplicationContext) :
     }
   }
 
+  /**
+   * Playback keeps the display awake (ADR 0025). While a film or an audiobook
+   * runs the screen must not lock — a bedtime chapter would die when the
+   * display sleeps. The flag is released the moment playback stops (pause, end,
+   * sleep timer, error), so afterwards the phone can lock itself on the normal
+   * screen timeout; nothing keeps it awake overnight.
+   *
+   * Both the window flag and the decor view's `keepScreenOn` are used: the view
+   * flag is the same path the embedded YouTube player uses, so clearing it also
+   * cancels a wake lock the WebView may have taken for itself.
+   */
+  @ReactMethod
+  fun setKeepScreenOn(enabled: Boolean, promise: Promise) {
+    val activity = reactApplicationContext.currentActivity
+    if (activity == null) {
+      promise.resolve(false)
+      return
+    }
+    activity.runOnUiThread {
+      try {
+        activity.window.decorView.keepScreenOn = enabled
+        if (enabled) {
+          activity.window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        } else {
+          activity.window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+        promise.resolve(true)
+      } catch (error: Exception) {
+        promise.reject("keep_screen_on_failed", error)
+      }
+    }
+  }
+
   private fun controller(): WindowInsetsControllerCompat? {
     val activity = reactApplicationContext.currentActivity ?: return null
     return WindowCompat.getInsetsController(activity.window, activity.window.decorView)
