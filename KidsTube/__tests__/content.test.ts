@@ -1,6 +1,8 @@
 import type { Channel, Video, VideoSource, VideoStatus } from '../src/domain/types';
 import {
   channelsForChild,
+  continueWatchingVideos,
+  decideIncomingVideoStatus,
   decideNewVideoStatus,
   isPlayable,
   mergeSyncedVideos,
@@ -34,6 +36,34 @@ describe('decideNewVideoStatus', () => {
 
   it('blocks everything from a blocked channel', () => {
     expect(decideNewVideoStatus({ policy: 'auto_approve', status: 'blocked' })).toBe('blocked');
+  });
+
+  it('supports automatic blocking and quiet caching (ADR 0019)', () => {
+    expect(decideNewVideoStatus({ policy: 'auto_block', status: 'allowed' })).toBe('blocked');
+    expect(decideNewVideoStatus({ policy: 'quiet', status: 'allowed' })).toBe('pending');
+  });
+});
+
+describe('decideIncomingVideoStatus (ADR 0019)', () => {
+  it('honours every channel policy for a shared link without a decision', () => {
+    expect(
+      decideIncomingVideoStatus({ policy: 'auto_approve', status: 'allowed' }, undefined),
+    ).toBe('allowed');
+    expect(decideIncomingVideoStatus({ policy: 'manual', status: 'allowed' }, undefined)).toBe(
+      'pending',
+    );
+    expect(decideIncomingVideoStatus({ policy: 'auto_block', status: 'allowed' }, undefined)).toBe(
+      'blocked',
+    );
+    expect(decideIncomingVideoStatus({ policy: 'quiet', status: 'allowed' }, undefined)).toBe(
+      'pending',
+    );
+  });
+
+  it('lets a blocked channel win over a previous allow decision', () => {
+    expect(
+      decideIncomingVideoStatus({ policy: 'auto_approve', status: 'blocked' }, { outcome: 'allow' }),
+    ).toBe('blocked');
   });
 });
 
@@ -120,19 +150,36 @@ describe('child view helpers', () => {
     expect(pendingVideos(videos).map(v => v.id)).toEqual(['b']);
   });
 
-  it('sorts by the moment the video was decided (ADR 0001)', () => {
+  it('sorts by publication date, not by the decision or import time (ADR 0020)', () => {
     const videos: Video[] = [
-      { ...base, id: 'old', status: 'allowed', publishedAt: 100 },
-      { ...base, id: 'new', status: 'allowed', publishedAt: 50 },
+      { ...base, id: 'old', status: 'allowed', publishedAt: 100, addedAt: 900 },
+      { ...base, id: 'new', status: 'allowed', publishedAt: 300, addedAt: 10 },
+      { ...base, id: 'undated', status: 'allowed', addedAt: 200 },
     ];
+    // A decision for the older film does not lift it above a newer upload.
     const decisions = [
-      { videoId: 'old', outcome: 'allow' as const, source: 'manual' as const, at: 10 },
-      { videoId: 'new', outcome: 'allow' as const, source: 'manual' as const, at: 20 },
+      { videoId: 'old', outcome: 'allow' as const, source: 'manual' as const, at: 1_000 },
     ];
-    expect(videosForChild(videos, decisions).map(v => v.id)).toEqual(['new', 'old']);
-    expect(videoSortTime(videos[0], decisions)).toBe(10);
-    // No decision: falls back to publish time.
-    expect(videoSortTime(videos[1], [])).toBe(50);
+    expect(videosForChild(videos).map(v => v.id)).toEqual(['new', 'undated', 'old']);
+    expect(videoSortTime(videos[0])).toBe(100);
+    expect(videoSortTime(videos[2])).toBe(200);
+    expect(decisions).toHaveLength(1);
+  });
+
+  it('collects films started but not finished, newest activity first (ADR 0020)', () => {
+    const videos: Video[] = [
+      { ...base, id: 'a', status: 'allowed' },
+      { ...base, id: 'b', status: 'allowed' },
+      { ...base, id: 'c', status: 'allowed' },
+    ];
+    const progress = [
+      { videoId: 'a', positionSeconds: 30, completed: false, lastWatchedAt: 10 },
+      { videoId: 'b', positionSeconds: 120, completed: true, lastWatchedAt: 30 },
+      { videoId: 'c', positionSeconds: 60, completed: false, lastWatchedAt: 20 },
+      { videoId: 'gone', positionSeconds: 10, completed: false, lastWatchedAt: 40 },
+      { videoId: 'never', positionSeconds: 0, completed: false, lastWatchedAt: 50 },
+    ];
+    expect(continueWatchingVideos(videos, progress).map(v => v.id)).toEqual(['c', 'a']);
   });
 });
 
@@ -164,7 +211,7 @@ describe('pending source helpers (ADR 0001)', () => {
       make('m1', 'pending', 'manual'),
       make('p2', 'allowed', 'propose'),
     ];
-    expect(proposalsForChild(videos).map(v => v.id)).toEqual(['p1', 's1']);
+    expect(proposalsForChild(videos).map(v => v.id)).toEqual(['p1']);
   });
 });
 

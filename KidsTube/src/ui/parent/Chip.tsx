@@ -28,7 +28,7 @@ export function Chip({
       ]}
     >
       <Text
-        numberOfLines={1}
+        numberOfLines={compact ? 2 : 1}
         style={[styles.chipText, compact && styles.chipTextCompact, active && styles.chipTextActive]}
       >
         {label}
@@ -54,6 +54,6 @@ const styles = StyleSheet.create({
   chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   chipPressed: { opacity: 0.8 },
   chipText: { color: colors.textMuted, fontSize: 13, fontWeight: '600' },
-  chipTextCompact: { fontSize: 12, textAlign: 'center' },
+  chipTextCompact: { fontSize: 11, lineHeight: 14, textAlign: 'center' },
   chipTextActive: { color: '#04203a' },
 });

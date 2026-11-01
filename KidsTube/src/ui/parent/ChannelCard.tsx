@@ -1,17 +1,21 @@
 import React, { useMemo } from 'react';
 import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 import { Button, Card } from '../components';
+import { Chip } from './Chip';
 import { ChannelAvatar } from '../ChannelAvatar';
 import { colors, radius, spacing } from '../theme';
 import { filmsLabel } from '../../domain/plural';
 import { isChannelMuted } from '../../domain/channels';
-import type { Channel, Video } from '../../domain/types';
+import { CHANNEL_POLICY_LABEL, CHANNEL_POLICY_OPTIONS } from './labels';
+import type { Channel, ChannelPolicy, Video } from '../../domain/types';
 
 function counts(videos: Video[], channelId: string) {
   const films = videos.filter(video => video.channelId === channelId);
   return {
     allowed: films.filter(video => video.status === 'allowed').length,
     pending: films.filter(video => video.status === 'pending').length,
+    total: films.length,
+    notBlocked: films.filter(video => video.status !== 'blocked').length,
   };
 }
 
@@ -48,13 +52,15 @@ export interface ChannelDetailsProps {
   channel: Channel;
   /** All videos of this channel, for the counts. */
   videos: Video[];
-  onTogglePolicy?: (channel: Channel) => void;
+  onSelectPolicy?: (channel: Channel, policy: ChannelPolicy) => void;
   onToggleMuted?: (channel: Channel) => void;
   onBlock: (channel: Channel) => void;
+  /** “Zablokuj wszystkie filmy z kanału” (ADR 0019). */
+  onBlockAllVideos?: (channel: Channel) => void;
   /** False in the archive, where only “Odblokuj” makes sense. */
   showManage?: boolean;
-  /** Catalog import (ADR 0009); hidden when omitted. */
-  onStartCatalog?: (channel: Channel) => void;
+  /** Catalog import (ADR 0009); `restart` re-downloads from the first page. */
+  onStartCatalog?: (channel: Channel, restart?: boolean) => void;
   catalogRunning?: boolean;
   /** Bulk decisions on all pending films of the channel (ADR 0009/0016). */
   onBulkDecide?: (channel: Channel, outcome: 'allow' | 'reject') => void;
@@ -64,15 +70,19 @@ export interface ChannelDetailsProps {
 export function ChannelDetails({
   channel,
   videos,
-  onTogglePolicy,
+  onSelectPolicy,
   onToggleMuted,
   onBlock,
+  onBlockAllVideos,
   showManage = true,
   onStartCatalog,
   catalogRunning = false,
   onBulkDecide,
 }: ChannelDetailsProps) {
-  const { allowed, pending } = useMemo(() => counts(videos, channel.id), [videos, channel.id]);
+  const { allowed, pending, notBlocked } = useMemo(
+    () => counts(videos, channel.id),
+    [videos, channel.id],
+  );
 
   return (
     <Card style={styles.card}>
@@ -92,44 +102,69 @@ export function ChannelDetails({
         Dozwolone: {filmsLabel(allowed)} · Oczekujące: {filmsLabel(pending)}
       </Text>
 
-      {showManage && onTogglePolicy && onToggleMuted ? (
-        <>
-          <View style={styles.switchRow}>
-            <Text style={styles.switchLabel}>Auto-akceptacja nowych filmów</Text>
-            <Switch
-              value={channel.policy === 'auto_approve'}
-              onValueChange={() => onTogglePolicy?.(channel)}
-              disabled={channel.status === 'blocked'}
-            />
+      {showManage && onToggleMuted ? (
+        <View style={styles.switchRow}>
+          <Text style={styles.switchLabel}>Aktualizuj kanał (RSS)</Text>
+          <Switch
+            value={!isChannelMuted(channel)}
+            onValueChange={() => onToggleMuted(channel)}
+            disabled={channel.status === 'blocked'}
+          />
+        </View>
+      ) : null}
+
+      {showManage && onSelectPolicy ? (
+        <View style={styles.policy}>
+          <Text style={styles.policyLabel}>Nowe filmy:</Text>
+          <View style={styles.policyChips}>
+            {CHANNEL_POLICY_OPTIONS.map(policy => (
+              <Chip
+                key={policy}
+                compact
+                label={CHANNEL_POLICY_LABEL[policy]}
+                active={channel.policy === policy}
+                onPress={() => onSelectPolicy(channel, policy)}
+              />
+            ))}
           </View>
-          <View style={styles.switchRow}>
-            <Text style={styles.switchLabel}>Wyciszony — bez pobierania RSS</Text>
-            <Switch
-              value={isChannelMuted(channel)}
-              onValueChange={() => onToggleMuted?.(channel)}
-            />
-          </View>
-        </>
+          {channel.policy === 'quiet' ? (
+            <Text style={styles.policyHint}>
+              Nowe filmy są zapisywane w cache, ale nie trafiają do kolejki zatwierdzeń.
+            </Text>
+          ) : null}
+          {channel.policy === 'auto_block' ? (
+            <Text style={styles.policyHint}>
+              Nowe filmy są od razu odrzucane. Zatwierdzenie pojedynczego filmu nadal jest możliwe.
+            </Text>
+          ) : null}
+        </View>
       ) : null}
 
       {showManage && onStartCatalog ? (
         <View style={styles.catalog}>
-          {channel.catalog?.done ? (
-            <Button title="Katalog wczytany" variant="secondary" disabled onPress={() => undefined} />
-          ) : (
-            <Button
-              title={
-                channel.catalog && channel.catalog.imported > 0
+          <Button
+            title={
+              channel.catalog?.done
+                ? 'Pobierz ponownie'
+                : channel.catalog && channel.catalog.imported > 0
                   ? 'Kontynuuj pobieranie'
                   : 'Pobierz wszystkie'
-              }
-              variant="secondary"
-              onPress={() => onStartCatalog(channel)}
-              disabled={catalogRunning}
-              loading={catalogRunning}
-            />
-          )}
+            }
+            variant="secondary"
+            onPress={() => onStartCatalog(channel, !!channel.catalog?.done)}
+            disabled={catalogRunning}
+            loading={catalogRunning}
+          />
           {channel.catalog && !channel.catalog.done && channel.catalog.imported > 0 ? (
+            <Button
+              title="Pobierz od nowa"
+              variant="ghost"
+              compact
+              onPress={() => onStartCatalog(channel, true)}
+              disabled={catalogRunning}
+            />
+          ) : null}
+          {channel.catalog && channel.catalog.imported > 0 ? (
             <Text style={styles.catalogInfo}>
               Wczytano {filmsLabel(channel.catalog.imported)}
             </Text>
@@ -163,6 +198,13 @@ export function ChannelDetails({
           onPress={() => onBlock(channel)}
         />
       </View>
+      {showManage && onBlockAllVideos && channel.status !== 'blocked' ? (
+        <Button
+          title={`Zablokuj wszystkie filmy (${notBlocked})`}
+          variant="danger"
+          onPress={() => onBlockAllVideos(channel)}
+        />
+      ) : null}
     </Card>
   );
 }
@@ -199,6 +241,10 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   switchLabel: { color: colors.text, flex: 1, fontSize: 14 },
+  policy: { gap: spacing.xs },
+  policyLabel: { color: colors.textMuted, fontSize: 13, fontWeight: '700' },
+  policyChips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  policyHint: { color: colors.textMuted, fontSize: 12, lineHeight: 17 },
   actions: { flexDirection: 'row', justifyContent: 'flex-end' },
   catalog: { gap: spacing.xs },
   catalogInfo: { color: colors.textMuted, fontSize: 12 },

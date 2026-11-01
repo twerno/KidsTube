@@ -21,7 +21,7 @@ import type { Video, VideoStatus } from '../../domain/types';
  * Actions offered by the preview depend on the film's current status (ADR 0016):
  * a decision that would not change anything is never offered.
  */
-export type PreviewAction = 'pending' | 'allowed' | 'blocked' | 'none';
+export type PreviewAction = 'pending' | 'allowed' | 'blocked' | 'channel-blocked' | 'none';
 
 export interface PreviewScreenProps {
   video: Video;
@@ -151,6 +151,20 @@ export function PreviewScreen({ video, actions, note, onDecide, onClose }: Previ
                 variant="secondary"
                 onPress={() => onDecide(video, 'allowed')}
               />
+            ) : null}
+            {actions === 'channel-blocked' ? (
+              <>
+                <Button
+                  title="Odrzuć"
+                  variant="danger"
+                  onPress={() => onDecide(video, 'blocked')}
+                />
+                <Button
+                  title="Zezwól na ten film"
+                  variant="primary"
+                  onPress={() => onDecide(video, 'allowed')}
+                />
+              </>
             ) : null}
           </View>
         ) : null}

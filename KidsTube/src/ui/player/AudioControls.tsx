@@ -12,8 +12,6 @@ export interface AudioControlsProps {
   onToggleLoop: () => void;
   sleepRemainingMs: number;
   sleepFired: boolean;
-  /** Reset the sleep counter to a full hour. */
-  onResetSleep: () => void;
   /** Resume playback and restart the sleep counter. */
   onResumeSleep: () => void;
   onTogglePlay: () => void;
@@ -33,7 +31,6 @@ export function AudioControls({
   onToggleLoop,
   sleepRemainingMs,
   sleepFired,
-  onResetSleep,
   onResumeSleep,
   onTogglePlay,
   onSeek,
@@ -65,11 +62,7 @@ export function AudioControls({
             <Pressable onPress={onResumeSleep} hitSlop={8} style={styles.sleepBtn}>
               <Text style={styles.sleepBtnText}>▶ Wznów</Text>
             </Pressable>
-          ) : (
-            <Pressable onPress={onResetSleep} hitSlop={8} style={styles.sleepBtn}>
-              <Text style={styles.sleepBtnText}>Reset</Text>
-            </Pressable>
-          )}
+          ) : null}
         </View>
       </View>
 

@@ -94,7 +94,10 @@ export function PendingSection({
   const [source, setSource] = useState<SourceFilter>('all');
   const [channelKey, setChannelKey] = useState<string | null>(null);
 
-  const queue = useMemo(() => pendingVideos(videos, channels), [videos, channels]);
+  const queue = useMemo(
+    () => pendingVideos(videos, channels),
+    [videos, channels],
+  );
 
   const bars = useMemo(
     () => channelBarEntries(queue.filter(video => matchesSource(video, source)), channels),
@@ -165,6 +168,8 @@ export function PendingSection({
 
   return (
     <FlatList
+      showsVerticalScrollIndicator
+      persistentScrollbar
       data={visible}
       keyExtractor={item => item.id}
       contentContainerStyle={styles.content}
@@ -174,7 +179,7 @@ export function PendingSection({
       }
       ListHeaderComponent={header}
       ListEmptyComponent={<EmptyState>{emptyText}</EmptyState>}
-      renderItem={({ item }) => (
+      renderItem={({ item }: { item: Video }) => (
         <View style={styles.entry}>
           <VideoRow video={item} onSetStatus={onSetStatus} onPreview={onPreview} />
         </View>

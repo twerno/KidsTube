@@ -7,8 +7,10 @@
  * single video status. Blocking is a projection, never a decision.
  */
 
-import type { Channel, Video, VideoStatus } from './types';
+import type { Channel, Decision, Video, VideoStatus } from './types';
 import { isChannelMuted } from './channels';
+import { latestDecision } from './decisions';
+import { videoSortTime } from './content';
 
 /** Source chips of the “Do zatwierdzenia” section (ADR 0016). */
 export type SourceFilter = 'all' | 'rss' | 'child' | 'link';
@@ -48,9 +50,56 @@ function blockedChannelIds(channels: Channel[]): Set<string> {
   return new Set(channels.filter(channel => channel.status === 'blocked').map(channel => channel.id));
 }
 
-/** Whether a video belongs to a blocked channel (projection only). */
-export function isBlockedChannelVideo(video: Video, channels: Channel[]): boolean {
-  return !!video.channelId && blockedChannelIds(channels).has(video.channelId);
+/**
+ * A channel blocks all of its films, with one explicit exception (ADR 0019):
+ * a manual `allow` decision taken *after* the channel was blocked wins for that
+ * single film. Only then can the parent grant one film from a blocked channel.
+ */
+function hasBlockException(video: Video, channel: Channel, decisions: Decision[]): boolean {
+  if (channel.blockedAt === undefined) {
+    return false;
+  }
+  const latest = latestDecision(decisions, video.id);
+  return (
+    latest?.outcome === 'allow' &&
+    latest.source === 'manual' &&
+    latest.at > channel.blockedAt
+  );
+}
+
+/** Whether a video is hidden by its blocked channel (projection only). */
+export function isBlockedChannelVideo(
+  video: Video,
+  channels: Channel[],
+  decisions: Decision[] = [],
+): boolean {
+  if (!video.channelId) {
+    return false;
+  }
+  const channel = channels.find(candidate => candidate.id === video.channelId);
+  if (!channel || channel.status !== 'blocked') {
+    return false;
+  }
+  return !hasBlockException(video, channel, decisions);
+}
+
+/**
+ * Channels whose RSS/catalog films are cached but deliberately kept out of the
+ * approval queue: the legacy `muted` flag (no RSS at all) and the `quiet`
+ * policy (RSS runs, new films wait silently). Shared links and the child's
+ * proposals are never hidden — they are explicit actions (ADR 0019).
+ */
+function cacheOnlyChannelIds(channels: Channel[]): Set<string> {
+  return new Set(
+    channels
+      .filter(channel => isChannelMuted(channel) || channel.policy === 'quiet')
+      .map(channel => channel.id),
+  );
+}
+
+/** All film lists follow publication dates, newest first (ADR 0020). */
+function newestFirst(videos: Video[]): Video[] {
+  return [...videos].sort((a, b) => videoSortTime(b) - videoSortTime(a));
 }
 
 /**
@@ -60,28 +109,40 @@ export function isBlockedChannelVideo(video: Video, channels: Channel[]): boolea
  */
 export function pendingVideos(videos: Video[], channels: Channel[]): Video[] {
   const blocked = blockedChannelIds(channels);
-  // Films of a muted channel are stored after a catalog import but stay out of
-  // the queue until the parent unmutes the channel (ADR 0009/0016).
-  const muted = new Set(
-    channels.filter(channel => isChannelMuted(channel)).map(channel => channel.id),
-  );
-  return videos.filter(
-    video =>
-      video.status === 'pending' &&
-      (!video.channelId || (!blocked.has(video.channelId) && !muted.has(video.channelId))),
-  );
+  const cacheOnly = cacheOnlyChannelIds(channels);
+  return newestFirst(videos.filter(video => {
+    if (video.status !== 'pending') {
+      return false;
+    }
+    if (video.channelId && blocked.has(video.channelId)) {
+      return false;
+    }
+    // Only scans (RSS / catalog) obey the cache-only policy. A shared link or
+    // the child's proposal is an explicit request and belongs in the queue.
+    if (video.source === 'rss' && video.channelId && cacheOnly.has(video.channelId)) {
+      return false;
+    }
+    return true;
+  }));
 }
 
 /** Pending films of one channel, including films hidden from the queue (muted). */
 export function pendingForChannel(videos: Video[], channelId: string): Video[] {
-  return videos.filter(video => video.channelId === channelId && video.status === 'pending');
+  return newestFirst(
+    videos.filter(video => video.channelId === channelId && video.status === 'pending'),
+  );
 }
 
 /** The child's library: allowed films whose channel is not blocked. */
-export function libraryVideos(videos: Video[], channels: Channel[]): Video[] {
-  const blocked = blockedChannelIds(channels);
-  return videos.filter(
-    video => video.status === 'allowed' && (!video.channelId || !blocked.has(video.channelId)),
+export function libraryVideos(
+  videos: Video[],
+  channels: Channel[],
+  decisions: Decision[] = [],
+): Video[] {
+  return newestFirst(
+    videos.filter(
+      video => video.status === 'allowed' && !isBlockedChannelVideo(video, channels, decisions),
+    ),
   );
 }
 
@@ -89,10 +150,15 @@ export function libraryVideos(videos: Video[], channels: Channel[]): Video[] {
  * The archive of the “Zablokowane” section: films blocked by a decision plus
  * every film of a blocked channel (whatever its status).
  */
-export function blockedVideos(videos: Video[], channels: Channel[]): Video[] {
-  const blocked = blockedChannelIds(channels);
-  return videos.filter(
-    video => video.status === 'blocked' || (!!video.channelId && blocked.has(video.channelId)),
+export function blockedVideos(
+  videos: Video[],
+  channels: Channel[],
+  decisions: Decision[] = [],
+): Video[] {
+  return newestFirst(
+    videos.filter(
+      video => video.status === 'blocked' || isBlockedChannelVideo(video, channels, decisions),
+    ),
   );
 }
 
@@ -102,7 +168,9 @@ export function blockedChannels(channels: Channel[]): Channel[] {
 
 /** Films of one blocked channel, shown under its channel card. */
 export function videosForChannel(videos: Video[], channelId: string): Video[] {
-  return videos.filter(video => video.channelId === channelId);
+  return videos
+    .filter(video => video.channelId === channelId)
+    .sort((a, b) => videoSortTime(b) - videoSortTime(a));
 }
 
 const STATUS_FOR_FILTER: Record<ChannelStatusFilter, VideoStatus> = {
@@ -139,7 +207,9 @@ export function filterChannelVideos(
   filter: ChannelStatusFilter,
 ): Video[] {
   const status = STATUS_FOR_FILTER[filter];
-  return videos.filter(video => video.channelId === channelId && video.status === status);
+  return videos
+    .filter(video => video.channelId === channelId && video.status === status)
+    .sort((a, b) => videoSortTime(b) - videoSortTime(a));
 }
 
 /** The filter key a video belongs to: its channel id or the unknown bucket. */
@@ -172,7 +242,9 @@ export function filterVideos(
   source: SourceFilter,
   channelKey: string | null,
 ): Video[] {
-  return videos.filter(video => matchesSource(video, source) && matchesChannel(video, channelKey));
+  return newestFirst(
+    videos.filter(video => matchesSource(video, source) && matchesChannel(video, channelKey)),
+  );
 }
 
 export interface SourceCounts {

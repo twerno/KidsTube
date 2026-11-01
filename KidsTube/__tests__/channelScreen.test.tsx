@@ -52,7 +52,7 @@ function screen(videos: Video[]): React.ReactElement {
       videos={videos}
       onSetStatus={noop}
       onPreview={noop}
-      onTogglePolicy={noop}
+      onSelectPolicy={noop}
       onToggleMuted={noop}
       onBlock={noop}
     />
@@ -68,7 +68,12 @@ async function render(videos: Video[]): Promise<ReactTestRenderer.ReactTestRende
 }
 
 function chipLabels(tree: ReactTestRenderer.ReactTestRenderer): string[] {
-  return tree.root.findAllByType(Chip).map(node => String(node.props.label));
+  // The channel card also uses chips for the “new films” policy (ADR 0019);
+  // the status chip helper only looks at counted labels.
+  return tree.root
+    .findAllByType(Chip)
+    .map(node => String(node.props.label))
+    .filter(label => /\(\d+\)$/.test(label));
 }
 
 function visibleVideoIds(tree: ReactTestRenderer.ReactTestRenderer): string[] {
@@ -182,7 +187,7 @@ describe('channel catalog import and bulk actions (ADR 0009)', () => {
           videos={videos}
           onSetStatus={noop}
           onPreview={noop}
-          onTogglePolicy={noop}
+          onSelectPolicy={noop}
           onToggleMuted={noop}
           onBlock={noop}
           {...options}
@@ -210,15 +215,34 @@ describe('channel catalog import and bulk actions (ADR 0009)', () => {
     await ReactTestRenderer.act(async () => {
       importButton.props.onPress();
     });
-    expect(onStartCatalog).toHaveBeenCalledWith(CHANNEL);
+    expect(onStartCatalog).toHaveBeenCalledWith(CHANNEL, false);
   });
 
-  it('shows a disabled “Katalog wczytany” once the catalog is done', async () => {
+  it('offers a full re-download once the catalog is done (ADR 0019)', async () => {
     const done: Channel = { ...CHANNEL, catalog: { imported: 40, done: true } };
-    const tree = await renderWith(done, { onStartCatalog: noop });
+    const onStartCatalog = jest.fn();
+    const tree = await renderWith(done, { onStartCatalog });
 
-    const importButton = button(tree, 'Katalog wczytany');
-    expect(importButton.props.disabled).toBe(true);
+    const importButton = button(tree, 'Pobierz ponownie');
+    expect(importButton.props.disabled).toBe(false);
+    await ReactTestRenderer.act(async () => {
+      importButton.props.onPress();
+    });
+    expect(onStartCatalog).toHaveBeenCalledWith(done, true);
+  });
+
+  it('selects one of four “new films” policies (ADR 0019)', async () => {
+    const onSelectPolicy = jest.fn();
+    const tree = await renderWith(CHANNEL, { onSelectPolicy });
+
+    const quiet = tree.root
+      .findAllByType(Chip)
+      .find(node => String(node.props.label).startsWith('Wyciszenie'));
+    expect(quiet).toBeTruthy();
+    await ReactTestRenderer.act(async () => {
+      quiet!.props.onPress();
+    });
+    expect(onSelectPolicy).toHaveBeenCalledWith(CHANNEL, 'quiet');
   });
 
   it('offers to continue a paused import and shows its progress', async () => {

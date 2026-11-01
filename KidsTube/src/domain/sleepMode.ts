@@ -1,9 +1,11 @@
 /**
- * Sleep mode (ADR 0002): a 1 h countdown shown on the audio screen.
+ * Sleep mode (ADR 0002 / 0021): a 30 min countdown shown on the audio screen.
  *
  *  - The counter is always visible while in audio mode.
+ *  - Any interaction on the audio screen restarts the countdown (ADR 0021):
+ *    the child is still awake. Once it fired, only “Wznów” brings it back.
+ *  - There is no separate reset button: every touch already resets the timer.
  *  - When the countdown reaches zero, playback stops, the audio screen stays.
- *  - The child may resume; resuming (or resetting) starts a fresh 1 h countdown.
  *  - It is a shut-off switch after falling asleep, never a limit — it does not
  *    collide with “audio without limits”.
  *
@@ -11,7 +13,8 @@
  * these functions.
  */
 
-export const SLEEP_DURATION_MS = 60 * 60 * 1000;
+/** 30 minutes: a bedtime shut-off after the last interaction. */
+export const SLEEP_DURATION_MS = 30 * 60 * 1000;
 
 export interface SleepTimerState {
   /** Milliseconds left on the current countdown. */
@@ -40,12 +43,21 @@ export function tickSleepTimer(
   return next <= 0 ? { remainingMs: 0, fired: true } : { remainingMs: next, fired: false };
 }
 
-/** Reset the countdown to a full hour (manual reset or resuming playback). */
+/** Reset the countdown to a full 30 minutes (resuming playback). */
 export function resetSleepTimer(): SleepTimerState {
   return freshSleepTimer();
 }
 
-/** Render the countdown as h:mm:ss (e.g. "1:00:00", "0:04:59"). */
+/**
+ * Interaction on the audio screen restarts a running countdown. A fired timer
+ * stays fired: after the shut-off point, playback requires an explicit resume,
+ * so a random touch cannot silently start the film again (ADR 0021).
+ */
+export function resetSleepOnActivity(state: SleepTimerState): SleepTimerState {
+  return state.fired ? state : freshSleepTimer();
+}
+
+/** Render the countdown as h:mm:ss (e.g. "0:30:00", "0:04:59"). */
 export function formatCountdown(totalMs: number): string {
   const totalSeconds = Math.max(0, Math.round(totalMs / 1000));
   const h = String(Math.floor(totalSeconds / 3600));

@@ -2,6 +2,7 @@ import {
   SLEEP_DURATION_MS,
   formatCountdown,
   freshSleepTimer,
+  resetSleepOnActivity,
   resetSleepTimer,
   tickSleepTimer,
 } from '../src/domain/sleepMode';
@@ -38,8 +39,17 @@ describe('sleep mode (ADR 0002)', () => {
     expect(fired.fired).toBe(true);
   });
 
+  it('restarts a running countdown on activity but never resurrects a fired one', () => {
+    const partly = tickSleepTimer(freshSleepTimer(), 10_000, true);
+    expect(resetSleepOnActivity(partly)).toEqual(freshSleepTimer());
+
+    const fired = { remainingMs: 0, fired: true };
+    expect(resetSleepOnActivity(fired)).toBe(fired);
+  });
+
   it('formats the countdown as h:mm:ss', () => {
-    expect(formatCountdown(SLEEP_DURATION_MS)).toBe('1:00:00');
+    expect(SLEEP_DURATION_MS).toBe(30 * 60 * 1000);
+    expect(formatCountdown(SLEEP_DURATION_MS)).toBe('0:30:00');
     expect(formatCountdown(4 * 60 * 1000 + 59 * 1000)).toBe('0:04:59');
     expect(formatCountdown(0)).toBe('0:00:00');
   });

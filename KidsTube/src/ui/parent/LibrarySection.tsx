@@ -15,7 +15,7 @@ import {
   normalizeChannelFilter,
 } from '../../domain/panel';
 import { filmsLabel } from '../../domain/plural';
-import type { Channel, Video, VideoStatus } from '../../domain/types';
+import type { Channel, Decision, Video, VideoStatus } from '../../domain/types';
 
 const ALL_ENTRY = '__all__';
 
@@ -24,6 +24,7 @@ type LibraryView = 'films' | 'channels';
 export interface LibrarySectionProps {
   videos: Video[];
   channels: Channel[];
+  decisions: Decision[];
   refreshing: boolean;
   onRefresh: () => void;
   onSetStatus: (video: Video, status: VideoStatus) => void;
@@ -36,6 +37,7 @@ export interface LibrarySectionProps {
 export function LibrarySection({
   videos,
   channels,
+  decisions,
   refreshing,
   onRefresh,
   onSetStatus,
@@ -47,7 +49,10 @@ export function LibrarySection({
   const [channelKey, setChannelKey] = useState<string | null>(null);
   const [query, setQuery] = useState('');
 
-  const films = useMemo(() => libraryVideos(videos, channels), [videos, channels]);
+  const films = useMemo(
+    () => libraryVideos(videos, channels, decisions),
+    [videos, channels, decisions],
+  );
   const bars = useMemo(() => channelBarEntries(films, channels), [films, channels]);
   const activeChannel = normalizeChannelFilter(bars, channelKey);
 
@@ -132,6 +137,8 @@ export function LibrarySection({
   if (view === 'channels') {
     return (
       <FlatList
+      showsVerticalScrollIndicator
+      persistentScrollbar
         data={allowedChannels}
         keyExtractor={item => item.id}
         contentContainerStyle={styles.content}
@@ -139,7 +146,7 @@ export function LibrarySection({
         refreshControl={refreshControl}
         ListHeaderComponent={header}
         ListEmptyComponent={<EmptyState>Brak kanałów w bibliotece.</EmptyState>}
-        renderItem={({ item }) => (
+        renderItem={({ item }: { item: Channel }) => (
           <ChannelRow
             channel={item}
             videos={videos}
@@ -152,6 +159,8 @@ export function LibrarySection({
 
   return (
     <FlatList
+      showsVerticalScrollIndicator
+      persistentScrollbar
       data={visibleFilms}
       keyExtractor={item => item.id}
       contentContainerStyle={styles.content}
@@ -163,7 +172,7 @@ export function LibrarySection({
           {films.length === 0 ? 'Brak filmów w bibliotece.' : 'Brak filmów w tym filtrze.'}
         </EmptyState>
       }
-      renderItem={({ item }) => (
+      renderItem={({ item }: { item: Video }) => (
         <VideoRow video={item} onSetStatus={onSetStatus} onPreview={onPreview} />
       )}
     />

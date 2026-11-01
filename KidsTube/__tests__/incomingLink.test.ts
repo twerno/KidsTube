@@ -182,6 +182,53 @@ describe('shared films (ADR 0013)', () => {
     expect(stored).toMatchObject({ title: 'Wanted', status: 'pending', source: 'propose' });
   });
 
+  it('re-attributes an undecided RSS entry to an explicit link (ADR 0019)', async () => {
+    const rssPending: Video = {
+      id: 'RSSPENDING1',
+      channelId: MANUAL_CHANNEL,
+      channelTitle: manualChannel.title,
+      title: 'From RSS',
+      status: 'pending',
+      source: 'rss',
+      addedAt: 1,
+    };
+
+    const forChild = new MemoryRepository({ channels: [manualChannel], videos: [rssPending] });
+    const childResult = await handleIncomingLink(
+      'https://youtu.be/RSSPENDING1',
+      forChild,
+      undefined,
+      undefined,
+      'propose',
+    );
+    expect(childResult.kind).toBe('pending');
+    expect((await forChild.getVideo('RSSPENDING1'))?.source).toBe('propose');
+
+    const forParent = new MemoryRepository({ channels: [manualChannel], videos: [rssPending] });
+    const shareResult = await handleIncomingLink('https://youtu.be/RSSPENDING1', forParent);
+    expect(shareResult.kind).toBe('pending');
+    expect((await forParent.getVideo('RSSPENDING1'))?.source).toBe('share');
+  });
+
+  it('does not overwrite the source after a decision', async () => {
+    const decided: Video = {
+      id: 'DECIDED1234',
+      channelId: MANUAL_CHANNEL,
+      title: 'Decided',
+      status: 'pending',
+      source: 'rss',
+      addedAt: 1,
+    };
+    const repo = new MemoryRepository({
+      channels: [manualChannel],
+      videos: [decided],
+      decisions: [decision('DECIDED1234', 'reject', 10)],
+    });
+    const result = await handleIncomingLink('https://youtu.be/DECIDED1234', repo);
+    expect(result.kind).toBe('blocked');
+    expect((await repo.getVideo('DECIDED1234'))?.source).toBe('rss');
+  });
+
   it('does not autoplay an already allowed film; it reports the library hit', async () => {
     const repo = new MemoryRepository({ videos: [allowedVideo] });
     const result = await handleIncomingLink('https://youtu.be/UN-0gLuVOZU', repo);

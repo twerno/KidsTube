@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { FlatList, StyleSheet, View } from 'react-native';
+import { FlatList, StyleSheet, TextInput, View } from 'react-native';
 import { ChannelDetails } from './ChannelCard';
 import { Chip } from './Chip';
 import { EmptyState } from './EmptyState';
@@ -11,7 +11,7 @@ import {
   filterChannelVideos,
   type ChannelStatusFilter,
 } from '../../domain/panel';
-import type { Channel, Video, VideoStatus } from '../../domain/types';
+import type { Channel, ChannelPolicy, Video, VideoStatus } from '../../domain/types';
 
 export const CHANNEL_STATUS_CHIPS: {
   key: ChannelStatusFilter;
@@ -41,10 +41,11 @@ export interface ChannelScreenProps {
   videos: Video[];
   onSetStatus: (video: Video, status: VideoStatus) => void;
   onPreview: (video: Video) => void;
-  onTogglePolicy: (channel: Channel) => void;
+  onSelectPolicy: (channel: Channel, policy: ChannelPolicy) => void;
   onToggleMuted: (channel: Channel) => void;
   onBlock: (channel: Channel) => void;
-  onStartCatalog?: (channel: Channel) => void;
+  onBlockAllVideos?: (channel: Channel) => void;
+  onStartCatalog?: (channel: Channel, restart?: boolean) => void;
   catalogRunning?: boolean;
   onBulkDecide?: (channel: Channel, outcome: 'allow' | 'reject') => void;
 }
@@ -58,27 +59,33 @@ export function ChannelScreen({
   videos,
   onSetStatus,
   onPreview,
-  onTogglePolicy,
+  onSelectPolicy,
   onToggleMuted,
   onBlock,
+  onBlockAllVideos,
   onStartCatalog,
   catalogRunning,
   onBulkDecide,
 }: ChannelScreenProps) {
   const [filter, setFilter] = useState<ChannelStatusFilter>(DEFAULT_CHANNEL_STATUS_FILTER);
+  const [query, setQuery] = useState('');
   const counts = useMemo(
     () => channelStatusCounts(videos, channel.id),
     [videos, channel.id],
   );
-  const films = useMemo(
-    () => filterChannelVideos(videos, channel.id, filter),
-    [videos, channel.id, filter],
-  );
+  const films = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    return filterChannelVideos(videos, channel.id, filter).filter(video =>
+      needle ? video.title.toLowerCase().includes(needle) : true,
+    );
+  }, [videos, channel.id, filter, query]);
   const activeFilter = CHANNEL_STATUS_CHIPS.find(chip => chip.key === filter);
   const blockedChannel = channel.status === 'blocked';
 
   return (
     <FlatList
+      showsVerticalScrollIndicator
+      persistentScrollbar
       data={films}
       keyExtractor={item => item.id}
       // A catalog import can leave hundreds of films in one status: the list
@@ -92,12 +99,25 @@ export function ChannelScreen({
           <ChannelDetails
             channel={channel}
             videos={videos}
-            onTogglePolicy={onTogglePolicy}
+            onSelectPolicy={onSelectPolicy}
             onToggleMuted={onToggleMuted}
             onBlock={onBlock}
+            onBlockAllVideos={onBlockAllVideos}
             onStartCatalog={onStartCatalog}
             catalogRunning={catalogRunning}
             onBulkDecide={onBulkDecide}
+          />
+
+          <TextInput
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Szukaj filmów w tym kanale…"
+            placeholderTextColor={colors.textMuted}
+            style={styles.search}
+            autoCapitalize="none"
+            autoCorrect={false}
+            returnKeyType="search"
+            accessibilityLabel="Szukaj filmów w kanale"
           />
 
           <View style={styles.chips}>
@@ -115,9 +135,13 @@ export function ChannelScreen({
         </>
       }
       ListEmptyComponent={
-        <EmptyState>{activeFilter?.empty ?? 'Brak filmów w tym filtrze.'}</EmptyState>
+        <EmptyState>
+          {query.trim()
+            ? 'Żaden film nie pasuje do wyszukiwania.'
+            : activeFilter?.empty ?? 'Brak filmów w tym filtrze.'}
+        </EmptyState>
       }
-      renderItem={({ item: video }) => (
+      renderItem={({ item: video }: { item: Video }) => (
         <VideoRow
           video={video}
           onSetStatus={blockedChannel ? undefined : onSetStatus}
@@ -133,6 +157,15 @@ export function ChannelScreen({
 
 const styles = StyleSheet.create({
   content: { padding: spacing.lg, paddingBottom: spacing.xl * 2, gap: spacing.sm },
+  search: {
+    backgroundColor: colors.cardAlt,
+    borderRadius: 12,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    color: colors.text,
+    fontSize: 15,
+    marginTop: spacing.sm,
+  },
   chips: { flexDirection: 'row', gap: spacing.xs, paddingVertical: spacing.xs },
   chip: { flex: 1 },
 });

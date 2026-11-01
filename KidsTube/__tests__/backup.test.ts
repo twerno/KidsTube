@@ -115,6 +115,22 @@ describe('backup format (ADR 0017)', () => {
     expect(JSON.stringify(file)).not.toContain('pinSalt');
   });
 
+  it('accepts the new channel policies and the block timestamp (ADR 0019)', () => {
+    const parsed = parseBackup(
+      document(file => {
+        file.data.channels[0].policy = 'auto_block';
+        file.data.channels[0].blockedAt = 123;
+      }),
+    );
+    expect(parsed.ok).toBe(true);
+    if (parsed.ok) {
+      expect(parsed.file.data.channels[0]).toMatchObject({
+        policy: 'auto_block',
+        blockedAt: 123,
+      });
+    }
+  });
+
   it('accepts a snapshot without a PIN and without extra time', () => {
     const parsed = parseBackup(
       document(file => {

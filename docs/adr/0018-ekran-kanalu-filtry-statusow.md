@@ -54,9 +54,10 @@ na chipie.
   cały stan kanału, nie przecięcie z innym filtrem.
 - Chipy z zerem **pozostają widoczne i klikalne**; nie chowamy ich, żeby układ
   nie skakał, a rodzic wiedział, że dany status istnieje i jest pusty.
-- Trzy chipy leżą w **jednej linii** i nie zawijają się do drugiej. Na wąskich
-  ekranach użyj wariantu kompaktowego (mniejszy padding i font, tekst
-  jednolinijkowy) zamiast `flexWrap`.
+- Trzy chipy leżą w **jednej linii**. Na wąskich ekranach użyj wariantu
+  kompaktowego (mniejszy padding i font); etykieta może zawinąć się do dwóch
+  linii, ale liczba musi pozostać widoczna (uzupełnienie ADR 0020). Nie
+  używamy `flexWrap`, żeby układ nie przeskakiwał między wierszami.
 - Po decyzji liczniki i lista aktualizują się od razu.
 - Pusty wynik ma komunikat zależny od filtra:
   - „Brak zaakceptowanych filmów w tym kanale.”,

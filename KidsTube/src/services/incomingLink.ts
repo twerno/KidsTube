@@ -87,7 +87,18 @@ async function handleVideo(
       : undefined;
     const status =
       existingChannel?.status === 'blocked' ? 'blocked' : projectStatus(existing, decisions);
+    const latest = latestDecision(decisions, parsed.videoId);
     const video = { ...existing, status };
+
+    // An explicit link re-attributes an undecided RSS entry, so it lands in the
+    // right tab: the child's own proposal under “Do zatwierdzenia”, a shared
+    // link under the parent's “Z linku”. Without this a pending scan from a
+    // muted/quiet channel stayed invisible in both places (ADR 0019).
+    if (!latest && existing.source === 'rss' && status === 'pending') {
+      video.source = source;
+      await repo.upsertVideos([video]);
+    }
+
     if (status === 'allowed') {
       // An allowed film without its channel record gets a muted one (ADR 0015).
       await ensureChannelForApprovedVideo(repo, video, now);

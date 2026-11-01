@@ -9,7 +9,15 @@
  */
 
 import React, { useMemo } from 'react';
-import { Image, Pressable, SectionList, StyleSheet, Text, View } from 'react-native';
+import {
+  Image,
+  Pressable,
+  SectionList,
+  StyleSheet,
+  Text,
+  View,
+  type SectionListRenderItemInfo,
+} from 'react-native';
 import { colors, radius, spacing } from './theme';
 import { entryTotalSeconds, groupWatchHistory } from '../domain/watchHistory';
 import { formatCompactDuration, formatDurationRatio } from '../domain/duration';
@@ -50,13 +58,15 @@ export function WatchHistoryList({
 
   return (
     <SectionList
+      showsVerticalScrollIndicator
+      persistentScrollbar
       sections={sections}
       keyExtractor={item => `${item.dateKey}:${item.videoId}`}
       contentContainerStyle={entries.length === 0 ? styles.emptyContainer : styles.content}
       removeClippedSubviews={false}
       stickySectionHeadersEnabled={false}
       ListEmptyComponent={<Text style={styles.empty}>{emptyText}</Text>}
-      renderSectionHeader={({ section }) => (
+      renderSectionHeader={({ section }: { section: { dateKey: string; totalSeconds: number } }) => (
         <View style={styles.dayHeader}>
           <Text style={styles.dayTitle}>{formatHistoryDay(section.dateKey)}</Text>
           <Text style={styles.dayTotal}>
@@ -64,7 +74,7 @@ export function WatchHistoryList({
           </Text>
         </View>
       )}
-      renderItem={({ item }) =>
+      renderItem={({ item }: SectionListRenderItemInfo<WatchHistoryEntry>) =>
         showThumbnails ? (
           <ChildHistoryRow
             entry={item}

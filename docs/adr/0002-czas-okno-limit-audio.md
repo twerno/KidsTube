@@ -13,9 +13,10 @@ Poza oknem lub po wyczerpaniu limitu dozwolony jest wyłącznie tryb audio.
 To zastępuje dawne ustawienie „godzina ciszy" (`audioOnlyAfterMinute`) —
 usunięte, brak dwóch niezależnych bramek.
 
-**Tryb snu** na ekranie audio: zawsze widoczny licznik 1 h z przyciskiem
-resetu; po odliczeniu odtwarzanie zatrzymuje się, ekran audio zostaje
-(dziecko może wznowić; wznowienie = nowe odliczanie 1 h).
+**Tryb snu** na ekranie audio: zawsze widoczny licznik 30 min; po odliczeniu
+odtwarzanie zatrzymuje się, ekran audio zostaje (dziecko może wznowić;
+wznowienie = nowe odliczanie 30 min). Każda aktywność na ekranie audio
+restartuje licznik — szczegóły w ADR 0021.
 
 ## Rozważone opcje
 
@@ -33,5 +34,5 @@ resetu; po odliczeniu odtwarzanie zatrzymuje się, ekran audio zostaje
 
 - Okno dotyczy wyłącznie wideo; audio działa 24/7 (np. audio na dobranoc).
 - Tryb snu to wyłącznik po zaśnięciu, nie limit — nie koliduje z „audio
-  bez ograniczeń" (pętla i tak się zatrzyma po 1 h).
+  bez ograniczeń" (pętla i tak się zatrzyma po 30 min).
 - Limit mierzony jest czasem **faktycznego odtwarzania** wideo (patrz ADR 0003).

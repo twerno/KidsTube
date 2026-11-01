@@ -4,6 +4,7 @@ import {
   blockedChannels,
   blockedVideos,
   channelBarEntries,
+  isBlockedChannelVideo,
   channelStatusCounts,
   countBySource,
   filterChannelVideos,
@@ -65,7 +66,7 @@ describe('panel selectors (ADR 0016)', () => {
     expect(pending.map(v => v.id)).toEqual(['v-rss', 'v-child', 'v-link', 'v-manual']);
   });
 
-  it('hides pending films of muted channels from the queue but keeps them for the channel', () => {
+  it('hides pending scans of muted channels from the queue but keeps them for the channel', () => {
     const mutedChannel = channel({ id: 'UC_MUTED', title: 'Wyciszony', muted: true });
     const film = video({ id: 'v-muted', channelId: 'UC_MUTED', channelTitle: 'Wyciszony' });
 
@@ -73,9 +74,52 @@ describe('panel selectors (ADR 0016)', () => {
     expect(pendingForChannel([film], 'UC_MUTED')).toEqual([film]);
   });
 
+  it('keeps explicit links and proposals from a muted/quiet channel in the queue (ADR 0019)', () => {
+    const mutedChannel = channel({ id: 'UC_MUTED', title: 'Wyciszony', muted: true });
+    const quietChannel = channel({ id: 'UC_QUIET', title: 'Cichy', policy: 'quiet' });
+    const rss = video({ id: 'v-quiet-rss', channelId: 'UC_QUIET', source: 'rss' });
+    const share = video({ id: 'v-muted-share', channelId: 'UC_MUTED', source: 'share' });
+    const propose = video({ id: 'v-quiet-propose', channelId: 'UC_QUIET', source: 'propose' });
+
+    expect(pendingVideos([rss], [quietChannel])).toEqual([]);
+    expect(pendingVideos([share], [mutedChannel]).map(v => v.id)).toEqual(['v-muted-share']);
+    expect(pendingVideos([propose], [quietChannel]).map(v => v.id)).toEqual(['v-quiet-propose']);
+  });
+
   it('keeps films of blocked channels out of the library', () => {
     const library = libraryVideos(VIDEOS, [CHANNEL_A, CHANNEL_BLOCKED]);
     expect(library.map(v => v.id)).toEqual(['v-allowed']);
+  });
+
+  it('lets a manual allow newer than the block make one film visible (ADR 0019)', () => {
+    const blocked = channel({
+      id: 'UC_B',
+      title: 'Kanał zablokowany',
+      status: 'blocked',
+      blockedAt: 1_000,
+    });
+    const film = video({ id: 'v-exempt', channelId: 'UC_B', status: 'allowed' });
+    const decisions = [
+      {
+        videoId: 'v-exempt',
+        outcome: 'allow' as const,
+        source: 'manual' as const,
+        at: 2_000,
+      },
+    ];
+
+    expect(isBlockedChannelVideo(film, [blocked], decisions)).toBe(false);
+    expect(libraryVideos([film], [blocked], decisions).map(v => v.id)).toEqual(['v-exempt']);
+    expect(blockedVideos([film], [blocked], decisions)).toEqual([]);
+
+    // An older allow (before the block) is not an exception.
+    expect(
+      isBlockedChannelVideo(film, [blocked], [{ ...decisions[0], at: 500 }]),
+    ).toBe(true);
+    // Nor is an automatic repeat of an earlier allow.
+    expect(
+      isBlockedChannelVideo(film, [blocked], [{ ...decisions[0], source: 'auto' }]),
+    ).toBe(true);
   });
 
   it('moves both rejected films and every film of a blocked channel to the archive', () => {

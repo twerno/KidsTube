@@ -4,6 +4,7 @@ import { AsyncStorageRepository } from './src/data/asyncStorageRepository';
 import type { Repository } from './src/data/repository';
 import type {
   Channel,
+  ChannelPolicy,
   ChannelProposal,
   Decision,
   DecisionOutcome,
@@ -18,6 +19,7 @@ import type {
   WatchProgress,
 } from './src/domain/types';
 import { proposalsForChild, videosForChild } from './src/domain/content';
+import { isBlockedChannelVideo } from './src/domain/panel';
 import { manualDecision, projectVideos, repeatProposalDecision } from './src/domain/decisions';
 import {
   INITIAL_CHILD_NAV,
@@ -76,6 +78,7 @@ import { addByLink, type AddLinkResult } from './src/services/addByLink';
 import { recordLog } from './src/services/logStore';
 import { applyBackup, exportDatabase, pickDatabase } from './src/services/databaseBackup';
 import { runCatalogImport, type CatalogRunState } from './src/services/youtubeCatalog';
+import { emptyCatalogCheckpoint } from './src/domain/catalog';
 import type { BackupFile } from './src/domain/backup';
 import { APP_VERSION } from './src/version';
 import { ChildHomeScreen } from './src/ui/ChildHomeScreen';
@@ -335,21 +338,16 @@ function AppContent() {
     })();
   }, [repo, reload, drainIncomingQueue, sync]);
 
-  const blockedChannelIds = useMemo(
-    () => new Set(channels.filter(c => c.status === 'blocked').map(c => c.id)),
-    [channels],
-  );
-
   // Visibility is projected from the decision history (ADR 0001); the stored
   // `Video.status` is only a cache. Everything downstream reads this list.
   const projectedVideos = useMemo(() => projectVideos(videos, decisions), [videos, decisions]);
 
   const childVideos = useMemo(
     () =>
-      videosForChild(projectedVideos, decisions).filter(
-        v => !v.channelId || !blockedChannelIds.has(v.channelId),
+      videosForChild(projectedVideos).filter(
+        video => !isBlockedChannelVideo(video, channels, decisions),
       ),
-    [projectedVideos, decisions, blockedChannelIds],
+    [projectedVideos, channels, decisions],
   );
 
   const childProposals = useMemo(() => proposalsForChild(projectedVideos), [projectedVideos]);
@@ -806,9 +804,20 @@ function AppContent() {
   const catalogCancelRef = useRef(false);
 
   const startCatalog = useCallback(
-    async (channel: Channel) => {
-      const stored = channels.find(candidate => candidate.id === channel.id) ?? channel;
-      if (catalogRunningRef.current || stored.catalog?.done) {
+    async (channel: Channel, restart = false) => {
+      const base = channels.find(candidate => candidate.id === channel.id) ?? channel;
+      if (catalogRunningRef.current) {
+        return;
+      }
+      let stored = base;
+      if (restart) {
+        // Re-download the whole catalog from the first page. This is the
+        // escape hatch when an earlier run was interrupted or when the parent
+        // simply wants to sweep the channel again (ADR 0019).
+        stored = { ...base, catalog: emptyCatalogCheckpoint() };
+        await repo.upsertChannel(stored);
+        recordLog('info', 'catalog', `restart ${stored.title}`);
+      } else if (base.catalog?.done) {
         return;
       }
       catalogRunningRef.current = true;
@@ -931,13 +940,13 @@ function AppContent() {
     [repo, reload],
   );
 
-  const toggleChannelPolicy = async (channel: Channel) => {
-    const next: Channel = {
-      ...channel,
-      policy: channel.policy === 'auto_approve' ? 'manual' : 'auto_approve',
-    };
+  const changeChannelPolicy = async (channel: Channel, policy: ChannelPolicy) => {
+    if (channel.policy === policy) {
+      return;
+    }
+    const next: Channel = { ...channel, policy };
     await repo.upsertChannel(next);
-    if (next.policy === 'auto_approve') {
+    if (policy === 'auto_approve') {
       // Switching to auto-approve lets the channel's pending videos in; record
       // one manual decision each so the change is visible in the history.
       const toApprove = projectedVideos.filter(
@@ -957,9 +966,59 @@ function AppContent() {
 
   const toggleChannelBlocked = async (channel: Channel) => {
     const status = channel.status === 'blocked' ? 'allowed' : 'blocked';
-    await repo.upsertChannel({ ...channel, status });
+    await repo.upsertChannel({
+      ...channel,
+      status,
+      // Blocking starts a new exception window: only a later manual approval
+      // can bring one film back (ADR 0019).
+      blockedAt: status === 'blocked' ? Date.now() : undefined,
+    });
     recordLog('info', 'channel', `${channel.title}: ${status === 'blocked' ? 'zablokowany' : 'odblokowany'}`);
     await reload();
+  };
+
+  /**
+   * “Zablokuj wszystkie filmy z kanału”: reject every film that is not blocked
+   * yet (one decision per film, so the history stays append-only), then block
+   * the channel and switch its RSS updates off (ADR 0019).
+   */
+  const blockAllChannelVideos = (channel: Channel) => {
+    const films = projectedVideos.filter(
+      video => video.channelId === channel.id && video.status !== 'blocked',
+    );
+    Alert.alert(
+      'Zablokować kanał?',
+      `Kanał „${channel.title}” zostanie zablokowany, ${films.length} ${
+        films.length === 1 ? 'film zostanie odrzucony' : 'filmów zostanie odrzuconych'
+      }, a aktualizacja RSS wyłączona.`,
+      [
+        { text: 'Anuluj', style: 'cancel' },
+        {
+          text: 'Zablokuj wszystko',
+          style: 'destructive',
+          onPress: () => {
+            (async () => {
+              const at = Date.now();
+              await repo.recordDecisions(
+                films.map((video, index) => manualDecision(video, 'reject', at + index + 1)),
+              );
+              await repo.upsertChannel({
+                ...channel,
+                status: 'blocked',
+                muted: true,
+                blockedAt: at,
+              });
+              recordLog(
+                'warn',
+                'channel',
+                `blokada ${channel.title}: odrzucono ${films.length}`,
+              );
+              await reload();
+            })().catch(() => undefined);
+          },
+        },
+      ],
+    );
   };
 
   const toggleChannelMuted = async (channel: Channel) => {
@@ -1174,7 +1233,9 @@ function AppContent() {
   if (route.name === 'player') {
     return (
       <View style={[styles.root, styles.playerRoot, safeAreaPadding]}>
-        <StatusBar barStyle="light-content" hidden />
+        {/* Video is full-screen; audio mode is a normal portrait screen, so the
+            status bar returns together with the navigation bar. */}
+        <StatusBar barStyle="light-content" hidden={!route.audioOnly} />
         <PlayerScreen
           video={route.video}
           audioOnly={route.audioOnly}
@@ -1237,9 +1298,11 @@ function AppContent() {
           onRestoreBackup={restoreBackup}
           onVerifyPin={verifyParentPin}
           pinLockedUntil={pinGuard.lockedUntil}
-          onTogglePolicy={toggleChannelPolicy}
+          onSelectPolicy={changeChannelPolicy}
           onToggleMuted={toggleChannelMuted}
           onToggleBlocked={toggleChannelBlocked}
+          onBlockAllVideos={blockAllChannelVideos}
+          decisions={decisions}
           onApproveChannel={onApproveChannelProposal}
           onRejectChannel={onRejectChannelProposal}
           onRetryChannel={onRetryChannelProposal}

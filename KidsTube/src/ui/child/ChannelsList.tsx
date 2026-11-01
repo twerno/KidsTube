@@ -21,6 +21,8 @@ export function ChannelsList({
 }) {
   return (
     <FlatList
+      showsVerticalScrollIndicator
+      persistentScrollbar
       data={entries}
       keyExtractor={item => item.channel.id}
       contentContainerStyle={entries.length === 0 ? styles.emptyContainer : styles.content}
@@ -33,7 +35,7 @@ export function ChannelsList({
           Brak kanałów z zatwierdzonymi filmami. Rodzic może dodać kanał w panelu.
         </Text>
       }
-      renderItem={({ item }) => (
+      renderItem={({ item }: { item: ChildChannelEntry }) => (
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={`${item.channel.title}, ${filmsLabel(item.videoCount)}`}

@@ -135,7 +135,12 @@ function asDateKey(value: unknown, path: string): string {
 
 const VIDEO_STATUSES: readonly VideoStatus[] = ['allowed', 'pending', 'blocked'];
 const VIDEO_SOURCES: readonly VideoSource[] = ['rss', 'manual', 'share', 'propose'];
-const CHANNEL_POLICIES: readonly ChannelPolicy[] = ['auto_approve', 'manual'];
+const CHANNEL_POLICIES: readonly ChannelPolicy[] = [
+  'auto_approve',
+  'manual',
+  'auto_block',
+  'quiet',
+];
 const CHANNEL_STATUSES: readonly ChannelStatus[] = ['allowed', 'blocked'];
 const DECISION_OUTCOMES: readonly DecisionOutcome[] = ['allow', 'reject', 'retract'];
 const DECISION_SOURCES: readonly DecisionSource[] = ['manual', 'auto'];
@@ -213,6 +218,9 @@ function parseChannels(value: unknown): Channel[] {
     }
     if (raw.muted !== undefined) {
       channel.muted = asBoolean(raw.muted, `${path}.muted`);
+    }
+    if (raw.blockedAt !== undefined) {
+      channel.blockedAt = asNumber(raw.blockedAt, `${path}.blockedAt`, { min: 0 });
     }
     if (raw.catalog !== undefined) {
       const catalogPath = `${path}.catalog`;

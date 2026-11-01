@@ -33,7 +33,7 @@ export function LogSection() {
       contentContainerStyle={data.length === 0 ? styles.emptyContent : styles.content}
       removeClippedSubviews={false}
       ListEmptyComponent={<EmptyState>Brak zdarzeń w tej sesji.</EmptyState>}
-      renderItem={({ item }) => (
+      renderItem={({ item }: { item: LogEntry }) => (
         <View style={styles.row}>
           <Text style={styles.time}>{clockTime(item.at)}</Text>
           <View style={styles.body}>

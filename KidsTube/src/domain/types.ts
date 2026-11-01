@@ -36,8 +36,15 @@ export interface Decision {
   channelId?: string;
 }
 
-/** How newly discovered videos of a channel are handled. */
-export type ChannelPolicy = 'auto_approve' | 'manual';
+/**
+ * How newly discovered videos of a channel are handled (ADR 0019):
+ *  - `auto_approve` — land in the child's library immediately,
+ *  - `manual` — wait on the parent's approval queue,
+ *  - `auto_block` — are rejected on arrival,
+ *  - `quiet` — are cached but kept out of the approval queue (the parent sees
+ *    them only on the channel screen and can still decide individually).
+ */
+export type ChannelPolicy = 'auto_approve' | 'manual' | 'auto_block' | 'quiet';
 
 export type ChannelStatus = 'allowed' | 'blocked';
 
@@ -89,6 +96,12 @@ export interface Channel {
   policy: ChannelPolicy;
   /** A blocked channel is hidden from the child entirely. */
   status: ChannelStatus;
+  /**
+   * When the channel was last blocked. A manually approved film newer than
+   * this timestamp is the one exception to “a blocked channel hides its films”
+   * (ADR 0019): the parent may grant a single film from a blocked channel.
+   */
+  blockedAt?: number;
   /**
    * Muted channels stay in the parent's channel list but never fetch their RSS
    * feed (ADR 0015). Absent means not muted, so existing stored channels need

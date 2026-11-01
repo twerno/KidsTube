@@ -49,6 +49,8 @@ export interface PlayerHandle {
   pause(): void;
   togglePlay(): void;
   seekTo(seconds: number): void;
+  /** Restart from the first frame (loop playback / “play again”). */
+  restart(): void;
   toggleCaptions(): void;
   setAudioTrack(index: number): void;
 }
@@ -200,8 +202,30 @@ const PLAYER_JSA = `
         seekTarget = s;
         seekStartedAt = Date.now();
         seekAppliedAt = 0;
+        // Any seek away from the end re-arms the end event, so a looped film
+        // (or a manual replay) can report "ended" again on the next pass.
+        if (seekTarget < 1) { announced = false; }
         var v = video();
         if (!v || !v.seeking) { applySeek(s); seekAppliedAt = Date.now(); }
+      } catch (e) {}
+    },
+    restart: function () {
+      try {
+        announced = false;
+        seekTarget = 0;
+        seekStartedAt = Date.now();
+        seekAppliedAt = 0;
+        var p = player();
+        if (p && p.seekTo) {
+          p.seekTo(0, true);
+          if (p.playVideo) { p.playVideo(); }
+          // YouTube sometimes ignores playVideo issued in the same tick as a
+          // seek out of the ended state; retry once after the seek settles.
+          setTimeout(function () { try { p.playVideo && p.playVideo(); } catch (e) {} }, 200);
+        } else {
+          var rv = video();
+          if (rv) { rv.currentTime = 0; rv.play(); }
+        }
       } catch (e) {}
     },
     captionsOff: function () { try { var p = player(); if (p && p.setOption) { p.setOption('captions', 'track', {}); } } catch (e) {} },
@@ -368,7 +392,12 @@ const PLAYER_JSA = `
         audioIndex: audioIndex
       });
 
-      if (!announced) {
+      // A looped / replayed film leaves the end position without reloading the
+      // page; re-arm the one-shot end notification for the next pass.
+      if (announced && !v.ended && (!isFinite(v.duration) || v.currentTime < v.duration - 1)) {
+        announced = false;
+      }
+      if (!announced && seekTarget == null) {
         var atEnd = v.ended || (isFinite(v.duration) && v.currentTime >= v.duration - 0.25);
         if (atEnd && v.currentTime > 0) {
           announced = true;
@@ -418,6 +447,10 @@ export const EmbedPlayer = forwardRef<PlayerHandle, EmbedPlayerProps>(function E
       const target = Math.max(0, seconds);
       seekRef.current = { target, at: Date.now() };
       run(`window.__kt && window.__kt.seek(${target});`);
+    },
+    restart: () => {
+      seekRef.current = { target: 0, at: Date.now() };
+      run('window.__kt && window.__kt.restart();');
     },
     toggleCaptions: () => run('window.__kt && window.__kt.captionsToggle();'),
     setAudioTrack: (index: number) => run(`window.__kt && window.__kt.audioTrack(${index});`),

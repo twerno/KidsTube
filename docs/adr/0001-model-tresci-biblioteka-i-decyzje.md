@@ -1,5 +1,7 @@
 # ADR 0001 — Model treści: kuratorowana biblioteka + propozycje i decyzje
 
+> Kolejność list zaktualizowana w ADR 0020 (data publikacji zamiast czasu decyzji).
+
 Dziecko widzi wyłącznie kuratorowaną bibliotekę — nigdy nie dotyka przeglądarki ani
 wyszukiwarki YouTube (decyzja „B" z prompt.md). Rodzic dodaje kanały i filmy, dziecko
 ogląda tylko to, co dozwolone.

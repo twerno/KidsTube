@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  AppState,
   BackHandler,
   Image,
   Pressable,
@@ -13,9 +14,21 @@ import { EmbedPlayer, type PlayerHandle, type PlayerState } from './EmbedPlayer'
 import { PlayerControls } from './player/PlayerControls';
 import { AudioControls } from './player/AudioControls';
 import { lockLandscape, lockPortrait, unlockOrientation } from '../native/orientation';
+import {
+  dimScreen,
+  hideNavigation,
+  restoreScreenBrightness,
+  showNavigation,
+} from '../native/systemUi';
 import { colors, radius, spacing } from './theme';
 import type { Video, WatchMode } from '../domain/types';
-import { freshSleepTimer, resetSleepTimer, tickSleepTimer, type SleepTimerState } from '../domain/sleepMode';
+import {
+  freshSleepTimer,
+  resetSleepOnActivity as resetSleepOnActivityState,
+  resetSleepTimer,
+  tickSleepTimer,
+  type SleepTimerState,
+} from '../domain/sleepMode';
 import { advanceWatch, beginWatch, unreportedSeconds } from '../domain/watchTime';
 import { relativeSeek } from '../domain/playback';
 import {
@@ -177,7 +190,7 @@ export function PlayerScreen({
     onClose();
   }, [onClose]);
 
-  // Entering audio mode starts a fresh 1 h sleep countdown (ADR 0002).
+  // Entering audio mode starts a fresh 30 min sleep countdown (ADR 0002/0021).
   useEffect(() => {
     if (audioOnly) {
       setSleepTimer(freshSleepTimer());
@@ -209,12 +222,23 @@ export function PlayerScreen({
     setControlsVisible(true);
   };
 
+  /**
+   * Audio screen (ADR 0021): any interaction means the child is still awake,
+   * so the 30 min sleep countdown starts again. Once it fired, only the explicit
+   * “Wznów” button restarts playback and the countdown.
+   */
+  const resetSleepOnActivity = useCallback(() => {
+    setSleepTimer(resetSleepOnActivityState);
+  }, []);
+
   // With “play in a loop” on, an ended video silently restarts instead of
   // showing the end screen. Only a real end marks the video as fully watched.
   const handleEnded = () => {
     if (loopRef.current) {
-      playerRef.current?.seekTo(0);
-      playerRef.current?.play();
+      // Restart through one combined command: a bare seek(0)+play can lose the
+      // race with YouTube's end state, and the injected end listener has to be
+      // re-armed for every pass (the “loops only once” bug).
+      playerRef.current?.restart();
       return;
     }
     onCompletedRef.current?.();
@@ -407,10 +431,38 @@ export function PlayerScreen({
 
   useEffect(() => () => unlockOrientation(), []);
 
+  // Immersive video: hide the Android navigation buttons while a film runs and
+  // bring them back for audio mode (portrait, normal screen) or on leaving.
+  // The bars also reappear when the app returns to the foreground, so hide them
+  // again on every `active` transition.
+  useEffect(() => {
+    if (audioOnly) {
+      showNavigation();
+      // Bedtime: dim the actual backlight, not just the picture.
+      dimScreen();
+      return () => restoreScreenBrightness();
+    }
+    restoreScreenBrightness();
+    hideNavigation();
+    const subscription = AppState.addEventListener('change', next => {
+      if (next === 'active') {
+        hideNavigation();
+      }
+    });
+    return () => {
+      subscription.remove();
+      showNavigation();
+      restoreScreenBrightness();
+    };
+  }, [audioOnly]);
+
   const onSeek = (seconds: number) => {
     playerRef.current?.seekTo(seconds);
     setState(prev => ({ ...prev, position: seconds }));
     showControls();
+    if (audioOnly) {
+      resetSleepOnActivity();
+    }
   };
 
   // The player reports `duration: 0` until the video metadata loads; such a
@@ -471,7 +523,10 @@ export function PlayerScreen({
       ) : null}
 
       {audioOnly ? (
-        <View style={styles.audioOverlay}>
+        // `onTouchStart` (not Pressable’s onPress) also fires for taps on
+        // labels/images and bubbles from the control buttons, without taking
+        // the responder away from nested controls.
+        <View style={styles.audioOverlay} onTouchStart={resetSleepOnActivity}>
           <View style={styles.audioTop}>
             {video.thumbnailUrl ? (
               <Image source={{ uri: video.thumbnailUrl }} style={styles.cover} />
@@ -487,21 +542,23 @@ export function PlayerScreen({
           <AudioControls
             state={state}
             loop={loop}
-            onToggleLoop={() => setLoop(value => !value)}
+            onToggleLoop={() => {
+              setLoop(value => !value);
+              resetSleepOnActivity();
+            }}
             sleepRemainingMs={sleepTimer.remainingMs}
             sleepFired={sleepTimer.fired}
-            onResetSleep={() => setSleepTimer(resetSleepTimer())}
             onResumeSleep={() => {
               playerRef.current?.play();
               setSleepTimer(resetSleepTimer());
             }}
             onTogglePlay={() => {
+              resetSleepOnActivity();
               // After the track finished, play starts it over from the beginning
               // (the audio screen stays up so the sleep counter remains visible).
               if (ended) {
                 setEnded(false);
-                playerRef.current?.seekTo(0);
-                playerRef.current?.play();
+                playerRef.current?.restart();
                 if (sleepTimer.fired) {
                   setSleepTimer(resetSleepTimer());
                 }
@@ -513,7 +570,10 @@ export function PlayerScreen({
               playerRef.current?.togglePlay();
             }}
             onSeek={onSeek}
-            onScrubStart={() => setScrubbing(true)}
+            onScrubStart={() => {
+              setScrubbing(true);
+              resetSleepOnActivity();
+            }}
             onScrubEnd={() => setScrubbing(false)}
           />
         </View>

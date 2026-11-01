@@ -10,6 +10,7 @@ import { libraryVideos, pendingVideos } from '../../domain/panel';
 import type {
   Channel,
   ChannelProposal,
+  Decision,
   ExtraTimePool,
   Schedule,
   Video,
@@ -26,6 +27,7 @@ export interface PanelIndexProps {
   videos: Video[];
   channels: Channel[];
   proposals: ChannelProposal[];
+  decisions: Decision[];
   watchHistory: WatchHistoryEntry[];
   schedule?: Schedule;
   extraTime?: ExtraTimePool;
@@ -40,6 +42,7 @@ export function PanelIndex({
   videos,
   channels,
   proposals,
+  decisions,
   watchHistory,
   schedule,
   extraTime,
@@ -50,7 +53,7 @@ export function PanelIndex({
 }: PanelIndexProps) {
   const rows = useMemo<IndexRow[]>(() => {
     const pending = pendingVideos(videos, channels);
-    const library = libraryVideos(videos, channels);
+    const library = libraryVideos(videos, channels, decisions);
     const libraryChannels = channels.filter(channel => channel.status !== 'blocked');
     const waiting = pending.length + proposals.length;
     const waitingHint =
@@ -112,7 +115,7 @@ export function PanelIndex({
         subtitle: 'Zdarzenia z tej sesji',
       },
     ];
-  }, [videos, channels, proposals, youtubeLinkHandlerEnabled]);
+  }, [videos, channels, proposals, decisions, youtubeLinkHandlerEnabled]);
 
   return (
     <View style={styles.container}>
@@ -120,7 +123,7 @@ export function PanelIndex({
         title="Panel rodzica"
         right={<Button compact title="Zamknij" variant="secondary" onPress={onClose} />}
       />
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView showsVerticalScrollIndicator persistentScrollbar contentContainerStyle={styles.content}>
         <PanelSummary
           schedule={schedule}
           usedSecondsToday={usedSecondsToday}

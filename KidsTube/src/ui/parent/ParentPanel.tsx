@@ -25,7 +25,9 @@ import type { CatalogRunState } from '../../services/youtubeCatalog';
 import type { BackupFile } from '../../domain/backup';
 import type {
   Channel,
+  ChannelPolicy,
   ChannelProposal,
+  Decision,
   ExtraTimePool,
   Schedule,
   Video,
@@ -43,6 +45,8 @@ export interface ParentPanelProps {
   videos: Video[];
   channels: Channel[];
   channelProposals: ChannelProposal[];
+  /** Append-only decisions, needed for the blocked-channel exception (ADR 0019). */
+  decisions: Decision[];
   watchHistory: WatchHistoryEntry[];
   schedule?: Schedule;
   extraTime?: ExtraTimePool;
@@ -55,7 +59,7 @@ export interface ParentPanelProps {
   onRetract: (video: Video) => void;
   onRetractMany: (videos: Video[]) => void;
   catalogRun?: CatalogRunState;
-  onStartCatalog: (channel: Channel) => void;
+  onStartCatalog: (channel: Channel, restart?: boolean) => void;
   onCancelCatalog: () => void;
   onCloseCatalog: () => void;
   onBulkDecide: (channel: Channel, outcome: 'allow' | 'reject') => Promise<Video[]>;
@@ -64,9 +68,10 @@ export interface ParentPanelProps {
   onRestoreBackup: (file: BackupFile) => Promise<RestoreOutcome>;
   onVerifyPin: (pin: string) => Promise<boolean>;
   pinLockedUntil?: number;
-  onTogglePolicy: (channel: Channel) => void;
+  onSelectPolicy: (channel: Channel, policy: ChannelPolicy) => void;
   onToggleMuted: (channel: Channel) => void;
   onToggleBlocked: (channel: Channel) => void;
+  onBlockAllVideos: (channel: Channel) => void;
   onApproveChannel: (proposal: ChannelProposal) => void;
   onRejectChannel: (proposal: ChannelProposal) => void;
   onRetryChannel: (proposal: ChannelProposal) => void;
@@ -105,6 +110,7 @@ export function ParentPanel(props: ParentPanelProps) {
     videos,
     channels,
     channelProposals,
+    decisions,
     watchHistory,
     schedule,
     extraTime,
@@ -126,9 +132,10 @@ export function ParentPanel(props: ParentPanelProps) {
     onRestoreBackup,
     onVerifyPin,
     pinLockedUntil,
-    onTogglePolicy,
+    onSelectPolicy,
     onToggleMuted,
     onToggleBlocked,
+    onBlockAllVideos,
     onApproveChannel,
     onRejectChannel,
     onRetryChannel,
@@ -250,11 +257,12 @@ export function ParentPanel(props: ParentPanelProps) {
 
   const openPreview = useCallback(
     (video: Video) => {
-      const blockedChannel = isBlockedChannelVideo(video, channels);
-      // Films of a blocked channel are restored with “Odblokuj” on the channel
-      // card, never with a per-film decision (ADR 0016).
+      const blockedChannel = isBlockedChannelVideo(video, channels, decisions);
+      // Even a blocked channel allows a single-film exception (ADR 0019): the
+      // preview offers “Zezwól na ten film”, which appends a manual allow newer
+      // than the channel block.
       const actions: PreviewAction = blockedChannel
-        ? 'none'
+        ? 'channel-blocked'
         : video.status === 'pending'
           ? 'pending'
           : video.status === 'allowed'
@@ -264,10 +272,12 @@ export function ParentPanel(props: ParentPanelProps) {
         name: 'preview',
         video,
         actions,
-        note: blockedChannel ? 'kanał zablokowany' : undefined,
+        note: blockedChannel
+          ? 'kanał zablokowany — decyzja dotyczy tylko tego filmu'
+          : undefined,
       });
     },
-    [channels, push],
+    [channels, decisions, push],
   );
 
   const openHistoryPreview = useCallback(
@@ -325,6 +335,7 @@ export function ParentPanel(props: ParentPanelProps) {
           <LibrarySection
             videos={videos}
             channels={channels}
+            decisions={decisions}
             refreshing={refreshing}
             onRefresh={onRefresh}
             onSetStatus={decide}
@@ -338,6 +349,7 @@ export function ParentPanel(props: ParentPanelProps) {
           <BlockedSection
             videos={videos}
             channels={channels}
+            decisions={decisions}
             onPreview={openPreview}
             onSetStatus={decide}
             onToggleBlocked={onToggleBlocked}
@@ -352,9 +364,10 @@ export function ParentPanel(props: ParentPanelProps) {
             onAddLink={onAddLink}
             onSetStatus={decide}
             onPreview={openPreview}
-            onTogglePolicy={onTogglePolicy}
+            onSelectPolicy={onSelectPolicy}
             onToggleMuted={onToggleMuted}
             onToggleBlocked={onToggleBlocked}
+            onBlockAllVideos={onBlockAllVideos}
           />
         );
       case 'history':
@@ -422,6 +435,7 @@ export function ParentPanel(props: ParentPanelProps) {
             videos={videos}
             channels={channels}
             proposals={channelProposals}
+            decisions={decisions}
             watchHistory={watchHistory}
             schedule={schedule}
             extraTime={extraTime}
@@ -449,9 +463,10 @@ export function ParentPanel(props: ParentPanelProps) {
                 videos={videos}
                 onSetStatus={decide}
                 onPreview={openPreview}
-                onTogglePolicy={onTogglePolicy}
+                onSelectPolicy={onSelectPolicy}
                 onToggleMuted={onToggleMuted}
                 onBlock={onToggleBlocked}
+                onBlockAllVideos={onBlockAllVideos}
                 onStartCatalog={onStartCatalog}
                 catalogRunning={
                   catalogRun?.phase === 'running' && catalogRun.channelId === channel.id

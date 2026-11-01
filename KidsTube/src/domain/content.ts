@@ -5,17 +5,28 @@
  * UI/repository layers just feed it data.
  */
 
-import type { Channel, Video, VideoStatus } from './types';
+import type { Channel, Video, VideoStatus, WatchProgress } from './types';
 import type { Decision } from './types';
-import { latestDecision, statusForOutcome } from './decisions';
+import { statusForOutcome } from './decisions';
 import type { RssVideo } from './rss';
 
-/** What status a freshly discovered upload should get. */
+/** What status a freshly discovered upload should get (ADR 0001 / 0019). */
 export function decideNewVideoStatus(channel: Pick<Channel, 'policy' | 'status'>): VideoStatus {
   if (channel.status === 'blocked') {
     return 'blocked';
   }
-  return channel.policy === 'auto_approve' ? 'allowed' : 'pending';
+  switch (channel.policy) {
+    case 'auto_approve':
+      return 'allowed';
+    case 'auto_block':
+      return 'blocked';
+    case 'quiet':
+    case 'manual':
+    default:
+      // `quiet` films are cached as pending but stay out of the approval queue
+      // (see `pendingVideos` in panel.ts); the channel screen can still show them.
+      return 'pending';
+  }
 }
 
 /** A video only plays when explicitly allowed. */
@@ -39,8 +50,17 @@ export function decideIncomingVideoStatus(
   if (latest) {
     return statusForOutcome(latest.outcome);
   }
-  if (channel?.status === 'allowed' && channel.policy === 'auto_approve') {
-    return 'allowed';
+  if (channel?.status === 'allowed') {
+    switch (channel.policy) {
+      case 'auto_approve':
+        return 'allowed';
+      case 'auto_block':
+        return 'blocked';
+      case 'quiet':
+      case 'manual':
+      default:
+        return 'pending';
+    }
   }
   return 'pending';
 }
@@ -101,22 +121,25 @@ export function mergeSyncedVideos(
 }
 
 /**
- * Sort key for the child feed: the moment the video was decided (ADR 0001),
- * falling back to publication / addition time for still-undecided uploads.
+ * Sort key for video lists: the publication date, falling back to the import
+ * time for entries whose feed/metadata did not carry a date. Decision time is
+ * deliberately not used — the child's order follows the channel chronology,
+ * not when the parent happened to approve a film (ADR 0019).
  */
-export function videoSortTime(video: Video, decisions: Decision[]): number {
-  const latest = latestDecision(decisions, video.id);
-  return latest ? latest.at : video.publishedAt ?? video.addedAt;
+export function videoSortTime(video: Video): number {
+  return video.publishedAt ?? video.addedAt;
 }
 
-export function videosForChild(videos: Video[], decisions: Decision[] = []): Video[] {
+export function videosForChild(videos: Video[]): Video[] {
   return videos
     .filter(isPlayable)
-    .sort((a, b) => videoSortTime(b, decisions) - videoSortTime(a, decisions));
+    .sort((a, b) => videoSortTime(b) - videoSortTime(a));
 }
 
 export function pendingVideos(videos: Video[]): Video[] {
-  return videos.filter(v => v.status === 'pending');
+  return videos
+    .filter(v => v.status === 'pending')
+    .sort((a, b) => videoSortTime(b) - videoSortTime(a));
 }
 
 /** A channel as the child sees it: the parent's channel plus its allowed films. */
@@ -149,7 +172,26 @@ export function channelsForChild(
 
 /** Feed restricted to one channel — the channel detail view (ADR 0004a). */
 export function videosForChannel(videos: Video[], channelId: string): Video[] {
-  return videos.filter(video => video.channelId === channelId);
+  return videos
+    .filter(video => video.channelId === channelId)
+    .sort((a, b) => videoSortTime(b) - videoSortTime(a));
+}
+
+/**
+ * “Kontynuuj oglądanie” (ADR 0020): films the child started but did not finish,
+ * newest activity first. Completed films and never-played ones are excluded.
+ */
+export function continueWatchingVideos(
+  videos: Video[],
+  progress: WatchProgress[],
+): Video[] {
+  const byId = new Map(videos.map(video => [video.id, video]));
+  return progress
+    .filter(entry => !entry.completed && entry.positionSeconds > 0)
+    .slice()
+    .sort((a, b) => b.lastWatchedAt - a.lastWatchedAt)
+    .map(entry => byId.get(entry.videoId))
+    .filter((video): video is Video => !!video);
 }
 
 /**
@@ -157,7 +199,9 @@ export function videosForChannel(videos: Video[], channelId: string): Video[] {
  * “z kanału · RSS” — ADR 0001).
  */
 export function rssPendingVideos(videos: Video[]): Video[] {
-  return videos.filter(v => v.status === 'pending' && v.source === 'rss');
+  return videos
+    .filter(v => v.status === 'pending' && v.source === 'rss')
+    .sort((a, b) => videoSortTime(b) - videoSortTime(a));
 }
 
 /**
@@ -166,5 +210,9 @@ export function rssPendingVideos(videos: Video[]): Video[] {
  * “Do zatwierdzenia” tab shows — ADR 0001 / ADR 0004.
  */
 export function proposalsForChild(videos: Video[]): Video[] {
-  return videos.filter(v => v.status === 'pending' && (v.source === 'propose' || v.source === 'share'));
+  // A shared link is not attributed to the child (ADR 0013/0016); only the
+  // child's own “Zaproponuj film” entries belong in this tab.
+  return videos
+    .filter(v => v.status === 'pending' && v.source === 'propose')
+    .sort((a, b) => videoSortTime(b) - videoSortTime(a));
 }

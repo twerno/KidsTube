@@ -5,11 +5,12 @@ import { EmptyState } from './EmptyState';
 import { VideoRow } from './VideoRow';
 import { colors, spacing } from '../theme';
 import { blockedChannels, isBlockedChannelVideo, videosForChannel } from '../../domain/panel';
-import type { Channel, Video, VideoStatus } from '../../domain/types';
+import type { Channel, Decision, Video, VideoStatus } from '../../domain/types';
 
 export interface BlockedSectionProps {
   videos: Video[];
   channels: Channel[];
+  decisions: Decision[];
   onPreview: (video: Video) => void;
   onSetStatus: (video: Video, status: VideoStatus) => void;
   onToggleBlocked: (channel: Channel) => void;
@@ -23,24 +24,27 @@ export interface BlockedSectionProps {
 export function BlockedSection({
   videos,
   channels,
+  decisions,
   onPreview,
   onSetStatus,
   onToggleBlocked,
 }: BlockedSectionProps) {
   const blocked = blockedChannels(channels);
   const rejected = videos.filter(
-    video => video.status === 'blocked' && !isBlockedChannelVideo(video, channels),
+    video => video.status === 'blocked' && !isBlockedChannelVideo(video, channels, decisions),
   );
   const isEmpty = blocked.length === 0 && rejected.length === 0;
 
   return (
-    <ScrollView contentContainerStyle={styles.content}>
+    <ScrollView showsVerticalScrollIndicator persistentScrollbar contentContainerStyle={styles.content}>
       {isEmpty ? (
         <EmptyState>Nic nie zostało zablokowane ani odrzucone.</EmptyState>
       ) : null}
 
       {blocked.map(channel => {
-        const films = videosForChannel(videos, channel.id);
+        const films = videosForChannel(videos, channel.id).filter(video =>
+          isBlockedChannelVideo(video, channels, decisions),
+        );
         return (
           <View key={channel.id} style={styles.group}>
             <ChannelDetails
@@ -49,14 +53,18 @@ export function BlockedSection({
               onBlock={onToggleBlocked}
               showManage={false}
             />
+            <Text style={styles.blockedNote}>
+              Kanał zablokowany. Możesz zezwolić na pojedynczy film — bez odblokowywania kanału.
+            </Text>
             {films.map(video => (
               <VideoRow
                 key={video.id}
                 video={video}
                 onPreview={onPreview}
+                onSetStatus={video.status === 'allowed' ? undefined : onSetStatus}
                 statusLabel="wstrzymany"
                 statusColor={colors.warning}
-                showActions={false}
+                showActions={video.status !== 'allowed'}
               />
             ))}
           </View>
@@ -81,4 +89,5 @@ const styles = StyleSheet.create({
   content: { padding: spacing.lg, paddingBottom: spacing.xl * 2 },
   group: { gap: spacing.sm, marginBottom: spacing.lg },
   sectionTitle: { color: colors.text, fontSize: 16, fontWeight: '800' },
+  blockedNote: { color: colors.textMuted, fontSize: 12, lineHeight: 17 },
 });

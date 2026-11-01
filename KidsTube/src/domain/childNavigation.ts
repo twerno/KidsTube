@@ -1,7 +1,7 @@
 /**
  * Child navigation (ADR 0004 / 0004a) — pure rules.
  *
- * The child moves through four root tabs. A channel opens as a pushed view on
+ * The child moves through five root tabs. A channel opens as a pushed view on
  * top of the channels tab, so “back” returns to the channel list instead of
  * jumping to the home screen. The stack is kept in `App` while the player is
  * open, which makes playback return to the exact context it started from
@@ -10,10 +10,11 @@
 
 import type { Channel } from './types';
 
-export type ChildTab = 'feed' | 'channels' | 'proposals' | 'history';
+export type ChildTab = 'feed' | 'continue' | 'channels' | 'proposals' | 'history';
 
 export type ChildView =
   | { kind: 'feed' }
+  | { kind: 'continue' }
   | { kind: 'channels' }
   | { kind: 'channel'; channelId: string; channelTitle: string }
   | { kind: 'proposals' }

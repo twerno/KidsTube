@@ -6,7 +6,7 @@ import { VideoRow } from './VideoRow';
 import { colors, spacing } from '../theme';
 import { isBlockedChannelVideo } from '../../domain/panel';
 import type { AddLinkResult } from '../../services/addByLink';
-import type { Channel, Video, VideoStatus } from '../../domain/types';
+import type { Channel, ChannelPolicy, Video, VideoStatus } from '../../domain/types';
 
 type AddResult =
   | { kind: 'video'; videoId: string; channelBlocked: boolean }
@@ -20,9 +20,10 @@ export interface AddSectionProps {
   onAddLink: (link: string) => Promise<AddLinkResult>;
   onSetStatus: (video: Video, status: VideoStatus) => void;
   onPreview: (video: Video) => void;
-  onTogglePolicy: (channel: Channel) => void;
+  onSelectPolicy: (channel: Channel, policy: ChannelPolicy) => void;
   onToggleMuted: (channel: Channel) => void;
   onToggleBlocked: (channel: Channel) => void;
+  onBlockAllVideos?: (channel: Channel) => void;
 }
 
 /** “Dodaj film/kanał”: one input, one action, no pre-choice (ADR 0016). */
@@ -33,9 +34,10 @@ export function AddSection({
   onAddLink,
   onSetStatus,
   onPreview,
-  onTogglePolicy,
+  onSelectPolicy,
   onToggleMuted,
   onToggleBlocked,
+  onBlockAllVideos,
 }: AddSectionProps) {
   const [link, setLink] = useState('');
   const [busy, setBusy] = useState(false);
@@ -83,7 +85,7 @@ export function AddSection({
   const channelBlocked = addedVideo ? isBlockedChannelVideo(addedVideo, channels) : false;
 
   return (
-    <ScrollView contentContainerStyle={styles.content}>
+    <ScrollView showsVerticalScrollIndicator persistentScrollbar contentContainerStyle={styles.content}>
       <Card style={styles.card}>
         <Field
           label="Link do filmu lub kanału"
@@ -135,9 +137,10 @@ export function AddSection({
           <ChannelDetails
             channel={addedChannel}
             videos={videos.filter(video => video.channelId === addedChannel.id)}
-            onTogglePolicy={onTogglePolicy}
+            onSelectPolicy={onSelectPolicy}
             onToggleMuted={onToggleMuted}
             onBlock={onToggleBlocked}
+            onBlockAllVideos={onBlockAllVideos}
           />
         </View>
       ) : null}

@@ -12,6 +12,8 @@ import type { Video } from '../../domain/types';
 export function ProposalsList({ proposals }: { proposals: Video[] }) {
   return (
     <FlatList
+      showsVerticalScrollIndicator
+      persistentScrollbar
       data={proposals}
       keyExtractor={item => item.id}
       contentContainerStyle={proposals.length === 0 ? styles.emptyContainer : styles.content}
@@ -22,7 +24,7 @@ export function ProposalsList({ proposals }: { proposals: Video[] }) {
           Brak oczekujących propozycji. Dotknij „Zaproponuj film" i wklej link z YouTube.
         </Text>
       }
-      renderItem={({ item }) => (
+      renderItem={({ item }: { item: Video }) => (
         <View style={styles.row}>
           {item.thumbnailUrl ? (
             <Image source={{ uri: item.thumbnailUrl }} style={styles.thumb} />

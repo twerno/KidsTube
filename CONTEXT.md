@@ -17,11 +17,15 @@ Kanał widoczny w liście kanałów rodzica, ale niepobierający RSS. Powstaje, 
 _Avoid_: Kanał zablokowany, Kanał usunięty, Kanał nieobserwowany
 
 **Kanał zablokowany**:
-Kanał ukryty dziecku i wyłączony z synchronizacji; jego filmy — także oczekujące — trafiają pod kanał w sekcji „Zablokowane”. Blokada nie zapisuje decyzji: odblokowanie przywraca filmy do stanu sprzed blokady.
+Kanał ukryty dziecku i wyłączony z synchronizacji; jego filmy — także oczekujące — trafiają pod kanał w sekcji „Zablokowane”. Blokada nie zapisuje decyzji: odblokowanie przywraca filmy do stanu sprzed blokady. **Wyjątek**: ręczna zgoda rodzica na pojedynczy film, nowsza niż blokada, czyni ten film widocznym bez odblokowywania kanału.
 _Avoid_: Usunięty kanał, Kanał wyciszony (to inny stan)
 
+**Aktualizacja kanału**:
+Czy kanał pobiera RSS (i katalog). W panelu przełącznik „Aktualizuj kanał (RSS)”; wyłączenie to stan `muted`.
+_Avoid_: Subskrypcja, Obserwowanie
+
 **Polityka kanału**:
-Reguła dla nowych filmów kanału: `auto_approve` (pojawiają się w bibliotece od razu) albo `manual` (nie trafiają nigdzie automatycznie — rodzic dodaje filmy ręcznie).
+Reguła dla nowych filmów kanału: `auto_approve` (od razu w bibliotece), `manual` (w kolejce do zatwierdzenia), `auto_block` (od razu odrzucone) albo `quiet` (zapisane w cache, ale poza kolejką — widoczne na ekranie kanału i możliwe do pojedynczego zatwierdzenia).
 _Avoid_: Automatyczna akceptacja w znaczeniu „na stałe dozwolone"
 
 **Propozycja**:
@@ -84,7 +88,7 @@ Budżet minut wideo na dzień kalendarzowy (reset lokalną północą); dotyczy 
 _Avoid_: Limit per okno, Limit tygodniowy
 
 **Tryb snu** („timer”):
-Licznik na ekranie trybu audio; po odliczeniu (domyślnie 1 h) odtwarzanie się zatrzymuje. Przycisk na ekranie resetuje odliczanie do pełnej godziny.
+Licznik na ekranie trybu audio; po odliczeniu (domyślnie 30 min) odtwarzanie się zatrzymuje. Każda aktywność na ekranie audio (dotknięcie gdziekolwiek, play/pauza, seek, pętla) restartuje odliczanie do pełnych 30 minut — osobny przycisk resetu nie istnieje; po wystrzeleniu tylko jawne „Wznów” uruchamia odtwarzanie ponownie. Ekran audio ma przygaszone podświetlenie (15%), przywracane po wyjściu.
 _Avoid_: Limit audio — to nie limit, tylko wyłącznik po zaśnięciu
 
 **Tryb audio**:
@@ -96,7 +100,7 @@ Odtworzenie filmu przez rodzica przed rozstrzygnięciem (lista oczekująca, wyni
 _Avoid_: Podgląd jako „odtworzenie wliczane do limitu”
 
 **Feed**:
-Główna zakładka dziecka — wspólny strumień dozwolonych filmów na dużych miniaturach, sortowany od najświeżej rozstrzygniętych.
+Główna zakładka dziecka — wspólny strumień dozwolonych filmów na dużych miniaturach, sortowany od najnowszej daty publikacji (nie decyzji ani importu), grupowany w pasma: ten tydzień · ten miesiąc · poprzedni miesiąc · starsze.
 _Avoid_: Lista, Wszystkie filmy
 
 **Kanały (zakładka)**:
@@ -106,6 +110,14 @@ _Avoid_: Subskrypcje (nie ma prenumeraty — decyzje robi rodzic)
 **Historia oglądania**:
 Zapis ostatnio otwieranych materiałów wraz z czasem spędzonym (suma oraz rozbicie na tryb audio/wideo). Grupowana po dniach — nagłówek dnia ze statystykami, potem lista. U dziecka lista z miniaturami, w panelu rodzica lista tekstowa bez miniaturek. Zapis lokalny.
 _Avoid_: Historia przeglądania — to nie WebView, to odtwarzanie
+
+**Kontynuuj oglądanie**:
+Zakładka dziecka agregująca filmy rozpoczęte, ale nieukończone (zapisany postęp > 0, `completed: false`), w kolejności ostatniej aktywności. Filmy ukończone i nigdy nieotwarte są pomijane.
+_Avoid_: Wznowienie (to sposób otwarcia, nie widok), Historia oglądania
+
+**Wyszukiwarka**:
+Lokalny filtr list filmów po tytule i nazwie kanału. W feedzie, widoku kanału dziecka i ekranie kanału rodzica; nie zmienia liczników ani danych.
+_Avoid_: Wyszukiwarka YouTube, Filtr źródła
 
 **Stan obejrzenia**:
 Per-film: nowy (nigdy nieodtwarzany; badge znika po pierwszym odtworzeniu), obejrzany w całości (dojście do końca odtwarzania), albo częściowo (postęp w minutach — czas trwania z oEmbed nie jest niezawodny). Widoczny na kafelkach we wszystkich widokach dziecka.
@@ -153,4 +165,4 @@ _Avoid_: Offset, Strona
 
 ## Kolejność prezentacji
 
-Feed i kanały — od najświeżej rozstrzygniętych; historia oglądania — od najświeżej odtwarzanych; powtórka decyzji ustawia film na górze feedu.
+Feed, kanał i biblioteka — od najnowszej daty publikacji (fallback: data importu), z grupowaniem po tygodniu/miesiącu; „Kontynuuj oglądanie” — od najświeższej aktywności; historia oglądania — od najświeżej odtwarzanych. Decyzja rodzica nie zmienia kolejności.

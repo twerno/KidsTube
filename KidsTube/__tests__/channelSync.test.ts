@@ -59,6 +59,22 @@ describe('channelSync', () => {
     expect((await repo.getVideo('AUTOvideo1'))?.status).toBe('allowed');
   });
 
+  it('caches quiet-channel films as pending and auto-blocks auto_block films (ADR 0019)', async () => {
+    const quiet: Channel = { ...manual, id: 'UCquiet', policy: 'quiet' };
+    const blocked: Channel = { ...auto, id: 'UCblocked', policy: 'auto_block' };
+    const repo = new MemoryRepository({ channels: [quiet, blocked] });
+
+    await syncChannel(repo, quiet, feedFetch(channelXml(quiet.id, quiet.title, 'QUIETvideo1')));
+    await syncChannel(
+      repo,
+      blocked,
+      feedFetch(channelXml(blocked.id, blocked.title, 'BLOCKEDvid1')),
+    );
+
+    expect((await repo.getVideo('QUIETvideo1'))?.status).toBe('pending');
+    expect((await repo.getVideo('BLOCKEDvid1'))?.status).toBe('blocked');
+  });
+
   it('syncs all channels and preserves decisions on re-sync', async () => {
     const repo = new MemoryRepository({ channels: [manual, auto] });
     const fetchFor = async (input: string) => {

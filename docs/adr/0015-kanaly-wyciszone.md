@@ -1,5 +1,8 @@
 # ADR 0015 — Kanał wyciszony: widoczny w panelu, bez pobierania RSS
 
+> Uzupełnienie ADR 0019: jawne linki i propozycje z kanału wyciszonego trafiają
+> do kolejki; tylko skany RSS/katalog respektują cache-only.
+
 Rodzic widzi w panelu film z kanału, którego nie ma na liście kanałów
 (np. film dodany ręcznie albo zatwierdzony z linku). Taki film ma nazwę kanału,
 ale nie ma rekordu `Channel`: nie da się go pogrupować po kanale, filtrować,

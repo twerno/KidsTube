@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   BackHandler,
   Pressable,
@@ -16,7 +16,11 @@ import { VideoGrid } from './child/VideoGrid';
 import { ChannelsList } from './child/ChannelsList';
 import { ProposalsList } from './child/ProposalsList';
 import { WatchHistoryList } from './WatchHistoryList';
-import { channelsForChild, videosForChannel } from '../domain/content';
+import {
+  channelsForChild,
+  continueWatchingVideos,
+  videosForChannel,
+} from '../domain/content';
 import {
   activeChildTab,
   canGoBackChild,
@@ -80,6 +84,7 @@ export function ChildHomeScreen({
 }: ChildHomeScreenProps) {
   const [proposing, setProposing] = useState(false);
   const [linkText, setLinkText] = useState('');
+  const [query, setQuery] = useState('');
 
   const view = currentChildView(nav);
   const activeTab = activeChildTab(nav);
@@ -89,6 +94,26 @@ export function ChildHomeScreen({
   const channelVideos = useMemo(
     () => (channelId ? videosForChannel(videos, channelId) : []),
     [videos, channelId],
+  );
+  const continueVideos = useMemo(
+    () => continueWatchingVideos(videos, watchProgress ?? []),
+    [videos, watchProgress],
+  );
+  const needle = query.trim().toLowerCase();
+  const matchesQuery = useCallback(
+    (video: Video) =>
+      !needle ||
+      `${video.title} ${video.channelTitle ?? ''}`.toLowerCase().includes(needle),
+    [needle],
+  );
+  const feedVideos = useMemo(() => videos.filter(matchesQuery), [videos, matchesQuery]);
+  const visibleChannelVideos = useMemo(
+    () => channelVideos.filter(matchesQuery),
+    [channelVideos, matchesQuery],
+  );
+  const visibleContinueVideos = useMemo(
+    () => continueVideos.filter(matchesQuery),
+    [continueVideos, matchesQuery],
   );
   const currentChannel = useMemo(
     () => (channelId ? channels.find(channel => channel.id === channelId) : undefined),
@@ -124,6 +149,7 @@ export function ChildHomeScreen({
 
   const tabs: { key: ChildTab; label: string }[] = [
     { key: 'feed', label: 'Feed' },
+    { key: 'continue', label: 'Kontynuuj' },
     { key: 'channels', label: 'Kanały' },
     {
       key: 'proposals',
@@ -173,7 +199,10 @@ export function ChildHomeScreen({
               key={item.key}
               accessibilityRole="button"
               accessibilityState={{ selected: active }}
-              onPress={() => onSelectTab(item.key)}
+              onPress={() => {
+                setQuery('');
+                onSelectTab(item.key);
+              }}
               style={[styles.tab, active && styles.tabActive]}
             >
               <Text style={[styles.tabText, active && styles.tabTextActive]}>{item.label}</Text>
@@ -213,14 +242,55 @@ export function ChildHomeScreen({
         </View>
       ) : null}
 
+      {view.kind === 'feed' || view.kind === 'channel' || view.kind === 'continue' ? (
+        <View style={styles.searchRow}>
+          <TextInput
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Szukaj po tytule lub kanale…"
+            placeholderTextColor={colors.textMuted}
+            style={styles.searchInput}
+            autoCapitalize="none"
+            autoCorrect={false}
+            returnKeyType="search"
+            accessibilityLabel="Szukaj filmów"
+          />
+          {query ? (
+            <Pressable onPress={() => setQuery('')} hitSlop={10} style={styles.searchClear}>
+              <Text style={styles.searchClearText}>✕</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
+
       {view.kind === 'feed' ? (
         <VideoGrid
-          videos={videos}
+          videos={feedVideos}
           watchProgress={watchProgress}
           onPlay={onPlay}
           refreshing={refreshing}
           onRefresh={onRefresh}
-          emptyText="Brak zatwierdzonych filmów. Rodzic może dodać kanał lub film w panelu."
+          emptyText={
+            needle
+              ? 'Żaden film nie pasuje do wyszukiwania.'
+              : 'Brak zatwierdzonych filmów. Rodzic może dodać kanał lub film w panelu.'
+          }
+        />
+      ) : null}
+
+      {view.kind === 'continue' ? (
+        <VideoGrid
+          videos={visibleContinueVideos}
+          watchProgress={watchProgress}
+          onPlay={onPlay}
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          groupByDate={false}
+          emptyText={
+            needle
+              ? 'Żaden rozpoczęty film nie pasuje do wyszukiwania.'
+              : 'Brak rozpoczętych filmów. Filmy, których nie obejrzałeś do końca, pojawią się tutaj.'
+          }
         />
       ) : null}
 
@@ -235,12 +305,16 @@ export function ChildHomeScreen({
 
       {view.kind === 'channel' ? (
         <VideoGrid
-          videos={channelVideos}
+          videos={visibleChannelVideos}
           watchProgress={watchProgress}
           onPlay={onPlay}
           refreshing={refreshing}
           onRefresh={onRefresh}
-          emptyText="Ten kanał nie ma jeszcze zatwierdzonych filmów."
+          emptyText={
+            needle
+              ? 'Żaden film w tym kanale nie pasuje do wyszukiwania.'
+              : 'Ten kanał nie ma jeszcze zatwierdzonych filmów.'
+          }
         />
       ) : null}
 
@@ -331,6 +405,29 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     paddingHorizontal: spacing.lg,
   },
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.sm,
+  },
+  searchInput: {
+    flex: 1,
+    backgroundColor: colors.cardAlt,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    color: colors.text,
+    fontSize: 15,
+  },
+  searchClear: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  searchClearText: { color: colors.textMuted, fontSize: 16, fontWeight: '700' },
   proposeBackdrop: {
     ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(0, 0, 0, 0.45)',

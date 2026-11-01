@@ -21,6 +21,10 @@ describe('child navigation (ADR 0004a)', () => {
     const history = selectChildTab(INITIAL_CHILD_NAV, 'history');
     expect(history.stack.map(view => view.kind)).toEqual(['history']);
     expect(activeChildTab(history)).toBe('history');
+
+    const resume = selectChildTab(INITIAL_CHILD_NAV, 'continue');
+    expect(resume.stack.map(view => view.kind)).toEqual(['continue']);
+    expect(activeChildTab(resume)).toBe('continue');
   });
 
   it('is a no-op when the active root tab is selected again', () => {
