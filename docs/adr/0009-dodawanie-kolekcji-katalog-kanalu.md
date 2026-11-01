@@ -59,6 +59,16 @@ dziennego budżetu stron.
 - Kanał zablokowany nie ma akcji importu — jego filmy i tak są niewidoczne dla
   dziecka, a karta w archiwum ma tylko „Odblokuj”.
 
+### Daty publikacji z katalogu
+
+RSS niesie dokładną datę publikacji. Katalog InnerTube podaje ją wyłącznie jako
+etykietę względną („2 days ago”, „Streamed 1 month ago”), więc parser zamienia
+ją na **przybliżony** `publishedAt` (miesiąc = 30 dni, rok = 365 dni). Zapytanie
+katalogu wymusza `hl: 'en'`, żeby etykiety były parsowalne. Brak etykiety
+oznacza `publishedAt` nieustawione — takie filmy trafiają do „Bez daty”, a nie
+do grupy „ostatnio dodane”. Data importu nigdy nie udaje daty publikacji
+(ADR 0020).
+
 ## Rozważone opcje
 
 - **Automatyczny import przy dodaniu kanału** — odrzucone: czas zależny od

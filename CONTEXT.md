@@ -165,4 +165,4 @@ _Avoid_: Offset, Strona
 
 ## Kolejność prezentacji
 
-Feed, kanał i biblioteka — od najnowszej daty publikacji (fallback: data importu), z grupowaniem po tygodniu/miesiącu; „Kontynuuj oglądanie” — od najświeższej aktywności; historia oglądania — od najświeżej odtwarzanych. Decyzja rodzica nie zmienia kolejności.
+Feed, kanał i biblioteka — od najnowszej daty publikacji (bez fallbacku na datę importu; brak daty → „Bez daty”), z grupowaniem po tygodniu/miesiącu; „Kontynuuj oglądanie” — od najświeższej aktywności; historia oglądania — od najświeżej odtwarzanych. Decyzja rodzica nie zmienia kolejności.

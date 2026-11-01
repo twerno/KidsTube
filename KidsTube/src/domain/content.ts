@@ -121,13 +121,14 @@ export function mergeSyncedVideos(
 }
 
 /**
- * Sort key for video lists: the publication date, falling back to the import
- * time for entries whose feed/metadata did not carry a date. Decision time is
- * deliberately not used — the child's order follows the channel chronology,
- * not when the parent happened to approve a film (ADR 0019).
+ * Sort/group key for video lists: the **publication date** only. The import
+ * time (`addedAt`) is deliberately not a fallback: a film pulled from the
+ * catalog last week is not “from this week” just because we downloaded it then.
+ * Entries without a usable publication date get `0` and land in “Bez daty”
+ * (ADR 0020).
  */
 export function videoSortTime(video: Video): number {
-  return video.publishedAt ?? video.addedAt;
+  return video.publishedAt && video.publishedAt > 0 ? video.publishedAt : 0;
 }
 
 export function videosForChild(videos: Video[]): Video[] {

@@ -67,7 +67,70 @@ function thumbnailOf(node: unknown): string | undefined {
     : undefined;
 }
 
-function videoFrom(node: unknown): RssVideo | undefined {
+const RELATIVE_UNIT_MS: Record<string, number> = {
+  second: 1000,
+  minute: 60 * 1000,
+  hour: 60 * 60 * 1000,
+  day: 24 * 60 * 60 * 1000,
+  week: 7 * 24 * 60 * 60 * 1000,
+  // The catalog's relative labels do not carry an exact date. A month/year is
+  // only an estimate, but it is still a publication-based date — never the
+  // moment we happened to import the film.
+  month: 30 * 24 * 60 * 60 * 1000,
+  year: 365 * 24 * 60 * 60 * 1000,
+};
+
+/** Parse “2 days ago” / “Streamed 1 month ago” into an approximate timestamp. */
+export function publishedAtFromRelativeText(
+  text: string | undefined,
+  now: number = Date.now(),
+): number | undefined {
+  if (!text) {
+    return undefined;
+  }
+  if (/^\s*just now\s*$/i.test(text)) {
+    return now;
+  }
+  const match = text.match(/(\d+)\s+(second|minute|hour|day|week|month|year)s?\s+ago/i);
+  if (!match) {
+    return undefined;
+  }
+  const amount = Number(match[1]);
+  const unit = RELATIVE_UNIT_MS[match[2].toLowerCase()];
+  if (!Number.isFinite(amount) || !unit) {
+    return undefined;
+  }
+  return now - amount * unit;
+}
+
+function publishedTextFromLockup(lockup: {
+  metadata?: {
+    lockupMetadataViewModel?: {
+      metadata?: {
+        contentMetadataViewModel?: {
+          metadataRows?: { metadataParts?: { text?: { content?: unknown } }[] }[];
+        };
+      };
+    };
+  };
+}): string | undefined {
+  const rows =
+    lockup.metadata?.lockupMetadataViewModel?.metadata?.contentMetadataViewModel?.metadataRows;
+  if (!Array.isArray(rows)) {
+    return undefined;
+  }
+  for (const row of rows) {
+    for (const part of row.metadataParts ?? []) {
+      const text = part.text?.content;
+      if (typeof text === 'string' && /\bago\b|just now/i.test(text)) {
+        return text;
+      }
+    }
+  }
+  return undefined;
+}
+
+function videoFrom(node: unknown, now: number): RssVideo | undefined {
   const content = (node as { richItemRenderer?: { content?: Record<string, unknown> } } | undefined)
     ?.richItemRenderer?.content;
 
@@ -76,10 +139,15 @@ function videoFrom(node: unknown): RssVideo | undefined {
     (content?.videoRenderer as { videoId?: unknown; title?: unknown } | undefined) ??
     (node as { videoRenderer?: unknown } | undefined)?.videoRenderer;
   if (legacy && typeof legacy === 'object') {
-    const video = legacy as { videoId?: unknown; title?: unknown };
+    const video = legacy as { videoId?: unknown; title?: unknown; publishedTimeText?: unknown };
     const title = textOf(video.title);
     if (typeof video.videoId === 'string' && title) {
-      return { videoId: video.videoId, title, thumbnailUrl: thumbnailOf(legacy) };
+      return {
+        videoId: video.videoId,
+        title,
+        thumbnailUrl: thumbnailOf(legacy),
+        publishedAt: publishedAtFromRelativeText(textOf(video.publishedTimeText), now),
+      };
     }
   }
 
@@ -90,7 +158,16 @@ function videoFrom(node: unknown): RssVideo | undefined {
         contentId?: unknown;
         contentType?: unknown;
         contentImage?: { thumbnailViewModel?: { image?: unknown } };
-        metadata?: { lockupMetadataViewModel?: { title?: { content?: unknown } } };
+        metadata?: {
+          lockupMetadataViewModel?: {
+            title?: { content?: unknown };
+            metadata?: {
+              contentMetadataViewModel?: {
+                metadataRows?: { metadataParts?: { text?: { content?: unknown } }[] }[];
+              };
+            };
+          };
+        };
       }
     | undefined;
   if (!lockup || typeof lockup !== 'object') {
@@ -115,6 +192,7 @@ function videoFrom(node: unknown): RssVideo | undefined {
       Array.isArray(sources) && sources.length > 0
         ? sources[sources.length - 1]?.url
         : undefined,
+    publishedAt: publishedAtFromRelativeText(publishedTextFromLockup(lockup), now),
   };
 }
 
@@ -135,7 +213,7 @@ function continuationOf(items: unknown[]): string | undefined {
 }
 
 /** Deep fallback when the known structural path changes. */
-function deepVideos(node: unknown): RssVideo[] {
+function deepVideos(node: unknown, now: number): RssVideo[] {
   const found: RssVideo[] = [];
   const walk = (value: unknown) => {
     if (!value || typeof value !== 'object') {
@@ -147,7 +225,7 @@ function deepVideos(node: unknown): RssVideo[] {
     }
     const record = value as Record<string, unknown>;
     if (record.videoRenderer) {
-      const video = videoFrom({ videoRenderer: record.videoRenderer });
+      const video = videoFrom({ videoRenderer: record.videoRenderer }, now);
       if (video) {
         found.push(video);
       }
@@ -158,7 +236,7 @@ function deepVideos(node: unknown): RssVideo[] {
   return found;
 }
 
-function extractPage(json: unknown, token: string | undefined): CatalogPage {
+function extractPage(json: unknown, token: string | undefined, now: number): CatalogPage {
   let items: unknown[] = [];
   if (!token) {
     const tabs =
@@ -198,12 +276,12 @@ function extractPage(json: unknown, token: string | undefined): CatalogPage {
   }
 
   const videos = items
-    .map(videoFrom)
+    .map(item => videoFrom(item, now))
     .filter((video): video is RssVideo => !!video);
   if (videos.length === 0) {
     // The response shape may have changed: keep a best-effort deep scan, but the
     // continuation token still comes from the structural path.
-    videos.push(...deepVideos(items));
+    videos.push(...deepVideos(items, now));
   }
   const unique = new Map(videos.map(video => [video.videoId, video]));
   return { videos: [...unique.values()], nextToken: continuationOf(items) };
@@ -234,17 +312,16 @@ export async function fetchCatalogPage(
   token?: string,
   fetchFn: FetchLike = fetch as unknown as FetchLike,
   timeoutMs: number = CATALOG_REQUEST_TIMEOUT_MS,
+  now: number = Date.now(),
 ): Promise<CatalogPage> {
+  // `hl: 'en'` keeps the relative publication labels (“2 days ago”) parseable;
+  // video titles are not localised by this setting.
+  const context = {
+    client: { clientName: 'WEB', clientVersion: CLIENT_VERSION, hl: 'en', gl: 'US' },
+  };
   const body = token
-    ? {
-        context: { client: { clientName: 'WEB', clientVersion: CLIENT_VERSION } },
-        continuation: token,
-      }
-    : {
-        context: { client: { clientName: 'WEB', clientVersion: CLIENT_VERSION } },
-        browseId: channelId,
-        params: VIDEOS_TAB_PARAMS,
-      };
+    ? { context, continuation: token }
+    : { context, browseId: channelId, params: VIDEOS_TAB_PARAMS };
 
   let response: Awaited<ReturnType<FetchLike>>;
   try {
@@ -274,7 +351,7 @@ export async function fetchCatalogPage(
     throw new CatalogError('parse', 'Odpowiedź nie jest JSON-em');
   }
 
-  const page = extractPage(json, token);
+  const page = extractPage(json, token, now);
   return page;
 }
 
@@ -370,7 +447,13 @@ export async function runCatalogImport(
     const usedToken = token;
     let page: CatalogPage;
     try {
-      page = await fetchCatalogPage(stored.id, usedToken, options.fetchFn, options.timeoutMs);
+      page = await fetchCatalogPage(
+        stored.id,
+        usedToken,
+        options.fetchFn,
+        options.timeoutMs,
+        now(),
+      );
     } catch (error) {
       const message = error instanceof CatalogError ? error.message : String(error);
       await save({ error: message });

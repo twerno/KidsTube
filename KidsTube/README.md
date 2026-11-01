@@ -26,7 +26,7 @@ domenowych: `CONTEXT.md` (root repozytorium).
 | Logo YouTube | **Nie ukrywamy** — widoczne m.in. przy buforowaniu; spełnia wymóg atrybucji. |
 | Ścieżki audio | Tylko **oryginał + polski**, start na oryginale; wybór znika, gdy jest tylko jedna ścieżka. Docelowo lista języków konfigurowana przez rodzica. *(ADR 0008)* |
 | Świat dziecka | 5 zakładek (Feed · Kontynuuj · Kanały · Do zatwierdzenia · Historia — **Do zatwierdzenia pokazuje tylko własne propozycje**), nawigacja wstecz po ścieżce użytkownika, stan obejrzenia na kafelkach (nowy / minuty / w całości — nie w „Do zatwierdzenia"), wznowienie od zapisanej pozycji (podgląd rodzica od początku), historia oglądania per dzień. **Kontynuuj oglądanie** agreguje rozpoczęte, nieukończone filmy. *(ADR 0004, 0020)* |
-| Kolejność i listy | Feed, kanał i biblioteka: **od najnowszej daty publikacji** (nie decyzji ani importu). Feed/kanał grupowane: ten tydzień · ten miesiąc · poprzedni miesiąc · starsze. Wyszukiwarka po tytule/kanale w feedzie i widoku kanału. Wszystkie pionowe listy mają stały pasek przewijania. *(ADR 0020)* |
+| Kolejność i listy | Feed, kanał i biblioteka: **od najnowszej daty publikacji** (nie decyzji ani importu; brak daty → „Bez daty”). Feed/kanał grupowane: ten tydzień · ten miesiąc · poprzedni miesiąc · starsze. Wyszukiwarka po tytule/kanale w feedzie i widoku kanału. Wszystkie pionowe listy mają stały pasek przewijania. *(ADR 0020)* |
 | Świat rodzica | **Indeks** panelu: podsumowanie (pozostały czas wideo dziś, dziś i średnia 7 dni w rozbiciu filmy/audio) + sekcje z podglądem stanu: Do zatwierdzenia · Biblioteka · Zablokowane · Dodaj film/kanał · Historia oglądania · Kontrola czasu · Zmień kod · Linki YouTube · Baza danych · Log. Nawigacja stosem (cofnięcie wraca po ścieżce, 2× zamyka panel), pull-to-refresh zamiast przycisku sync, filtry źródła i kanału z licznikami „ile zobaczę”, **ekran kanału z filtrami Zaakceptowane / Odrzucone / Oczekujące (bez „Wszystkie”)**, podgląd filmu wszędzie, blokada kanału zamiast usuwania. *(ADR 0005, 0016, 0018)* |
 | Czas | **Jedno okno tygodniowe** (bramka wideo) + **dzienny limit wideo** (twarde cięcie, ostrzeżenie 5 min przed) + **audio bez limitu i poza oknem** (tryb audio, nie kategoria treści) + **tryb snu** 30 min z resetem przy każdej aktywności na ekranie audio i **przygaszonym podświetleniu** (15%) + **dodatkowy czas wideo** (+15 min / +1 h, pula na dziś, PIN rodzica). Zastąpiło dawny „tryb nocny”. *(ADR 0002, 0011, 0021)* |
 | Katalog kanału | **„Pobierz wszystkie”** na karcie kanału: pełna lista przez InnerTube `browse` z paginacją, tempo 3–7 s, checkpoint per kanał (wznawialne po tapnięciu), stop na pierwszym błędzie, timeout 20 s; **„Pobierz od nowa” / „Pobierz ponownie”** resetuje kursor i pobiera katalog od początku; filmy z kanałów wyciszonych są zapisywane, ale poza kolejką; **Akceptuj/Odrzuć wszystkie** z toastem cofnięcia. *(ADR 0009, 0019)* |
@@ -118,7 +118,7 @@ obejrzenia dołączą do warstwy `domain/` + `data/` (ADR 0004).
 ## Testy
 
 ```bash
-npm test          # 308 testów: URL, RSS, reguły list, decyzje (last-wins), harmonogram + tryb snu + przeskoki, licznik czasu odtwarzania, stan obejrzenia + historia oglądania, nawigacja dziecka, gesty odtwarzacza, daty, PIN, sync (także przy starcie, pull-to-refresh i kanałach wyciszonych), linki + propozycje kanałów, handler VIEW, kopia bazy (walidacja formatu, rollback, przerwany import), filtry statusów ekranu kanału, polityki nowych filmów, grupowanie dat, kontynuacja oglądania, katalog kanału (paginacja, tempo, checkpoint, wznowienie), player, render App
+npm test          # 310 testów: URL, RSS, reguły list, decyzje (last-wins), harmonogram + tryb snu + przeskoki, licznik czasu odtwarzania, stan obejrzenia + historia oglądania, nawigacja dziecka, gesty odtwarzacza, daty, PIN, sync (także przy starcie, pull-to-refresh i kanałach wyciszonych), linki + propozycje kanałów, handler VIEW, kopia bazy (walidacja formatu, rollback, przerwany import), filtry statusów ekranu kanału, polityki nowych filmów, grupowanie dat, kontynuacja oglądania, katalog kanału (paginacja, tempo, checkpoint, wznowienie), player, render App
 npx tsc --noEmit  # typy
 npx eslint .      # lint
 ```
@@ -205,6 +205,8 @@ Na karcie kanału (Biblioteka → Kanały → kanał) jest **„Pobierz wszystki
 - **„Pobierz od nowa”** (przerwany import) i **„Pobierz ponownie”** (katalog
   ukończony) resetują kursor i pobierają katalog od pierwszej strony — to
   naprawia niedokończone pobrania bez ręcznego czyszczenia bazy,
+- katalog dociąga też **datę publikacji** z etykiet względnych YouTube
+  („2 days ago”); brak etykiety → „Bez daty” (nigdy data importu),
 - **„Zablokuj wszystkie filmy”** odrzuca wszystkie filmy kanału, blokuje kanał
   i wyłącza RSS; pojedynczy film można później dopuścić z podglądu w sekcji
   „Zablokowane” („Zezwól na ten film”).

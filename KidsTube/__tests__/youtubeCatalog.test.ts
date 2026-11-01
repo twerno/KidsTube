@@ -5,6 +5,7 @@ import type { FetchLike } from '../src/services/youtubeMetadata';
 import {
   CatalogError,
   fetchCatalogPage,
+  publishedAtFromRelativeText,
   runCatalogImport,
 } from '../src/services/youtubeCatalog';
 
@@ -28,13 +29,38 @@ const videoItem = (videoId: string) => ({
   },
 });
 
-const lockupItem = (videoId: string, title = `Film ${videoId}`, contentType = 'LOCKUP_CONTENT_TYPE_VIDEO') => ({
+const lockupItem = (
+  videoId: string,
+  title = `Film ${videoId}`,
+  contentType = 'LOCKUP_CONTENT_TYPE_VIDEO',
+  publishedText?: string,
+) => ({
   richItemRenderer: {
     content: {
       lockupViewModel: {
         contentId: videoId,
         contentType,
-        metadata: { lockupMetadataViewModel: { title: { content: title } } },
+        metadata: {
+          lockupMetadataViewModel: {
+            title: { content: title },
+            ...(publishedText
+              ? {
+                  metadata: {
+                    contentMetadataViewModel: {
+                      metadataRows: [
+                        {
+                          metadataParts: [
+                            { text: { content: '1K views' } },
+                            { text: { content: publishedText } },
+                          ],
+                        },
+                      ],
+                    },
+                  },
+                }
+              : {}),
+          },
+        },
         contentImage: {
           thumbnailViewModel: {
             image: { sources: [{ url: 'small' }, { url: `https://img/${videoId}.jpg` }] },
@@ -112,6 +138,44 @@ describe('catalog pacing (ADR 0009)', () => {
     expect(catalogDelayMs(() => 0)).toBe(CATALOG_DELAY_BASE_MS - CATALOG_DELAY_SPREAD_MS / 2);
     expect(catalogDelayMs(() => 0.5)).toBe(CATALOG_DELAY_BASE_MS);
     expect(catalogDelayMs(() => 1)).toBe(CATALOG_DELAY_BASE_MS + CATALOG_DELAY_SPREAD_MS / 2);
+  });
+});
+
+describe('catalog publication dates', () => {
+  const now = Date.parse('2026-10-31T12:00:00Z');
+
+  it('parses YouTube relative publication labels, never the import time', () => {
+    expect(publishedAtFromRelativeText('2 days ago', now)).toBe(now - 2 * 24 * 60 * 60 * 1000);
+    expect(publishedAtFromRelativeText('Streamed 1 week ago', now)).toBe(
+      now - 7 * 24 * 60 * 60 * 1000,
+    );
+    expect(publishedAtFromRelativeText('just now', now)).toBe(now);
+    expect(publishedAtFromRelativeText('1K views', now)).toBeUndefined();
+    expect(publishedAtFromRelativeText(undefined, now)).toBeUndefined();
+  });
+
+  it('fills publishedAt from the lockup metadata row', async () => {
+    const page = {
+      contents: {
+        twoColumnBrowseResultsRenderer: {
+          tabs: [
+            {
+              tabRenderer: {
+                selected: true,
+                content: {
+                  richGridRenderer: {
+                    contents: [lockupItem('dated', 'Film', undefined, '3 weeks ago')],
+                  },
+                },
+              },
+            },
+          ],
+        },
+      },
+    };
+    const { fetchFn } = catalogFetch([page]);
+    const parsed = await fetchCatalogPage(CHANNEL.id, undefined, fetchFn, undefined, now);
+    expect(parsed.videos[0].publishedAt).toBe(now - 3 * 7 * 24 * 60 * 60 * 1000);
   });
 });
 

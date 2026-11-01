@@ -5,9 +5,11 @@
 ## Kolejność i grupowanie
 
 Listy filmów są sortowane **od najnowszego według daty publikacji**
-(`publishedAt`, a gdy jej brak — `addedAt`). Moment decyzji rodzica nie
-wpływa już na kolejność: zatwierdzenie starego filmu nie wypycha go na górę
-feedu. Dotyczy to feedu dziecka, widoku kanału (dziecko i rodzic) oraz
+(`publishedAt`). Data importu (`addedAt`) **nie jest fallbackiem**: film
+dociągnięty z katalogu dziś nie jest „z tego tygodnia”, jeśli został
+opublikowany rok temu. Brak daty publikacji trafia do „Bez daty”. Moment
+decyzji rodzica nie wpływa już na kolejność: zatwierdzenie starego filmu nie
+wypycha go na górę feedu. Dotyczy to feedu dziecka, widoku kanału (dziecko i rodzic) oraz
 biblioteki w panelu.
 
 Feed i widok kanału grupują filmy w pasma dat:

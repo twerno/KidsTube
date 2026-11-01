@@ -80,7 +80,9 @@ export function LibrarySection({
         }
         return `${video.title} ${video.channelTitle ?? ''}`.toLowerCase().includes(needle);
       })
-      .sort((a, b) => (b.publishedAt ?? b.addedAt) - (a.publishedAt ?? a.addedAt));
+      // Publication date only — downloading an old film now must not make it
+      // look recent (ADR 0020).
+      .sort((a, b) => (b.publishedAt ?? 0) - (a.publishedAt ?? 0));
   }, [films, activeChannel, query]);
 
   const allowedChannels = useMemo(

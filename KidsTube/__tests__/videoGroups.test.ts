@@ -61,9 +61,18 @@ describe('video date grouping (ADR 0020)', () => {
     expect(groups[0].videos.map(item => item.id)).toEqual(['newer', 'older']);
   });
 
-  it('sends entries without a usable date to the trailing “Bez daty” group', () => {
-    const groups = groupVideosByDate([video('dated', at(2026, 10, 14)), video('empty')], now);
+  it('sends entries without a publication date to “Bez daty”, never by import time', () => {
+    const importedNow: Video = {
+      ...video('imported-now'),
+      publishedAt: undefined,
+      addedAt: now.getTime(),
+    };
+    const groups = groupVideosByDate(
+      [video('dated', at(2026, 10, 14)), video('empty'), importedNow],
+      now,
+    );
     expect(groups.map(group => group.key)).toEqual(['week', 'unknown']);
     expect(groups[1].title).toBe('Bez daty');
+    expect(groups[1].videos.map(item => item.id)).toEqual(['empty', 'imported-now']);
   });
 });
