@@ -11,6 +11,7 @@ import type {
   Decision,
   ExtraTimePool,
   PinGuardState,
+  PinRecord,
   Settings,
   Video,
   VideoStatus,
@@ -75,6 +76,16 @@ export interface Repository {
   /** Local parent-PIN attempt state (ADR 0012), separate from Settings. */
   getPinGuard(): Promise<PinGuardState>;
   savePinGuard(state: PinGuardState): Promise<void>;
+
+  /**
+   * Parent PIN record (PBKDF2 hash/salt/iterations), kept outside `Settings`
+   * and encrypted by Android Keystore on device (ADR 0022). Never part of a
+   * backup. `save` returns false when secure storage is unavailable and the
+   * repository had to keep the legacy fallback.
+   */
+  getPinRecord(): Promise<PinRecord | undefined>;
+  savePinRecord(record: PinRecord): Promise<boolean>;
+  clearPinRecord(): Promise<boolean>;
 
   /**
    * Per-video watching progress (ADR 0004): resume position and “stan

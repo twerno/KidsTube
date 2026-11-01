@@ -82,8 +82,8 @@ android {
         applicationId "com.kidstube"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 37
-        versionName "0.11.7"
+        versionCode 38
+        versionName "0.11.8"
     }
     signingConfigs {
         debug {

@@ -7,6 +7,7 @@ import type {
   Decision,
   ExtraTimePool,
   PinGuardState,
+  PinRecord,
   Settings,
   Video,
   VideoStatus,
@@ -16,6 +17,17 @@ import type {
 import { DEFAULT_SETTINGS } from '../domain/types';
 import { statusForOutcome } from '../domain/decisions';
 import type { Repository } from './repository';
+
+function legacyPinRecord(settings: Settings): PinRecord | undefined {
+  if (settings.pinHash && settings.pinSalt && settings.pinIterations) {
+    return {
+      hash: settings.pinHash,
+      salt: settings.pinSalt,
+      iterations: settings.pinIterations,
+    };
+  }
+  return undefined;
+}
 
 export class MemoryRepository implements Repository {
   private settings: Settings;
@@ -28,6 +40,7 @@ export class MemoryRepository implements Repository {
   private watchHistory: WatchHistoryEntry[] = [];
   private extraTime?: ExtraTimePool;
   private pinGuard: PinGuardState = { failedAttempts: 0 };
+  private pinRecord?: PinRecord;
 
   constructor(seed?: {
     settings?: Settings;
@@ -38,8 +51,17 @@ export class MemoryRepository implements Repository {
     usage?: Record<string, number>;
     watchProgress?: WatchProgress[];
     watchHistory?: WatchHistoryEntry[];
+    pinRecord?: PinRecord;
   }) {
     this.settings = { ...DEFAULT_SETTINGS, ...seed?.settings };
+    const legacy = legacyPinRecord(this.settings);
+    if (legacy) {
+      this.pinRecord = legacy;
+      this.stripLegacyPin();
+    }
+    if (seed?.pinRecord) {
+      this.pinRecord = { ...seed.pinRecord };
+    }
     seed?.channels?.forEach(c => this.channels.set(c.id, c));
     seed?.channelProposals?.forEach(p => this.channelProposals.set(p.id, p));
     seed?.videos?.forEach(v => this.videos.set(v.id, v));
@@ -196,6 +218,31 @@ export class MemoryRepository implements Repository {
 
   async savePinGuard(state: PinGuardState): Promise<void> {
     this.pinGuard = { ...state };
+  }
+
+  async getPinRecord(): Promise<PinRecord | undefined> {
+    if (this.pinRecord) {
+      return { ...this.pinRecord };
+    }
+    return legacyPinRecord(this.settings);
+  }
+
+  async savePinRecord(record: PinRecord): Promise<boolean> {
+    this.pinRecord = { ...record };
+    this.stripLegacyPin();
+    return true;
+  }
+
+  async clearPinRecord(): Promise<boolean> {
+    this.pinRecord = undefined;
+    this.stripLegacyPin();
+    return true;
+  }
+
+  private stripLegacyPin(): void {
+    delete this.settings.pinHash;
+    delete this.settings.pinSalt;
+    delete this.settings.pinIterations;
   }
 
   async getWatchProgress(videoId: string): Promise<WatchProgress | undefined> {

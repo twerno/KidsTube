@@ -96,20 +96,12 @@ export async function pickDatabase(): Promise<PickOutcome> {
 /** Replace the whole database with the file's snapshot (ADR 0017). */
 export async function applyBackup(repo: Repository, file: BackupFile): Promise<RestoreOutcome> {
   try {
-    // The parent PIN never leaves the device: the current code stays, and a
-    // device without a code asks for a new one after the import (ADR 0017).
-    const current = await repo.getSettings();
+    // The parent PIN never leaves the device: the Keystore-backed record is
+    // stored separately from the snapshot and therefore survives the replace
+    // (ADR 0017/0022). A device without a code asks for a new one.
+    const pin = await repo.getPinRecord();
     await repo.replaceAll(file.data);
-    await repo.updateSettings(
-      current.pinHash && current.pinSalt && current.pinIterations
-        ? {
-          pinHash: current.pinHash,
-          pinSalt: current.pinSalt,
-          pinIterations: current.pinIterations,
-          configured: true,
-        }
-        : { configured: false },
-    );
+    await repo.updateSettings({ configured: !!pin });
     // The lockout state is device-local as well (ADR 0012/0017).
     await repo.savePinGuard({ failedAttempts: 0 });
     const counts = backupCounts(file.data);

@@ -33,7 +33,7 @@ domenowych: `CONTEXT.md` (root repozytorium).
 | Synchronizacja | Przy otwarciu aplikacji (jeden przebieg po pokazaniu biblioteki z pamięci) i na żądanie: przeciągnięcie w dół w widoku dziecka (feed / kanały / kanał) albo „Synchronizuj” w panelu. Równoległe żądania są scalane w jeden przebieg; timer w tle odroczony do backlogu z bramką oceny. *(ADR 0006)* |
 | Import katalogu | Jawny przycisk **„Wczytaj cały katalog”** na kanale: pełna lista przez InnerTube (paginacja), bez klucza API; status wg polityki kanału; **wznawialny** — checkpoint kursora, dzienny budżet stron, miękki stop przy limicie/błędzie. *(ADR 0009)* |
 | Dystrybucja | Rodzinny sideload z GitHub Releases (debug keystore). Google Play — przyszła, odwracalna decyzja z bramką oceny. *(ADR 0007)* |
-| PIN | PBKDF2-SHA256, losowa sól (`@noble/hashes`); blokada profilu rodzica na 3 min po 3 błędnych PIN-ach, stan lokalny i wspólny dla panelu i dodatkowego czasu. *(ADR 0012)* |
+| PIN | PBKDF2-SHA256, losowa sól; rekord PIN szyfrowany AES/GCM kluczem z **Android Keystore** (poza `Settings` i kopią bazy), z migracją starych danych; blokada profilu rodzica na 3 min po 3 błędnych PIN-ach, stan lokalny i wspólny dla panelu i dodatkowego czasu. *(ADR 0012, 0022)* |
 | Kopia bazy | **Panel → Baza danych**: eksport całej bazy do jednego pliku JSON (`kidstube-backup-…`) przez systemowy wybór miejsca; import **zastępuje** bazę (bez scalania), waliduje cały plik przed zapisem, ma rollback i wykrywanie przerwanego importu. `pinGuard`, log i **kod rodzica** poza kopią. Plik jawny, bez PIN-u. *(ADR 0017)* |
 | Wersje | `minSdk 26` (Android 8), `targetSdk 36`, `compileSdk 37`. |
 
@@ -90,6 +90,7 @@ src/
     youtubeCatalog.ts         InnerTube browse: strony katalogu, wznawianie, checkpoint
     logStore.ts               magazyn logu sesji dla sekcji „Log”
   security/pin.ts             hashowanie i weryfikacja PIN
+  native/pinStorage.ts        most do szyfrowanego magazynu rekordu PIN
   native/shareIntent.ts       most do natywnego modułu ShareIntent / Linking
   native/backupFile.ts        most SAF: zapis/odczyt pliku kopii JSON
   native/youtubeLinkHandler.ts most do włączania/wyłączania aliasu VIEW
@@ -106,6 +107,7 @@ src/
   ui/ChannelAvatar.tsx        wspólny awatar kanału (zdjęcie lub inicjał)
   ui/player/PlayerControls.tsx  natywny pasek: play/pauza, seek, CC, audio
 android/app/src/main/
+  java/com/kidstube/PinStorageModule.kt  AES/GCM + Android Keystore dla rekordu PIN
   AndroidManifest.xml         SEND + osobny alias VIEW (domyślnie wyłączony)
   java/com/kidstube/           ShareIntentModule / YouTubeLinkHandlerModule / BackupFileModule / SystemUiModule / Package
 ```
@@ -118,7 +120,7 @@ obejrzenia dołączą do warstwy `domain/` + `data/` (ADR 0004).
 ## Testy
 
 ```bash
-npm test          # 310 testów: URL, RSS, reguły list, decyzje (last-wins), harmonogram + tryb snu + przeskoki, licznik czasu odtwarzania, stan obejrzenia + historia oglądania, nawigacja dziecka, gesty odtwarzacza, daty, PIN, sync (także przy starcie, pull-to-refresh i kanałach wyciszonych), linki + propozycje kanałów, handler VIEW, kopia bazy (walidacja formatu, rollback, przerwany import), filtry statusów ekranu kanału, polityki nowych filmów, grupowanie dat, kontynuacja oglądania, katalog kanału (paginacja, tempo, checkpoint, wznowienie), player, render App
+npm test          # 314 testów: URL, RSS, reguły list, decyzje (last-wins), harmonogram + tryb snu + przeskoki, licznik czasu odtwarzania, stan obejrzenia + historia oglądania, nawigacja dziecka, gesty odtwarzacza, daty, PIN, sync (także przy starcie, pull-to-refresh i kanałach wyciszonych), linki + propozycje kanałów, handler VIEW, kopia bazy (walidacja formatu, rollback, przerwany import), filtry statusów ekranu kanału, polityki nowych filmów, grupowanie dat, kontynuacja oglądania, katalog kanału (paginacja, tempo, checkpoint, wznowienie), player, render App
 npx tsc --noEmit  # typy
 npx eslint .      # lint
 ```
@@ -242,6 +244,5 @@ PIN i log sesji również nie są częścią kopii.
 - Sync RSS w tle / timer — odroczony z bramką oceny (ADR 0006).
 - Wyszukiwarka YouTube w panelu rodzica — prototyp z bramką oceny (ADR 0005).
 - Wiele profili dzieci.
-- Natywne crypto dla PIN (obecnie pure-JS).
 - *(Odrzucone świadomie: wiele okien harmonogramu / osobne dla weekendu —
   patrz ADR 0002; „godzina ciszy” nocna — patrz ADR 0002.)*

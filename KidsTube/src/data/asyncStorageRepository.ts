@@ -8,6 +8,7 @@ import type {
   Decision,
   ExtraTimePool,
   PinGuardState,
+  PinRecord,
   Settings,
   Video,
   VideoStatus,
@@ -17,6 +18,11 @@ import type {
 import { DEFAULT_SETTINGS } from '../domain/types';
 import { statusForOutcome } from '../domain/decisions';
 import type { Repository } from './repository';
+import {
+  clearPinRecordSecurely,
+  loadPinRecordSecurely,
+  savePinRecordSecurely,
+} from '../native/pinStorage';
 
 const KEYS = {
   settings: '@kidstube/settings/v1',
@@ -46,6 +52,24 @@ async function readJson<T>(key: string, fallback: T): Promise<T> {
   }
 }
 
+function legacyPinRecord(settings: Settings): PinRecord | undefined {
+  if (settings.pinHash && settings.pinSalt && settings.pinIterations) {
+    return {
+      hash: settings.pinHash,
+      salt: settings.pinSalt,
+      iterations: settings.pinIterations,
+    };
+  }
+  return undefined;
+}
+
+/** Remove the pre-ADR 0022 plaintext PIN fields from a settings object. */
+function stripLegacyPin(settings: Settings): void {
+  delete settings.pinHash;
+  delete settings.pinSalt;
+  delete settings.pinIterations;
+}
+
 export class AsyncStorageRepository implements Repository {
   private channels = new Map<string, Channel>();
   private channelProposals = new Map<string, ChannelProposal>();
@@ -56,6 +80,7 @@ export class AsyncStorageRepository implements Repository {
   private watchHistory: WatchHistoryEntry[] = [];
   private extraTime?: ExtraTimePool;
   private pinGuard: PinGuardState = { failedAttempts: 0 };
+  private pinRecord?: PinRecord;
   private settings: Settings = { ...DEFAULT_SETTINGS };
   private loaded = false;
 
@@ -87,6 +112,8 @@ export class AsyncStorageRepository implements Repository {
       readJson<PinGuardState>(KEYS.pinGuard, { failedAttempts: 0 }),
     ]);
     this.settings = { ...DEFAULT_SETTINGS, ...settings };
+    const legacyPin = legacyPinRecord(this.settings);
+    stripLegacyPin(this.settings);
     channels.forEach(c => this.channels.set(c.id, c));
     (channelProposals ?? []).forEach(p => this.channelProposals.set(p.id, p));
     videos.forEach(v => this.videos.set(v.id, v));
@@ -97,6 +124,24 @@ export class AsyncStorageRepository implements Repository {
     this.extraTime = extraTime ?? undefined;
     this.pinGuard = pinGuard ?? { failedAttempts: 0 };
     await this.finishInterruptedReplace();
+
+    // ADR 0022: move a legacy PIN record out of AsyncStorage into the
+    // Keystore-backed store. If secure storage is unavailable, keep the old
+    // fields in AsyncStorage so the parent is never locked out.
+    const securePin = await loadPinRecordSecurely();
+    if (securePin) {
+      this.pinRecord = securePin;
+      await this.persistSettings();
+    } else if (legacyPin) {
+      this.pinRecord = legacyPin;
+      const saved = await savePinRecordSecurely(legacyPin);
+      if (saved) {
+        await this.persistSettings();
+      } else {
+        this.writeLegacyPin(legacyPin);
+        await this.persistSettings();
+      }
+    }
     this.loaded = true;
   }
 
@@ -169,6 +214,7 @@ export class AsyncStorageRepository implements Repository {
 
   private apply(snapshot: DatabaseSnapshot): void {
     this.settings = { ...DEFAULT_SETTINGS, ...snapshot.settings };
+    stripLegacyPin(this.settings);
     this.channels = new Map(snapshot.channels.map(channel => [channel.id, channel]));
     this.channelProposals = new Map(
       snapshot.channelProposals.map(proposal => [proposal.id, proposal]),
@@ -373,6 +419,47 @@ export class AsyncStorageRepository implements Repository {
   async savePinGuard(state: PinGuardState): Promise<void> {
     this.pinGuard = { ...state };
     await AsyncStorage.setItem(KEYS.pinGuard, JSON.stringify(this.pinGuard));
+  }
+
+  async getPinRecord(): Promise<PinRecord | undefined> {
+    if (this.pinRecord) {
+      return { ...this.pinRecord };
+    }
+    const secure = await loadPinRecordSecurely();
+    if (secure) {
+      this.pinRecord = secure;
+      return { ...secure };
+    }
+    return legacyPinRecord(this.settings);
+  }
+
+  async savePinRecord(record: PinRecord): Promise<boolean> {
+    const saved = await savePinRecordSecurely(record);
+    this.pinRecord = { ...record };
+    if (saved) {
+      stripLegacyPin(this.settings);
+    } else {
+      // Last-resort fallback for environments without the native module: keep
+      // the old hash fields so the app still starts. On Android the module is
+      // always present, so this branch is not used on device.
+      this.writeLegacyPin(record);
+    }
+    await this.persistSettings();
+    return saved;
+  }
+
+  async clearPinRecord(): Promise<boolean> {
+    const cleared = await clearPinRecordSecurely();
+    this.pinRecord = undefined;
+    stripLegacyPin(this.settings);
+    await this.persistSettings();
+    return cleared;
+  }
+
+  private writeLegacyPin(record: PinRecord): void {
+    this.settings.pinHash = record.hash;
+    this.settings.pinSalt = record.salt;
+    this.settings.pinIterations = record.iterations;
   }
 
   async getWatchProgress(videoId: string): Promise<WatchProgress | undefined> {

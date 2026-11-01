@@ -210,10 +210,27 @@ export interface WatchHistoryEntry {
   videoSeconds: number;
 }
 
+/**
+ * PBKDF2 record of the parent PIN. The plaintext PIN is never stored; the
+ * record itself lives in Android Keystore-backed storage (ADR 0022), not in
+ * `Settings`/backups.
+ */
+export interface PinRecord {
+  hash: string;
+  salt: string;
+  iterations: number;
+}
+
 export interface Settings {
-  /** PBKDF2 hash of the parent PIN. Absent until the parent sets one. */
+  /**
+   * @deprecated Legacy location of the PIN record (pre-ADR 0022). Read once at
+   * startup, migrated to secure storage and cleared; never written for new
+   * PINs when the secure store is available.
+   */
   pinHash?: string;
+  /** @deprecated See `pinHash`. */
   pinSalt?: string;
+  /** @deprecated See `pinHash`. */
   pinIterations?: number;
   childName?: string;
   /** Set once the first-run wizard has completed. */

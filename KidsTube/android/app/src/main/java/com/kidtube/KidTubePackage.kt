@@ -12,6 +12,7 @@ class KidsTubePackage : ReactPackage {
       ShareIntentModule(reactContext),
       YouTubeLinkHandlerModule(reactContext),
       PinCryptoModule(reactContext),
+      PinStorageModule(reactContext),
       OrientationModule(reactContext),
       SystemUiModule(reactContext),
       BackupFileModule(reactContext),

@@ -153,14 +153,11 @@ describe('database import (ADR 0017)', () => {
     expect((await repo.getVideo('v-old'))).toBeUndefined();
   });
 
-  it('keeps the device PIN across an import', async () => {
+  it('keeps the device PIN record across an import', async () => {
     const repo = await seeded();
-    await repo.updateSettings({
-      pinHash: 'device-hash',
-      pinSalt: 'device-salt',
-      pinIterations: 210_000,
-      configured: true,
-    });
+    const pinRecord = { hash: 'device-hash', salt: 'device-salt', iterations: 210_000 };
+    await repo.savePinRecord(pinRecord);
+    await repo.updateSettings({ configured: true });
 
     const parsed = parseBackup(validFile());
     if (!parsed.ok) {
@@ -168,12 +165,10 @@ describe('database import (ADR 0017)', () => {
     }
 
     expect(await applyBackup(repo, parsed.file)).toEqual({ ok: true });
-    expect(await repo.getSettings()).toMatchObject({
-      pinHash: 'device-hash',
-      pinSalt: 'device-salt',
-      pinIterations: 210_000,
-      configured: true,
-    });
+    expect(await repo.getPinRecord()).toEqual(pinRecord);
+    expect((await repo.getSettings()).configured).toBe(true);
+    // The PIN record never leaks into the regular settings/backup snapshot.
+    expect((await repo.getSettings()).pinHash).toBeUndefined();
   });
 
   it('reports a failed write', async () => {

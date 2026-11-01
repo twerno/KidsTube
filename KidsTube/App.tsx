@@ -10,6 +10,7 @@ import type {
   DecisionOutcome,
   ExtraTimePool,
   PinGuardState,
+  PinRecord,
   Schedule,
   Settings,
   Video,
@@ -155,6 +156,7 @@ function AppContent() {
     emptyExtraTime(dateKey(new Date())),
   );
   const [pinGuard, setPinGuard] = useState<PinGuardState>(EMPTY_PIN_GUARD);
+  const [pinRecord, setPinRecord] = useState<PinRecord | undefined>();
   const [extraTimePrompt, setExtraTimePrompt] = useState<
     { video?: Video; resume: boolean } | undefined
   >();
@@ -217,19 +219,31 @@ function AppContent() {
 
   const reload = useCallback(async () => {
     const today = dateKey(new Date());
-    const [s, c, proposals, v, d, used, progress, history, storedExtra, storedGuard] =
-      await Promise.all([
-        repo.getSettings(),
-        repo.listChannels(),
-        repo.listChannelProposals(),
-        repo.listVideos(),
-        repo.listDecisions(),
-        repo.getUsage(today),
-        repo.listWatchProgress(),
-        repo.listWatchHistory(),
-        repo.getExtraTime(),
-        repo.getPinGuard(),
-      ]);
+    const [
+      s,
+      c,
+      proposals,
+      v,
+      d,
+      used,
+      progress,
+      history,
+      storedExtra,
+      storedGuard,
+      storedPin,
+    ] = await Promise.all([
+      repo.getSettings(),
+      repo.listChannels(),
+      repo.listChannelProposals(),
+      repo.listVideos(),
+      repo.listDecisions(),
+      repo.getUsage(today),
+      repo.listWatchProgress(),
+      repo.listWatchHistory(),
+      repo.getExtraTime(),
+      repo.getPinGuard(),
+      repo.getPinRecord(),
+    ]);
     const normalizedExtra = normalizeExtraTime(storedExtra, today);
     const normalizedGuard = normalizePinGuard(storedGuard, Date.now());
     usedSecondsRef.current = used;
@@ -245,6 +259,7 @@ function AppContent() {
     setWatchHistory(history);
     setExtraTime(normalizedExtra);
     setPinGuard(normalizedGuard);
+    setPinRecord(storedPin);
     console.log(
       '[KidsTube:usage] loaded used=' +
         used +
@@ -696,12 +711,9 @@ function AppContent() {
 
   const onSetupPin = async (pin: string) => {
     const record = await hashPin(pin);
-    const next = await repo.updateSettings({
-      pinHash: record.hash,
-      pinSalt: record.salt,
-      pinIterations: record.iterations,
-      configured: true,
-    });
+    await repo.savePinRecord(record);
+    const next = await repo.updateSettings({ configured: true });
+    setPinRecord(record);
     setSettings(next);
     setPinSetup(false);
     recordLog('info', 'pin', 'kod rodzica zmieniony');
@@ -716,7 +728,8 @@ function AppContent() {
   // points share the same counter and lockout.
   const verifyParentPin = useCallback(
     async (pin: string): Promise<boolean> => {
-      if (!settings.pinHash || !settings.pinSalt || !settings.pinIterations) {
+      const record = pinRecord ?? (await repo.getPinRecord());
+      if (!record) {
         return false;
       }
       const now = Date.now();
@@ -725,17 +738,13 @@ function AppContent() {
         setPinGuard(stored);
         return false;
       }
-      const ok = await verifyPin(pin, {
-        hash: settings.pinHash,
-        salt: settings.pinSalt,
-        iterations: settings.pinIterations,
-      });
+      const ok = await verifyPin(pin, record);
       const next = ok ? recordSuccess() : recordFailure(stored, now);
       await repo.savePinGuard(next);
       setPinGuard(next);
       return ok;
     },
-    [repo, settings.pinHash, settings.pinSalt, settings.pinIterations],
+    [repo, pinRecord],
   );
 
   const onUnlock = async (pin: string) => {
@@ -1200,7 +1209,7 @@ function AppContent() {
     );
   }
 
-  if (!settings.pinHash || pinSetup) {
+  if (!pinRecord || pinSetup) {
     return (
       <View style={[styles.root, safeAreaPadding]}>
         <StatusBar barStyle="light-content" />

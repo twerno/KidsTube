@@ -11,16 +11,13 @@ import { NativeModules } from 'react-native';
 import { pbkdf2Async } from '@noble/hashes/pbkdf2.js';
 import { sha256 } from '@noble/hashes/sha2.js';
 import { randomBytes, utf8ToBytes, bytesToHex, hexToBytes } from '@noble/hashes/utils.js';
+import type { PinRecord } from '../domain/types';
+
+export type { PinRecord } from '../domain/types';
 
 export const DEFAULT_ITERATIONS = 210_000;
 const KEY_LENGTH_BYTES = 32;
 const SALT_BYTES = 16;
-
-export interface PinRecord {
-  hash: string;
-  salt: string;
-  iterations: number;
-}
 
 interface PinCryptoNative {
   pbkdf2(

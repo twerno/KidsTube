@@ -48,6 +48,10 @@ _Avoid_: Odtworzenie linku, „Zagraj teraz”
 Opcjonalne, domyślnie wyłączone przyjęcie przez KidsTube systemowego otwarcia linku YouTube (ADR 0014). Przetwarza link tym samym potokiem co udostępnienie; wyłączenie opcji usuwa KidsTube z kandydatów systemu.
 _Avoid_: Domyślny handler jako stan domyślny, Blokowanie YouTube
 
+**Rekord PIN**:
+Hash PBKDF2, sól i liczba iteracji rodzica. Przechowywany poza `Settings` i kopią bazy, zaszyfrowany kluczem z Android Keystore; PIN jawny nigdy nie jest zapisywany.
+_Avoid_: PIN w AsyncStorage, PIN w kopii bazy
+
 **Decyzja**:
 Rozstrzygnięcie propozycji filmu (dopuść / odrzuć / cofnij); ręczne (rodzic) lub automatyczne (powtórka wcześniejszej decyzji przy ponownej propozycji). Rodzic może w każdej chwili zmienić dowolną decyzję historyczną; dla wszystkich kolejnych rozstrzygnięć — w tym autoakceptacji — liczy się decyzja najnowsza. Zapisywana w historii decyzji jako nieusuwalny wpis. Zatwierdzenie/odrzucenie propozycji kanału nie jest decyzją o filmie.
 _Avoid_: Werdykt, Zatwierdzenie jako jedyny rodzaj

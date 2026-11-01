@@ -79,6 +79,8 @@ blokuje świata dziecka ani odtwarzania audio.
   przyznania czasu liczą się do wspólnej blokady.
 - Hashowanie PIN-u (PBKDF2-SHA256, losowa sól) zostaje bez zmian; blokada jest
   warstwą na wierzchu weryfikacji, a nie nowym mechanizmem kryptograficznym.
+  Sam rekord PIN jest od ADR 0022 szyfrowany kluczem Android Keystore i trzymany
+  poza `Settings`.
 - Blokada opiera się na lokalnym zegarze. Zmiana czasu w systemie może ją
   skrócić lub wydłużyć, a wyczyszczenie danych aplikacji / reinstalacja ją
   zeruje. To akceptowalne w modelu rodzinnym; ochrona przed technicznym
