@@ -66,8 +66,8 @@ etykietę względną („2 days ago”, „Streamed 1 month ago”), więc parse
 ją na **przybliżony** `publishedAt` (miesiąc = 30 dni, rok = 365 dni). Zapytanie
 katalogu wymusza `hl: 'en'`, żeby etykiety były parsowalne. Brak etykiety
 oznacza `publishedAt` nieustawione — takie filmy trafiają do „Bez daty”, a nie
-do grupy „ostatnio dodane”. Data importu nigdy nie udaje daty publikacji
-(ADR 0020).
+do grupy „ostatnio dodane”. Data importu służy wtedy wyłącznie jako fallback
+sortowania wewnątrz „Bez daty”; nigdy nie udaje daty publikacji (ADR 0020).
 
 ## Rozważone opcje
 

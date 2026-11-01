@@ -121,14 +121,23 @@ export function mergeSyncedVideos(
 }
 
 /**
- * Sort/group key for video lists: the **publication date** only. The import
- * time (`addedAt`) is deliberately not a fallback: a film pulled from the
- * catalog last week is not “from this week” just because we downloaded it then.
- * Entries without a usable publication date get `0` and land in “Bez daty”
- * (ADR 0020).
+ * Publication date used by the date groups. `addedAt` is deliberately not a
+ * fallback here: a film pulled from the catalog last week is not “from this
+ * week” just because we downloaded it then. Unknown dates group as “Bez daty”.
+ */
+export function videoPublicationTime(video: Video): number {
+  return video.publishedAt && video.publishedAt > 0 ? video.publishedAt : 0;
+}
+
+/**
+ * Sort key for every video list: publication date, with the import time as a
+ * fallback only when the publication date is unknown. Sorting undated entries
+ * by when they entered the library keeps the list stable without pretending
+ * they belong to a date group (ADR 0020).
  */
 export function videoSortTime(video: Video): number {
-  return video.publishedAt && video.publishedAt > 0 ? video.publishedAt : 0;
+  const published = videoPublicationTime(video);
+  return published > 0 ? published : video.addedAt;
 }
 
 export function videosForChild(videos: Video[]): Video[] {

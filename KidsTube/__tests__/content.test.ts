@@ -160,9 +160,9 @@ describe('child view helpers', () => {
     const decisions = [
       { videoId: 'old', outcome: 'allow' as const, source: 'manual' as const, at: 1_000 },
     ];
-    expect(videosForChild(videos).map(v => v.id)).toEqual(['new', 'old', 'undated']);
+    expect(videosForChild(videos).map(v => v.id)).toEqual(['new', 'undated', 'old']);
     expect(videoSortTime(videos[0])).toBe(100);
-    expect(videoSortTime(videos[2])).toBe(0);
+    expect(videoSortTime(videos[2])).toBe(200);
     expect(decisions).toHaveLength(1);
   });
 

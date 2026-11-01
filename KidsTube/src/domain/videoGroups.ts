@@ -8,7 +8,7 @@
  */
 
 import type { Video } from './types';
-import { videoSortTime } from './content';
+import { videoPublicationTime, videoSortTime } from './content';
 
 export type VideoGroupKey = 'week' | 'month' | 'previousMonth' | 'older' | 'unknown';
 
@@ -77,7 +77,7 @@ export function groupVideosByDate(videos: Video[], now: Date = new Date()): Vide
   const buckets = new Map<VideoGroupKey, Video[]>();
 
   for (const video of videos) {
-    const timestamp = videoSortTime(video);
+    const timestamp = videoPublicationTime(video);
     const key: VideoGroupKey =
       Number.isFinite(timestamp) && timestamp > 0 ? groupKeyOf(timestamp, now) : 'unknown';
     const bucket = buckets.get(key) ?? [];

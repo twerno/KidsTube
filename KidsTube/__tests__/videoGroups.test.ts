@@ -73,6 +73,8 @@ describe('video date grouping (ADR 0020)', () => {
     );
     expect(groups.map(group => group.key)).toEqual(['week', 'unknown']);
     expect(groups[1].title).toBe('Bez daty');
-    expect(groups[1].videos.map(item => item.id)).toEqual(['empty', 'imported-now']);
+    // Sorting inside the unknown group may use import time; the group itself
+    // never pretends the film belongs to this week/month.
+    expect(groups[1].videos.map(item => item.id)).toEqual(['imported-now', 'empty']);
   });
 });

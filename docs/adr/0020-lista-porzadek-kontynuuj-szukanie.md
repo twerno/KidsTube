@@ -5,11 +5,13 @@
 ## Kolejność i grupowanie
 
 Listy filmów są sortowane **od najnowszego według daty publikacji**
-(`publishedAt`). Data importu (`addedAt`) **nie jest fallbackiem**: film
-dociągnięty z katalogu dziś nie jest „z tego tygodnia”, jeśli został
-opublikowany rok temu. Brak daty publikacji trafia do „Bez daty”. Moment
-decyzji rodzica nie wpływa już na kolejność: zatwierdzenie starego filmu nie
-wypycha go na górę feedu. Dotyczy to feedu dziecka, widoku kanału (dziecko i rodzic) oraz
+(`publishedAt`). Gdy data publikacji jest nieznana, do **sortowania** używana
+jest data importu (`addedAt`) — dzięki temu lista pozostaje stabilna, gdy
+katalog nie dostarczył daty. Data importu **nie tworzy jednak grupy daty**:
+film dociągnięty z katalogu dziś nie jest „z tego tygodnia”, jeśli nie znamy
+jego daty publikacji — trafia do „Bez daty”. Moment decyzji rodzica nie
+wpływa już na kolejność: zatwierdzenie starego filmu nie wypycha go na górę
+feedu. Dotyczy to feedu dziecka, widoku kanału (dziecko i rodzic) oraz
 biblioteki w panelu.
 
 Feed i widok kanału grupują filmy w pasma dat:
@@ -18,7 +20,7 @@ Feed i widok kanału grupują filmy w pasma dat:
 - **W tym miesiącu**,
 - **We &lt;poprzedni miesiąc&gt;** (np. „We wrześniu”; z rokiem, gdy inny),
 - **Starsze**,
-- **Bez daty** na końcu.
+- **Bez daty** na końcu (sortowane w środku tej grupy po dacie importu).
 
 Grupowanie jest wyłącznie prezentacją: nie zmienia danych ani decyzji.
 „Kontynuuj oglądanie” zachowuje własną kolejność (ostatnio oglądane) i nie
